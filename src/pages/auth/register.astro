@@ -1,0 +1,155 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import RegisterForm from '../../components/auth/RegisterForm.astro';
+
+// Título de la página
+const pageTitle = 'Registro - EcoRaices';
+---
+
+<Layout title={pageTitle}>
+  <div class="auth-container">
+    <div class="auth-wrapper">
+      <div class="auth-content">
+        <div class="auth-logo">
+          <a href="/">
+            <img src="/images/logo.svg" alt="EcoRaices" width="180" height="40">
+          </a>
+        </div>
+        
+        <RegisterForm />
+        
+        <div class="auth-footer">
+          <p>© {new Date().getFullYear()} EcoRaices. Todos los derechos reservados.</p>
+          <div class="auth-links">
+            <a href="/terminos">Términos de Servicio</a>
+            <span>•</span>
+            <a href="/privacidad">Política de Privacidad</a>
+          </div>
+        </div>
+      </div>
+      
+      <div class="auth-illustration">
+        <img 
+          src="/images/auth-illustration.svg" 
+          alt="Comunidad sostenible" 
+          width="480" 
+          height="480"
+          loading="lazy"
+        >
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .auth-container {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      background-color: var(--color-gray-50);
+      padding: 2rem 1rem;
+    }
+    
+    .auth-wrapper {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 1rem;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      min-height: 80vh;
+    }
+    
+    .auth-content {
+      padding: 3rem 2.5rem;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .auth-logo {
+      margin-bottom: 2.5rem;
+      text-align: center;
+    }
+    
+    .auth-illustration {
+      background: linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-primary) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+    
+    .auth-illustration img {
+      max-width: 100%;
+      height: auto;
+    }
+    
+    .auth-footer {
+      margin-top: auto;
+      text-align: center;
+      padding-top: 2rem;
+      color: var(--color-gray-500);
+      font-size: 0.875rem;
+    }
+    
+    .auth-links {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      margin-top: 0.5rem;
+    }
+    
+    .auth-links a {
+      color: var(--color-gray-600);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    
+    .auth-links a:hover {
+      color: var(--color-primary);
+    }
+    
+    .auth-links span {
+      color: var(--color-gray-300);
+    }
+    
+    @media (max-width: 1024px) {
+      .auth-wrapper {
+        grid-template-columns: 1fr;
+        max-width: 600px;
+      }
+      
+      .auth-illustration {
+        display: none;
+      }
+    }
+    
+    @media (max-width: 640px) {
+      .auth-content {
+        padding: 2rem 1.5rem;
+      }
+      
+      .auth-logo {
+        margin-bottom: 2rem;
+      }
+      
+      .auth-links {
+        flex-direction: column;
+        gap: 0.25rem;
+      }
+      
+      .auth-links span {
+        display: none;
+      }
+    }
+  </style>
+
+  <!-- Incluir Leaflet para los mapas -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+   integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/mZEZx6Qqs5F+/LpCw="
+   crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+   integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+   crossorigin=""></script>
+</Layout>

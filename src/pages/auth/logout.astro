@@ -1,0 +1,7 @@
+---
+// 🔐 Eliminar de forma segura la cookie de sesión en el servidor
+Astro.cookies.delete('ecoraices_token', { path: '/' });
+
+// Redirigir inmediatamente al login
+return Astro.redirect('/auth/login');
+---

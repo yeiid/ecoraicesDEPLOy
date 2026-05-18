@@ -1,0 +1,501 @@
+---
+import Layout from "../../layouts/Layout.astro"; // Correcto: 2 niveles hacia arriba
+
+export const prerender = false;
+
+// Obtener el id de la observación de los parámetros de la URL
+const { id } = Astro.params;
+
+// Obtener los datos de la observación desde la API
+let observation = null;
+let error = null;
+
+try {
+  // Fetch a la API para obtener los datos de la observación
+  const response = await fetch(`${Astro.url.origin}/api/observations/${id}`);
+
+  if (!response.ok) {
+    error = "Observación no encontrada";
+  } else {
+    observation = await response.json();
+  }
+} catch (e) {
+  console.error("Error al cargar la observación:", e);
+  error = "Error al cargar los datos de la observación";
+}
+
+// Título para SEO
+const title = observation
+  ? `${observation.species?.name || "Observación"} - EcoRaices`
+  : "Observación - EcoRaices";
+---
+
+<Layout title={title}>
+  <div class="observation-detail-page">
+    {
+      error ? (
+        <div class="error-container">
+          <h1>Error</h1>
+          <p>{error}</p>
+          <a href="/observaciones" class="btn btn-primary">
+            Ver todas las observaciones
+          </a>
+        </div>
+      ) : (
+        <div class="observation-container">
+          <div class="observation-header">
+            <div class="breadcrumbs">
+              <a href="/">Inicio</a> &gt;
+              <a href="/observaciones">Observaciones</a> &gt;
+              <span>{observation.species?.name || "Especie desconocida"}</span>
+            </div>
+
+            <h1>{observation.species?.name || "Especie desconocida"}</h1>
+            {observation.species?.scientificName && (
+              <p class="scientific-name">
+                {observation.species.scientificName}
+              </p>
+            )}
+
+            {observation.isVerified && (
+              <div class="verification-badge">
+                <span class="verified-icon">✓</span> Observación verificada
+              </div>
+            )}
+          </div>
+
+          <div class="observation-grid">
+            <div class="observation-image">
+              {observation.imageUrl ? (
+                <img
+                  src={observation.imageUrl}
+                  alt={observation.species?.name || "Observación"}
+                  class="main-image"
+                  onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=800&q=80';"
+                />
+              ) : (
+                <div class="no-image">
+                  <span>No hay imagen disponible</span>
+                </div>
+              )}
+            </div>
+
+            <div class="observation-info">
+              <div class="info-card">
+                <h2>Detalles de la observación</h2>
+
+                <div class="info-grid">
+                  <div class="info-item">
+                    <span class="label">Fecha de observación:</span>
+                    <span class="value">
+                      {observation.observationDate
+                        ? new Date(
+                            observation.observationDate
+                          ).toLocaleDateString("es-ES", {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                          })
+                        : "No disponible"}
+                    </span>
+                  </div>
+
+                  <div class="info-item">
+                    <span class="label">Observador:</span>
+                    <span class="value user-info">
+                      {observation.user?.avatarUrl && (
+                        <img
+                          src={observation.user.avatarUrl}
+                          alt="Avatar"
+                          class="user-avatar"
+                        />
+                      )}
+                      {observation.user?.username || "Anónimo"}
+                    </span>
+                  </div>
+
+                  <div class="info-item">
+                    <span class="label">Categoría:</span>
+                    <span class="value">
+                      <a
+                        href={`/observaciones?categoria=${observation.category?.id}`}
+                      >
+                        {observation.category?.name || "No categorizada"}
+                      </a>
+                    </span>
+                  </div>
+
+                  <div class="info-item">
+                    <span class="label">Coordenadas:</span>
+                    <span class="value">
+                      {observation.latitude && observation.longitude
+                        ? `${observation.latitude.toFixed(6)}, ${observation.longitude.toFixed(6)}`
+                        : "No disponible"}
+                    </span>
+                  </div>
+
+                  {observation.altitude && (
+                    <div class="info-item">
+                      <span class="label">Altitud:</span>
+                      <span class="value">{observation.altitude} metros</span>
+                    </div>
+                  )}
+
+                  {observation.createdAt && (
+                    <div class="info-item">
+                      <span class="label">Agregada:</span>
+                      <span class="value">
+                        {new Date(observation.createdAt).toLocaleDateString(
+                          "es-ES",
+                          {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                          }
+                        )}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {observation.notes && (
+                  <div class="notes-section">
+                    <h3>Notas del observador</h3>
+                    <p>{observation.notes}</p>
+                  </div>
+                )}
+              </div>
+
+              {observation.species && (
+                <div class="info-card species-info">
+                  <h2>Acerca de la especie</h2>
+                  {observation.species.description ? (
+                    <p>{observation.species.description}</p>
+                  ) : (
+                    <p>
+                      No hay información detallada disponible para esta especie.
+                    </p>
+                  )}
+                  <a
+                    href={`/especies/${observation.species.id}`}
+                    class="btn btn-outline"
+                  >
+                    Ver ficha completa de la especie
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div class="map-container">
+            <h2>Ubicación</h2>
+            <div class="map-wrapper" id="observation-map" />
+          </div>
+
+          <div class="actions-container">
+            <a href="/observaciones" class="btn btn-outline">
+              Ver todas las observaciones
+            </a>
+            <a href="/observaciones/nueva" class="btn btn-primary">
+              Registrar nueva observación
+            </a>
+          </div>
+        </div>
+      )
+    }
+  </div>
+</Layout>
+
+<script define:vars={{ observation }}>
+  // Cargar el mapa de Leaflet solo si hay coordenadas disponibles
+  if (observation && observation.latitude && observation.longitude) {
+    // Importar Leaflet de forma asíncrona
+    import("leaflet").then((L) => {
+      // Corregir el problema de íconos en Leaflet
+      delete L.Icon.Default.prototype._getIconUrl;
+
+      L.Icon.Default.mergeOptions({
+        iconRetinaUrl:
+          "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png",
+        iconUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png",
+        shadowUrl:
+          "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png",
+      });
+
+      // Crear el mapa
+      const map = L.map("observation-map").setView(
+        [observation.latitude, observation.longitude],
+        13
+      );
+
+      // Añadir capa de mapa base
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      }).addTo(map);
+
+      // Añadir marcador
+      const marker = L.marker([
+        observation.latitude,
+        observation.longitude,
+      ]).addTo(map);
+
+      // Añadir popup con información
+      if (observation.species?.name) {
+        marker
+          .bindPopup(
+            `
+        <b>${observation.species.name}</b><br>
+        ${observation.species.scientificName ? `<i>${observation.species.scientificName}</i><br>` : ""}
+        Observada: ${new Date(observation.observationDate).toLocaleDateString()}
+      `
+          )
+          .openPopup();
+      }
+    });
+  }
+</script>
+
+<style>
+  .observation-detail-page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1rem;
+  }
+
+  .error-container {
+    text-align: center;
+    padding: 3rem 1rem;
+  }
+
+  .error-container h1 {
+    color: #d32f2f;
+    margin-bottom: 1rem;
+  }
+
+  .observation-header {
+    margin-bottom: 2rem;
+  }
+
+  .breadcrumbs {
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+  }
+
+  .breadcrumbs a {
+    color: var(--color-primary);
+    text-decoration: none;
+  }
+
+  .breadcrumbs a:hover {
+    text-decoration: underline;
+  }
+
+  h1 {
+    font-size: 2.5rem;
+    color: var(--color-primary);
+    margin-bottom: 0.5rem;
+  }
+
+  .scientific-name {
+    font-style: italic;
+    font-size: 1.2rem;
+    color: #666;
+    margin-top: 0;
+    margin-bottom: 1rem;
+  }
+
+  .verification-badge {
+    display: inline-flex;
+    align-items: center;
+    background-color: #e8f5e9;
+    color: #2e7d32;
+    padding: 0.5rem 0.8rem;
+    border-radius: 4px;
+    font-weight: 500;
+    margin-bottom: 1rem;
+  }
+
+  .verified-icon {
+    margin-right: 0.5rem;
+    font-weight: bold;
+  }
+
+  .observation-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin-bottom: 2rem;
+  }
+
+  .observation-image {
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .main-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .no-image {
+    background-color: #f0f0f0;
+    height: 400px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+    font-size: 1.1rem;
+  }
+
+  .observation-info {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .info-card {
+    background-color: white;
+    border-radius: 8px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .info-card h2 {
+    font-size: 1.3rem;
+    color: var(--color-primary);
+    margin-top: 0;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #eee;
+  }
+
+  .info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  .info-item {
+    margin-bottom: 0.8rem;
+  }
+
+  .label {
+    display: block;
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: #666;
+    margin-bottom: 0.3rem;
+  }
+
+  .value {
+    font-size: 1rem;
+  }
+
+  .user-info {
+    display: flex;
+    align-items: center;
+  }
+
+  .user-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    margin-right: 0.5rem;
+  }
+
+  .notes-section {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #eee;
+  }
+
+  .notes-section h3 {
+    font-size: 1.1rem;
+    color: var(--color-primary);
+    margin-top: 0;
+    margin-bottom: 0.8rem;
+  }
+
+  .species-info p {
+    margin-bottom: 1.5rem;
+    line-height: 1.6;
+  }
+
+  .map-container {
+    margin-bottom: 2rem;
+  }
+
+  .map-container h2 {
+    font-size: 1.3rem;
+    color: var(--color-primary);
+    margin-bottom: 1rem;
+  }
+
+  .map-wrapper {
+    height: 400px;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .actions-container {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 3rem;
+  }
+
+  /* Botones */
+  .btn {
+    display: inline-block;
+    padding: 0.8rem 1.6rem;
+    border-radius: 4px;
+    font-weight: 500;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: none;
+    text-decoration: none;
+  }
+
+  .btn-primary {
+    background-color: var(--color-primary);
+    color: white;
+  }
+
+  .btn-primary:hover {
+    background-color: #1b5e20;
+  }
+
+  .btn-outline {
+    border: 1px solid var(--color-primary);
+    color: var(--color-primary);
+    background-color: transparent;
+  }
+
+  .btn-outline:hover {
+    background-color: #f0f7f0;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .observation-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .info-grid {
+      grid-template-columns: 1fr;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+    }
+
+    .actions-container {
+      flex-direction: column;
+    }
+  }
+</style>

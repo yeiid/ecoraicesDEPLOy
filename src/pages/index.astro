@@ -1,11 +1,490 @@
 ---
-import Welcome from '../components/Welcome.astro';
-import Layout from '../layouts/Layout.astro';
+import Layout from "../layouts/Layout.astro";
+import { prisma } from "../lib/prisma.js";
 
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+let totalObservations = 0;
+let totalSpecies = 0;
+let totalCommunities = 0;
+
+try {
+  totalObservations = await prisma.observation.count();
+  totalSpecies = await prisma.species.count();
+  totalCommunities = await prisma.community.count();
+} catch (error) {
+  console.error("Error al obtener estadísticas de Prisma:", error);
+}
+
+const pageTitle = "Inicio - EcoRaíces";
 ---
 
-<Layout>
-	<Welcome />
+<Layout title={pageTitle}>
+  <div class="home-container">
+    <!-- Hero Section -->
+    <header class="hero-card">
+      <div class="hero-content">
+        <div class="logo-wrapper">
+          <img src="/images/logo.png" alt="EcoRaíces Logo" class="floating-logo" />
+          <div class="glowing-halo"></div>
+        </div>
+        
+        <h1 class="hero-title">¡Bienvenidos a <span class="accent-text">EcoRaíces</span>!</h1>
+        <div class="divider-line"></div>
+        
+        <p class="hero-description">
+          Descubre y protege la biodiversidad urbana de los municipios guajiros. 
+          Nuestra plataforma te permite <strong>geolocalizar y documentar</strong> en tiempo real las especies 
+          arbóreas que embellecen nuestras plazas, calles y veredas.
+        </p>
+
+        <div class="hero-badge-container">
+          <span class="hero-badge">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="badge-icon">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+            </svg>
+            Geolocalización
+          </span>
+          <span class="hero-badge">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="badge-icon">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582" />
+            </svg>
+            Catalogación
+          </span>
+          <span class="hero-badge">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="badge-icon">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719" />
+            </svg>
+            Comunidad
+          </span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Stats Dashboard Section -->
+    <section class="stats-section">
+      <div class="stat-card">
+        <div class="stat-icon-wrapper obs">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="stat-icon">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 21c-4.97 0-9-4.03-9-9s4.03-9 9-9 9 4.03 9 9-4.03 9-9 9Zm0-3.75a5.25 5.25 0 1 0 0-10.5 5.25 5.25 0 0 0 0 10.5Z" />
+          </svg>
+        </div>
+        <div class="stat-info">
+          <span class="stat-number">{totalObservations}</span>
+          <span class="stat-label">Árboles Mapeados</span>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon-wrapper spc">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="stat-icon">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18m9-9H3m14.25 6.75-4.5-4.5m0 0-4.5 4.5m4.5-4.5V9.75" />
+          </svg>
+        </div>
+        <div class="stat-info">
+          <span class="stat-number">{totalSpecies}</span>
+          <span class="stat-label">Especies Catalogadas</span>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon-wrapper com">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="stat-icon">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
+          </svg>
+        </div>
+        <div class="stat-info">
+          <span class="stat-number">{totalCommunities}</span>
+          <span class="stat-label">Comunidades Colaborando</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Quick Actions Cards -->
+    <section class="actions-grid">
+      <a href="/observaciones/nueva" class="action-card primary-action">
+        <div class="action-badge">GPS Móvil</div>
+        <h2 class="action-title">Registrar Nuevo Árbol</h2>
+        <p class="action-desc">
+          Usa tu teléfono como un GPS forestal. Captura la ubicación en tiempo real, sube fotos 
+          de hojas o corteza y ayuda a inventariar el ecosistema local.
+        </p>
+        <div class="action-footer">
+          <span>Iniciar Registro de Campo</span>
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="arrow-icon">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+          </svg>
+        </div>
+      </a>
+
+      <a href="/observaciones" class="action-card secondary-action">
+        <div class="action-badge border-badge">Mapa Interactivo</div>
+        <h2 class="action-title">Mapa de Especies Nativas</h2>
+        <p class="action-desc">
+          Visualiza los árboles registrados en toda La Guajira. Filtra por categoría y zoom inteligente 
+          a través de nuestro servidor de teselas vectoriales de alto rendimiento.
+        </p>
+        <div class="action-footer">
+          <span>Explorar el Mapa</span>
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="arrow-icon">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+          </svg>
+        </div>
+      </a>
+
+      <a href="/plantas" class="action-card catalog-action">
+        <div class="action-badge border-badge">Herbario</div>
+        <h2 class="action-title">Catálogo Científico</h2>
+        <p class="action-desc">
+          Consulta la base de datos de especies nativas de la región. Aprende sobre hábitats, 
+          estado de conservación y características botánicas de nuestros árboles.
+        </p>
+        <div class="action-footer">
+          <span>Ver Catálogo</span>
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="arrow-icon">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+          </svg>
+        </div>
+      </a>
+    </section>
+  </div>
 </Layout>
+
+<style>
+  .home-container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem;
+    animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(15px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Hero Card */
+  .hero-card {
+    background: white;
+    border-radius: 1rem;
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.04);
+    padding: 3rem 2rem;
+    text-align: center;
+    border: 1px solid #eef2f0;
+    margin-bottom: 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+  }
+
+  .hero-content {
+    max-width: 750px;
+    margin: 0 auto;
+  }
+
+  .logo-wrapper {
+    position: relative;
+    width: 140px;
+    height: 140px;
+    margin: 0 auto 1.5rem;
+  }
+
+  .floating-logo {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 50%;
+    position: relative;
+    z-index: 2;
+    animation: float 4s ease-in-out infinite;
+  }
+
+  .glowing-halo {
+    position: absolute;
+    top: -5px;
+    left: -5px;
+    right: -5px;
+    bottom: -5px;
+    border-radius: 50%;
+    background: rgba(16, 185, 129, 0.08);
+    filter: blur(8px);
+    z-index: 1;
+    animation: pulse 3s infinite ease-in-out;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 0.5; }
+    50% { transform: scale(1.08); opacity: 0.9; }
+  }
+
+  .hero-title {
+    font-family: 'Outfit', sans-serif;
+    font-size: 2.75rem;
+    font-weight: 800;
+    color: #064e3b;
+    margin-bottom: 1rem;
+    letter-spacing: -0.025em;
+  }
+
+  .accent-text {
+    color: #10b981;
+  }
+
+  .divider-line {
+    width: 60px;
+    height: 3px;
+    background-color: #10b981;
+    margin: 1.25rem auto;
+    border-radius: 99px;
+  }
+
+  .hero-description {
+    font-size: 1.125rem;
+    line-height: 1.7;
+    color: #4b5563;
+    margin-bottom: 2rem;
+  }
+
+  .hero-badge-container {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background-color: #f0fdf4;
+    color: #166534;
+    border: 1px solid #dcfce7;
+    padding: 0.5rem 1rem;
+    border-radius: 99px;
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+
+  .badge-icon {
+    width: 16px;
+    height: 16px;
+  }
+
+  /* Stats Section */
+  .stats-section {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .stat-card {
+    background: white;
+    border-radius: 0.75rem;
+    border: 1px solid #eef2f0;
+    padding: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    box-shadow: 0 2px 12px -2px rgba(0, 0, 0, 0.02);
+  }
+
+  .stat-icon-wrapper {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .stat-icon-wrapper.obs { background-color: #ecfdf5; color: #059669; }
+  .stat-icon-wrapper.spc { background-color: #f0fdf4; color: #15803d; }
+  .stat-icon-wrapper.com { background-color: #f0fdfa; color: #0d9488; }
+
+  .stat-icon {
+    width: 24px;
+    height: 24px;
+  }
+
+  .stat-info {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .stat-number {
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: #1f2937;
+    line-height: 1.2;
+    font-family: 'Outfit', sans-serif;
+  }
+
+  .stat-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #6b7280;
+  }
+
+  /* Actions Grid */
+  .actions-grid {
+    display: grid;
+    grid-template-columns: 2fr 1.5fr 1.5fr;
+    gap: 1.5rem;
+  }
+
+  .action-card {
+    background: white;
+    border-radius: 1rem;
+    border: 1px solid #eef2f0;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    text-decoration: none;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 4px 15px -3px rgba(0, 0, 0, 0.03);
+    position: relative;
+  }
+
+  .action-badge {
+    align-self: flex-start;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.25rem 0.625rem;
+    border-radius: 0.25rem;
+    margin-bottom: 1rem;
+  }
+
+  .primary-action {
+    background: linear-gradient(135deg, #065f46 0%, #047857 100%);
+    color: white;
+    border: none;
+  }
+
+  .primary-action .action-badge {
+    background-color: rgba(255, 255, 255, 0.15);
+    color: #a7f3d0;
+  }
+
+  .primary-action .action-title {
+    color: white;
+  }
+
+  .primary-action .action-desc {
+    color: #d1fae5;
+  }
+
+  .primary-action .action-footer {
+    color: #a7f3d0;
+  }
+
+  .action-card:not(.primary-action) .action-badge {
+    background-color: #f3f4f6;
+    color: #4b5563;
+  }
+
+  .action-card:not(.primary-action) .action-badge.border-badge {
+    border: 1px solid #e5e7eb;
+    background-color: transparent;
+  }
+
+  .action-title {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 0.75rem;
+    line-height: 1.25;
+  }
+
+  .action-desc {
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    color: #4b5563;
+    margin-bottom: 2rem;
+    flex-grow: 1;
+  }
+
+  .action-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 600;
+    font-size: 0.9375rem;
+    color: #059669;
+    border-top: 1px solid #f3f4f6;
+    padding-top: 1rem;
+    transition: color 0.2s;
+  }
+
+  .primary-action .action-footer {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .arrow-icon {
+    width: 18px;
+    height: 18px;
+    transition: transform 0.2s;
+  }
+
+  /* Hover states */
+  .action-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08);
+  }
+
+  .primary-action:hover {
+    box-shadow: 0 10px 25px -5px rgba(6, 95, 70, 0.25);
+  }
+
+  .action-card:hover .arrow-icon {
+    transform: translateX(4px);
+  }
+
+  /* Responsive styling */
+  @media (max-width: 1024px) {
+    .actions-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (max-width: 768px) {
+    .hero-title {
+      font-size: 2.25rem;
+    }
+    
+    .stats-section {
+      grid-template-columns: 1fr;
+      gap: 1rem;
+    }
+    
+    .actions-grid {
+      grid-template-columns: 1fr;
+    }
+    
+    .hero-card {
+      padding: 2rem 1rem;
+    }
+  }
+</style>

@@ -1,22 +1,607 @@
+---
+import jwt from 'jsonwebtoken';
+const { verify } = jwt;
+import { getUserById } from '../lib/services/auth.service.js';
+
+interface Props {
+  title?: string;
+}
+
+const { title = "EcoRaices - Inventario Forestal Colaborativo" } = Astro.props;
+
+// Obtener la ruta actual para marcar el elemento activo en el menú
+const pathname = Astro.url.pathname;
+const isActive = (path: string) => {
+  if (path === "/") {
+    return pathname === "/" || pathname === "/index.html";
+  }
+  return pathname.startsWith(path);
+};
+
+// 🔐 Verificar estado de sesión y token
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const token = Astro.cookies.get('ecoraices_token')?.value;
+let user = null;
+
+if (token) {
+  try {
+    const decoded = verify(token, JWT_SECRET);
+    if (decoded && decoded.userId) {
+      user = await getUserById(decoded.userId);
+    }
+  } catch (error) {
+    console.error("Token verification failed in Layout:", error.message);
+  }
+}
+---
+
 <!doctype html>
-<html lang="en">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro Basics</title>
-	</head>
-	<body>
-		<slot />
-	</body>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="generator" content={Astro.generator} />
+    <title>{title}</title>
+    <!-- Google Fonts for professional typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="app-layout">
+      <!-- Header Móvil Premium -->
+      <header class="mobile-header">
+        <button class="mobile-toggle" id="sidebar-toggle" aria-label="Toggle Sidebar">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+          </svg>
+        </button>
+        <div class="mobile-brand">
+          <img src="/images/logo.png" alt="EcoRaíces Logo" class="mobile-brand-logo" />
+          <span class="mobile-brand-name">ECORAÍCES</span>
+        </div>
+        <div class="mobile-header-spacer"></div>
+      </header>
+
+      <!-- Overlay para móvil -->
+      <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+      <!-- Sidebar Izquierdo -->
+      <aside class="sidebar" id="sidebar">
+        <!-- Logo de EcoRaices -->
+        <div class="logo-container">
+          <a href="/">
+            <img src="/images/logo.png" alt="ECORAICES" class="logo-img" />
+          </a>
+        </div>
+
+        <!-- Menú de Navegación Stacked -->
+        <nav class="sidebar-nav">
+          <ul>
+            <li>
+              <a href="/" class={`nav-item ${isActive("/") ? "active" : ""}`}>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="nav-icon">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+                </svg>
+                <span>Inicio</span>
+              </a>
+            </li>
+            <li>
+              <a href="/observaciones" class={`nav-item ${isActive("/observaciones") ? "active" : ""}`}>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="nav-icon">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498l4.89-1.63c.27-.09.47-.323.51-.605l1.6-11.2c.05-.333-.14-.658-.46-.75L15.5 1.75c-.3-.1-.63.03-.76.32L9 15.5m-.503 3.498l-4.89-1.63c-.27-.09-.47-.323-.51-.605l-1.6-11.2c-.05-.333.14-.658.46-.75L7.5 1.75c.3-.1.63.03.76.32L15 15.5M9 6.75L15 9.75" />
+                </svg>
+                <span>Mapa de Especies</span>
+              </a>
+            </li>
+            <li>
+              <a href="/plantas" class={`nav-item ${isActive("/plantas") ? "active" : ""}`}>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="nav-icon">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75" />
+                </svg>
+                <span>Catálogo</span>
+              </a>
+            </li>
+            <li>
+              <a href="/comunidades" class={`nav-item ${isActive("/comunidades") ? "active" : ""}`}>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="nav-icon">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.109A11.386 11.386 0 0110.089 18a11.374 11.374 0 01-5.176-1.127 4.125 4.125 0 00-7.533 2.493 9.337 9.337 0 004.121.952 9.38 9.38 0 002.625-.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M4.5 19.128v-.003c0-1.113.285-2.16.786-3.07M15 7.5a3 3 0 11-6 0 3 3 0 016 0zm6 2.25a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
+                </svg>
+                <span>Comunidades</span>
+              </a>
+            </li>
+            <li>
+              <a href="/nosotros" class={`nav-item ${isActive("/nosotros") ? "active" : ""}`}>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="nav-icon">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 111.083.984l-.04.02v3.75a.75.75 0 01-1.5 0v-4.73zm1.125-3a1.125 1.125 0 100-2.25 1.125 1.125 0 000 2.25zM21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>Acerca de</span>
+              </a>
+            </li>
+            <li>
+              <a href="/contacto" class={`nav-item ${isActive("/contacto") ? "active" : ""}`}>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="nav-icon">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+                </svg>
+                <span>Ayuda</span>
+              </a>
+            </li>
+          </ul>
+        </nav>
+
+        <!-- Botón Iniciar Sesión o Widget de Usuario -->
+        <div class="sidebar-footer">
+          {user ? (
+            <div class="user-profile-widget">
+              <div class="user-info-row">
+                <div class="avatar-circle">
+                  {user.avatarUrl ? (
+                    <img src={user.avatarUrl} alt={user.name} class="avatar-img" />
+                  ) : (
+                    <span class="avatar-initial">{user.name ? user.name[0].toUpperCase() : 'U'}</span>
+                  )}
+                </div>
+                <div class="user-details">
+                  <span class="user-name">{user.name}</span>
+                  <span class="user-role">{user.role === 'ADMIN' ? 'Administrador' : 'Guardabosques'}</span>
+                </div>
+              </div>
+              <a href="/auth/logout" class="btn-logout" title="Cerrar Sesión">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="logout-icon">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" />
+                </svg>
+                <span>Cerrar Sesión</span>
+              </a>
+            </div>
+          ) : (
+            <a href="/auth/login" class="btn-login">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="btn-icon">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+              </svg>
+              <span>Iniciar Sesión</span>
+            </a>
+          )}
+        </div>
+      </aside>
+
+      <!-- Panel de Contenido Principal -->
+      <main class="main-container">
+        <slot />
+      </main>
+    </div>
+
+    <!-- Script para Toggle de Menú Móvil -->
+    <script>
+      const sidebarToggle = document.getElementById("sidebar-toggle");
+      const sidebar = document.getElementById("sidebar");
+      const overlay = document.getElementById("sidebar-overlay");
+
+      if (sidebarToggle && sidebar && overlay) {
+        const toggleSidebar = () => {
+          sidebar.classList.toggle("open");
+          overlay.classList.toggle("active");
+          document.body.classList.toggle("no-scroll");
+        };
+
+        sidebarToggle.addEventListener("click", toggleSidebar);
+        overlay.addEventListener("click", toggleSidebar);
+
+        // Cerrar si se hace click en algún link del menú (móvil)
+        const navLinks = sidebar.querySelectorAll(".nav-item");
+        navLinks.forEach((link) => {
+          link.addEventListener("click", () => {
+            if (sidebar.classList.contains("open")) {
+              toggleSidebar();
+            }
+          });
+        });
+      }
+    </script>
+  </body>
 </html>
 
-<style>
-	html,
-	body {
-		margin: 0;
-		width: 100%;
-		height: 100%;
-	}
+<style is:global>
+  /* Variables globales y tokens de diseño */
+  :root {
+    --color-primary: #1b5e20;
+    --color-primary-light: #2e7d32;
+    --color-accent: #e8f5e9;
+    --color-accent-dark: #c8e6c9;
+    --color-danger: #d32f2f;
+    --color-danger-hover: #b71c1c;
+    --color-text-main: #1e293b;
+    --color-text-muted: #64748b;
+    --color-sidebar-bg: #ffffff;
+    --color-main-bg: #f8fafc;
+    --color-border: #f1f5f9;
+    
+    --font-heading: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+    --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+    
+    --sidebar-width: 270px;
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --shadow-premium: 0 4px 20px -2px rgba(15, 23, 42, 0.04), 0 2px 8px -1px rgba(15, 23, 42, 0.02);
+    --shadow-hover: 0 20px 25px -5px rgba(15, 23, 42, 0.06), 0 10px 10px -5px rgba(15, 23, 42, 0.02);
+  }
+
+  /* Reset y base */
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    font-family: var(--font-body);
+    color: var(--color-text-main);
+    background-color: var(--color-main-bg);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body.no-scroll {
+    overflow: hidden;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  /* Estructura del layout */
+  .app-layout {
+    display: flex;
+    min-height: 100vh;
+    width: 100vw;
+  }
+
+  /* Header Móvil Base */
+  .mobile-header {
+    display: none;
+  }
+
+  /* Toggle Móvil */
+  .mobile-toggle {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+  }
+
+  .mobile-toggle svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  /* Sidebar Estilos */
+  .sidebar {
+    width: var(--sidebar-width);
+    height: 100vh;
+    background-color: var(--color-sidebar-bg);
+    border-right: 1px solid var(--color-border);
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 90;
+    display: flex;
+    flex-direction: column;
+    padding: 2rem 1.5rem;
+    transition: var(--transition-smooth);
+  }
+
+  .logo-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 2.5rem;
+    padding-bottom: 1rem;
+  }
+
+  .logo-img {
+    width: 150px;
+    height: auto;
+    max-height: 150px;
+    border-radius: 50%;
+    transition: var(--transition-smooth);
+  }
+
+  .logo-img:hover {
+    transform: scale(1.03);
+  }
+
+  .sidebar-nav {
+    flex: 1;
+  }
+
+  .sidebar-nav ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.85rem 1.25rem;
+    color: var(--color-text-muted);
+    border-radius: 12px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    transition: var(--transition-smooth);
+  }
+
+  .nav-icon {
+    width: 20px;
+    height: 20px;
+    color: var(--color-text-muted);
+    transition: var(--transition-smooth);
+  }
+
+  .nav-item:hover {
+    background-color: var(--color-accent);
+    color: var(--color-primary);
+  }
+
+  .nav-item:hover .nav-icon {
+    color: var(--color-primary);
+  }
+
+  .nav-item.active {
+    background-color: var(--color-accent);
+    color: var(--color-primary);
+    font-weight: 600;
+  }
+
+  .nav-item.active .nav-icon {
+    color: var(--color-primary);
+  }
+
+  .sidebar-footer {
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .btn-login {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.9rem;
+    background-color: #10b981; /* Color exacto del botón verde */
+    color: white;
+    border-radius: 25px; /* Súper redondeado tipo pastilla */
+    font-weight: 600;
+    font-size: 0.95rem;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(16, 185, 129, 0.2);
+    transition: var(--transition-smooth);
+  }
+
+  .btn-login:hover {
+    background-color: #059669;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 14px rgba(16, 185, 129, 0.3);
+  }
+
+  .btn-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  /* Estilos del widget de perfil de usuario premium */
+  .user-profile-widget {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    padding: 0.25rem 0;
+  }
+
+  .user-info-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .avatar-circle {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background-color: var(--color-accent);
+    border: 2px solid var(--color-primary-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(27, 94, 32, 0.1);
+  }
+
+  .avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .avatar-initial {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--color-primary);
+    font-family: var(--font-heading);
+  }
+
+  .user-details {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .user-name {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--color-text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .user-role {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--color-text-muted);
+  }
+
+  .btn-logout {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.65rem;
+    background-color: #fee2e2;
+    color: #ef4444;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: var(--transition-smooth);
+    border: 1px solid #fecaca;
+    cursor: pointer;
+  }
+
+  .btn-logout:hover {
+    background-color: #fca5a5;
+    color: #b91c1c;
+    border-color: #f87171;
+  }
+
+  .logout-icon {
+    width: 16px;
+    height: 16px;
+  }
+
+  /* Overlay de Sidebar para móvil */
+  .sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(15, 23, 42, 0.4);
+    backdrop-filter: blur(4px);
+    z-index: 85;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+  }
+
+  .sidebar-overlay.active {
+    display: block;
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Main Container */
+  .main-container {
+    flex-grow: 1;
+    margin-left: var(--sidebar-width);
+    padding: 2.5rem 3rem;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    transition: var(--transition-smooth);
+    background-color: var(--color-main-bg);
+  }
+
+  /* Responsivo para móviles y tabletas */
+  @media (max-width: 1024px) {
+    .mobile-header {
+      display: flex;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 64px;
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--color-border);
+      z-index: 100;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 1.25rem;
+      box-shadow: 0 2px 10px rgba(15, 23, 42, 0.02);
+    }
+
+    .mobile-toggle {
+      display: flex;
+      position: relative;
+      background-color: var(--color-accent);
+      color: var(--color-primary);
+      border: none;
+      border-radius: 10px;
+      width: 42px;
+      height: 42px;
+      box-shadow: none;
+      z-index: 101;
+    }
+
+    .mobile-toggle:hover {
+      background-color: var(--color-accent-dark);
+    }
+
+    .mobile-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      margin: 0 auto;
+    }
+
+    .mobile-brand-logo {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    .mobile-brand-name {
+      font-family: var(--font-heading);
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: var(--color-primary);
+      letter-spacing: 0.03em;
+    }
+
+    .mobile-header-spacer {
+      width: 42px; /* Equilibrate space of the toggle button */
+    }
+
+    .sidebar {
+      transform: translateX(-100%);
+      box-shadow: none;
+    }
+
+    .sidebar.open {
+      transform: translateX(0);
+      box-shadow: 10px 0 30px rgba(15, 23, 42, 0.15);
+    }
+
+    .main-container {
+      margin-left: 0;
+      padding: 5.5rem 1.5rem 2rem 1.5rem;
+    }
+  }
+
+  /* Animaciones micro-interacciones */
+  button, a {
+    outline: none;
+  }
 </style>

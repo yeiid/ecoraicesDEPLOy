@@ -1,0 +1,420 @@
+---
+import Layout from "../layouts/Layout.astro";
+
+const pageTitle = "Acerca de - EcoRaíces";
+---
+
+<Layout title={pageTitle}>
+  <div class="about-container">
+    
+    <!-- Hero Header -->
+    <header class="about-header animate-fade">
+      <span class="sub-badge">Nuestra Organización</span>
+      <h1 class="about-title">Conoce <span class="accent">EcoRaíces</span></h1>
+      <p class="about-tagline">
+        Uniendo tecnología geoespacial y ciencia comunitaria para proteger el bosque seco tropical guajiro.
+      </p>
+      <div class="pulse-line"></div>
+    </header>
+
+    <!-- Mission & Vision Cards -->
+    <section class="mission-section">
+      <div class="info-card glass">
+        <div class="card-icon-wrapper mission-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="card-icon">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582" />
+          </svg>
+        </div>
+        <h2>Nuestra Misión</h2>
+        <p>
+          Geolocalizar, catalogar y documentar las especies arbóreas de las plazas, calles y veredas
+          de los municipios de La Guajira, empoderando a las comunidades mediante herramientas digitales
+          de ciencia ciudadana para combatir el cambio climático y valorar nuestra biodiversidad local.
+        </p>
+      </div>
+
+      <div class="info-card glass">
+        <div class="card-icon-wrapper vision-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="card-icon">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+          </svg>
+        </div>
+        <h2>Nuestra Visión</h2>
+        <p>
+          Convertirnos para el 2030 en el inventario forestal urbano colaborativo y abierto más grande 
+          del Caribe colombiano, sirviendo de base científica para planes de ordenamiento territorial, 
+          reforestación estratégica y educación ambiental escolar en toda la península.
+        </p>
+      </div>
+    </section>
+
+    <!-- Spotlight Section: The Dry Tropical Forest -->
+    <section class="spotlight-card">
+      <div class="spotlight-content">
+        <span class="spotlight-badge">El Desafío Ecológico</span>
+        <h2>El Tesoro del Bosque Seco Tropical</h2>
+        <p>
+          La Guajira alberga el amenazado ecosistema del <strong>Bosque Seco Tropical (Bs-T)</strong>. 
+          Especies majestuosas y extremadamente resistentes como el Cují, el Guayacán y la Ceiba Bonga 
+          son verdaderos reguladores térmicos urbanos. Cada árbol mapeado en nuestra plataforma aporta datos 
+          críticos sobre el estado y salud botánica de estos supervivientes.
+        </p>
+        <div class="bullet-list">
+          <div class="bullet-item">
+            <span class="bullet-check">✓</span>
+            <div><strong>Termorregulación:</strong> Disminución del efecto isla de calor urbana en Riohacha y Maicao.</div>
+          </div>
+          <div class="bullet-item">
+            <span class="bullet-check">✓</span>
+            <div><strong>Cultura Wayuu:</strong> Valoración de especies de alto interés etnobotánico tradicional.</div>
+          </div>
+          <div class="bullet-item">
+            <span class="bullet-check">✓</span>
+            <div><strong>Monitoreo de Amenazas:</strong> Detección temprana de plagas o talas indebidas en zonas públicas.</div>
+          </div>
+        </div>
+      </div>
+      <div class="spotlight-visual">
+        <div class="forest-glow"></div>
+        <img src="/images/categories/maderables.jpg" alt="Bosque Seco Guajiro" class="spotlight-img" onerror="this.src='https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=600&q=80'" />
+      </div>
+    </section>
+
+    <!-- The Team / Pillars Section -->
+    <section class="pillars-section">
+      <h2 class="section-title">Nuestros Pilares Técnicos</h2>
+      <div class="pillars-grid">
+        <div class="pillar-card">
+          <div class="pillar-number">01</div>
+          <h3>Georreferenciación de Precisión</h3>
+          <p>Utilizamos el GPS integrado en dispositivos móviles para ubicar cada ejemplar con precisión submétrica.</p>
+        </div>
+        <div class="pillar-card">
+          <div class="pillar-number">02</div>
+          <h3>Mapeo 3D Dinámico</h3>
+          <p>Renderizamos volumetrías tridimensionales de las copas mediante servidores de teselas vectoriales avanzados.</p>
+        </div>
+        <div class="pillar-card">
+          <div class="pillar-number">03</div>
+          <h3>Curaduría Científica</h3>
+          <p>Cada avistamiento es revisado por curadores botánicos experimentados antes de consolidarse en el herbario.</p>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</Layout>
+
+<style>
+  .about-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 3rem;
+  }
+
+  /* Header */
+  .about-header {
+    text-align: center;
+    padding: 2rem 0;
+  }
+
+  .sub-badge {
+    background-color: #ecfdf5;
+    color: #059669;
+    border: 1px solid #dcfce7;
+    padding: 0.35rem 0.85rem;
+    border-radius: 99px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: inline-block;
+    margin-bottom: 0.75rem;
+  }
+
+  .about-title {
+    font-family: 'Outfit', sans-serif;
+    font-size: 2.75rem;
+    font-weight: 800;
+    color: #064e3b;
+    margin-bottom: 0.75rem;
+  }
+
+  .about-title .accent {
+    color: #10b981;
+  }
+
+  .about-tagline {
+    font-size: 1.15rem;
+    color: #4b5563;
+    max-width: 650px;
+    margin: 0 auto 1.5rem;
+    line-height: 1.6;
+  }
+
+  .pulse-line {
+    width: 80px;
+    height: 3px;
+    background: linear-gradient(90deg, #10b981, #059669);
+    margin: 0 auto;
+    border-radius: 99px;
+  }
+
+  /* Mission & Vision Section */
+  .mission-section {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2rem;
+  }
+
+  .info-card {
+    background: white;
+    border: 1px solid #eef2f0;
+    border-radius: 1rem;
+    padding: 2.5rem;
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.02);
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .info-card:hover {
+    transform: translateY(-4px);
+    border-color: #d1fae5;
+    box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.08);
+  }
+
+  .card-icon-wrapper {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+  }
+
+  .mission-icon {
+    background-color: #ecfdf5;
+    color: #059669;
+  }
+
+  .vision-icon {
+    background-color: #f0fdfa;
+    color: #0d9488;
+  }
+
+  .card-icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .info-card h2 {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #064e3b;
+    margin-bottom: 1rem;
+  }
+
+  .info-card p {
+    font-size: 0.975rem;
+    line-height: 1.7;
+    color: #4b5563;
+  }
+
+  /* Spotlight Card */
+  .spotlight-card {
+    background: linear-gradient(135deg, #064e3b 0%, #022c22 100%);
+    border-radius: 1.25rem;
+    padding: 3rem;
+    color: white;
+    display: grid;
+    grid-template-columns: 1.2fr 0.8fr;
+    gap: 3rem;
+    align-items: center;
+    box-shadow: 0 10px 30px rgba(6, 78, 59, 0.15);
+    overflow: hidden;
+    position: relative;
+  }
+
+  .spotlight-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    position: relative;
+    z-index: 2;
+  }
+
+  .spotlight-badge {
+    background-color: rgba(255, 255, 255, 0.15);
+    color: #a7f3d0;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.25rem 0.65rem;
+    border-radius: 4px;
+    align-self: flex-start;
+  }
+
+  .spotlight-content h2 {
+    font-family: 'Outfit', sans-serif;
+    font-size: 2rem;
+    font-weight: 800;
+    color: white;
+  }
+
+  .spotlight-content p {
+    font-size: 1.05rem;
+    line-height: 1.6;
+    color: #d1fae5;
+  }
+
+  .bullet-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+  }
+
+  .bullet-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    font-size: 0.95rem;
+  }
+
+  .bullet-check {
+    color: #34d399;
+    font-weight: bold;
+  }
+
+  .spotlight-visual {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 250px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .spotlight-img {
+    width: 100%;
+    height: 100%;
+    max-height: 280px;
+    object-fit: cover;
+    border-radius: 12px;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    position: relative;
+    z-index: 2;
+  }
+
+  .forest-glow {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 150px;
+    height: 150px;
+    background: rgba(16, 185, 129, 0.2);
+    filter: blur(40px);
+    z-index: 1;
+    transform: translate(-50%, -50%);
+  }
+
+  /* Pillars */
+  .pillars-section {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    padding-bottom: 2rem;
+  }
+
+  .section-title {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.85rem;
+    font-weight: 800;
+    color: #064e3b;
+    text-align: center;
+  }
+
+  .pillars-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+  }
+
+  .pillar-card {
+    background: white;
+    border: 1px solid #eef2f0;
+    border-radius: 0.75rem;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    position: relative;
+  }
+
+  .pillar-number {
+    font-family: 'Outfit', sans-serif;
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: rgba(16, 185, 129, 0.15);
+    position: absolute;
+    top: 1rem;
+    right: 1.5rem;
+  }
+
+  .pillar-card h3 {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #1f2937;
+    position: relative;
+    z-index: 2;
+  }
+
+  .pillar-card p {
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: #6b7280;
+  }
+
+  /* Animaciones */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .animate-fade {
+    animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  /* Responsive styling */
+  @media (max-width: 1024px) {
+    .spotlight-card {
+      grid-template-columns: 1fr;
+      gap: 2rem;
+      padding: 2rem;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .about-title {
+      font-size: 2.25rem;
+    }
+
+    .mission-section {
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
+
+    .pillars-grid {
+      grid-template-columns: 1fr;
+      gap: 1rem;
+    }
+  }
+</style>

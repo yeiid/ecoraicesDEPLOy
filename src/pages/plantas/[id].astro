@@ -1,0 +1,591 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { prisma } from "../../lib/prisma.js";
+
+// Obtener el ID de la especie desde los parámetros de la URL
+const { id } = Astro.params;
+
+// Obtener la especie específica desde la base de datos
+const especie = await prisma.species.findUnique({
+  where: {
+    id: id,
+  },
+  include: {
+    category: true,
+    observations: {
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            avatarUrl: true
+          }
+        }
+      },
+      orderBy: {
+        observationDate: "desc",
+      },
+    },
+  },
+});
+
+// Si la especie no existe, redirigir al catálogo
+if (!especie) {
+  return Astro.redirect("/plantas");
+}
+
+// Obtener especies relacionadas (de la misma categoría)
+const especiesRelacionadas = await prisma.species.findMany({
+  where: {
+    categoryId: especie.categoryId,
+    id: {
+      not: id,
+    },
+  },
+  take: 4,
+  include: {
+    category: true
+  }
+});
+
+// Función para obtener la etiqueta del estado de conservación
+const getStatusLabel = (status: string): string => {
+  const statusLabels: Record<string, string> = {
+    'EXTINCT': '🌍 Extinto (EX)',
+    'EXTINCT_IN_WILD': '🌳 Extinto en estado silvestre (EW)',
+    'CRITICALLY_ENDANGERED': '🚨 En peligro crítico (CR)',
+    'ENDANGERED': '⚠️ En peligro (EN)',
+    'VULNERABLE': '⚠️ Vulnerable (VU)',
+    'NEAR_THREATENED': '⚠️ Casi amenazado (NT)',
+    'LEAST_CONCERN': '✅ Preocupación menor (LC)',
+    'DATA_DEFICIENT': '❓ Datos insuficientes (DD)',
+    'NOT_EVALUATED': '❔ No evaluado (NE)'
+  };
+  return statusLabels[status] || status;
+};
+
+const getStatusClass = (status: string): string => {
+  return (status || '').toLowerCase().replace(/_/g, '-');
+};
+---
+
+<Layout title={`${especie.name} - Catálogo EcoRaíces`}>
+  <div class="species-detail-page">
+    <div class="breadcrumbs">
+      <a href="/">Inicio</a> &gt;
+      <a href="/plantas">Catálogo</a> &gt;
+      <span>{especie.name}</span>
+    </div>
+
+    <div class="species-grid">
+      <!-- Imagen de la Especie -->
+      <div class="species-gallery">
+        <div class="main-image-wrapper">
+          <img 
+            src={especie.imageUrl || 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=800&q=80'} 
+            onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=800&q=80';"
+            alt={especie.name} 
+            class="main-image"
+          />
+        </div>
+      </div>
+
+      <!-- Información Científica -->
+      <div class="species-info">
+        <span class="category-badge">{especie.category.name}</span>
+        <h1>{especie.name}</h1>
+        <p class="scientific-name"><i>{especie.scientificName}</i></p>
+
+        {especie.status && (
+          <div class="status-section">
+            <span class="info-label">Estado de Conservación:</span>
+            <span class={`status-badge ${getStatusClass(especie.status)}`}>
+              {getStatusLabel(especie.status)}
+            </span>
+          </div>
+        )}
+
+        {especie.habitat && (
+          <div class="habitat-section">
+            <span class="info-label">Hábitat Típico:</span>
+            <p class="habitat-text">🌳 {especie.habitat}</p>
+          </div>
+        )}
+
+        <div class="description-section">
+          <h2>Descripción Botánica</h2>
+          <p>{especie.description || "No hay una descripción detallada disponible para esta especie todavía. Ayúdanos registrando observaciones y aportando notas sobre esta planta en su hábitat."}</p>
+        </div>
+
+        <div class="action-buttons">
+          <a href={`/observaciones/nueva?especieId=${especie.id}`} class="btn btn-primary">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="btn-icon">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+            Reportar Avistamiento de Campo
+          </a>
+          <a href="/observaciones" class="btn btn-outline">
+            Ver Mapa de Avistamientos
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sección de Avistamientos de la Comunidad -->
+    <section class="observations-section">
+      <div class="section-header">
+        <h2>Avistamientos de la Comunidad ({especie.observations.length})</h2>
+        <p>Registros de campo y geolocalizaciones de esta especie en La Guajira.</p>
+      </div>
+
+      {especie.observations.length > 0 ? (
+        <div class="observations-list">
+          {especie.observations.map((obs) => (
+            <div class="observation-card">
+              <div class="obs-image-wrapper">
+                <img 
+                  src={obs.imageUrl || 'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=400&q=80'} 
+                  onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=400&q=80';"
+                  alt="Avistamiento" 
+                />
+              </div>
+              <div class="obs-content">
+                <div class="obs-meta">
+                  <span class="obs-date">📅 {new Date(obs.observationDate).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                  <span class="obs-user">👤 {obs.user?.username || "Colaborador"}</span>
+                </div>
+                {obs.notes && <p class="obs-notes">{obs.notes}</p>}
+                <div class="obs-coords">
+                  📍 {obs.latitude.toFixed(5)}, {obs.longitude.toFixed(5)}
+                </div>
+                <a href={`/observaciones/${obs.id}`} class="btn btn-sm btn-link">Ver ficha de avistamiento →</a>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div class="no-observations-card">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="empty-icon">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+          </svg>
+          <p>No se han registrado avistamientos de esta especie en La Guajira todavía.</p>
+          <a href={`/observaciones/nueva?especieId=${especie.id}`} class="btn btn-primary btn-sm">
+            Registrar el primer avistamiento
+          </a>
+        </div>
+      )}
+    </section>
+
+    <!-- Especies Relacionadas -->
+    {especiesRelacionadas.length > 0 && (
+      <section class="related-section">
+        <h2>Otras especies de {especie.category.name}</h2>
+        <div class="related-grid">
+          {especiesRelacionadas.map((esp) => (
+            <a href={`/plantas/${esp.id}`} class="related-card">
+              <div class="related-img-wrapper">
+                <img 
+                  src={esp.imageUrl || 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=400&q=80'} 
+                  onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=400&q=80';"
+                  alt={esp.name} 
+                />
+              </div>
+              <div class="related-content">
+                <span class="related-cat">{esp.category.name}</span>
+                <h3>{esp.name}</h3>
+                <p class="related-scientific"><i>{esp.scientificName}</i></p>
+              </div>
+            </a>
+          ))}
+        </div>
+      </section>
+    )}
+  </div>
+</Layout>
+
+<style>
+  .species-detail-page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem;
+  }
+
+  /* Breadcrumbs */
+  .breadcrumbs {
+    margin-bottom: 2rem;
+    font-size: 0.9rem;
+    color: #666;
+  }
+
+  .breadcrumbs a {
+    color: var(--color-primary);
+    text-decoration: none;
+  }
+
+  .breadcrumbs a:hover {
+    text-decoration: underline;
+  }
+
+  /* Species Grid */
+  .species-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+    margin-bottom: 4rem;
+  }
+
+  .species-gallery {
+    position: sticky;
+    top: 2rem;
+  }
+
+  .main-image-wrapper {
+    border-radius: 1rem;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+    border: 1px solid #eef2f0;
+  }
+
+  .main-image {
+    width: 100%;
+    height: 450px;
+    object-fit: cover;
+    display: block;
+  }
+
+  /* Info */
+  .species-info {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .category-badge {
+    align-self: start;
+    background-color: var(--color-accent);
+    color: var(--color-primary);
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.4rem 0.8rem;
+    border-radius: 20px;
+  }
+
+  .species-info h1 {
+    font-family: 'Outfit', sans-serif;
+    font-size: 2.75rem;
+    color: #064e3b;
+    margin: 0;
+    line-height: 1.15;
+  }
+
+  .scientific-name {
+    font-size: 1.35rem;
+    color: #4a5d55;
+    margin: -0.5rem 0 0.5rem 0;
+  }
+
+  .info-label {
+    display: block;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #556b60;
+    margin-bottom: 0.4rem;
+  }
+
+  .status-badge {
+    display: inline-block;
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+
+  /* Colores para estados de conservación */
+  .status-badge.critically-endangered,
+  .status-badge.endangered {
+    background-color: #fef2f2;
+    color: #dc2626;
+    border: 1px solid #fee2e2;
+  }
+
+  .status-badge.vulnerable,
+  .status-badge.near-threatened {
+    background-color: #fffbeb;
+    color: #d97706;
+    border: 1px solid #fef3c7;
+  }
+
+  .status-badge.least-concern {
+    background-color: #f0fdf4;
+    color: #16a34a;
+    border: 1px solid #dcfce7;
+  }
+
+  .habitat-text {
+    font-size: 1.05rem;
+    color: #2c3e35;
+    margin: 0;
+  }
+
+  .description-section h2 {
+    font-size: 1.4rem;
+    color: #064e3b;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid #eef2f0;
+  }
+
+  .description-section p {
+    line-height: 1.7;
+    color: #2d3748;
+    font-size: 1.05rem;
+  }
+
+  .action-buttons {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1.5rem;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    cursor: pointer;
+  }
+
+  .btn-primary {
+    background-color: var(--color-primary);
+    color: white;
+    border: none;
+  }
+
+  .btn-primary:hover {
+    background-color: #059669;
+    transform: translateY(-2px);
+  }
+
+  .btn-outline {
+    background: transparent;
+    color: var(--color-primary);
+    border: 1px solid var(--color-primary);
+  }
+
+  .btn-outline:hover {
+    background-color: #f0fdf4;
+    transform: translateY(-2px);
+  }
+
+  .btn-icon {
+    width: 20px;
+    height: 20px;
+    margin-right: 0.5rem;
+  }
+
+  /* Observations Section */
+  .observations-section {
+    margin-top: 4rem;
+    padding-top: 3rem;
+    border-top: 1px solid #eef2f0;
+  }
+
+  .section-header {
+    margin-bottom: 2rem;
+  }
+
+  .section-header h2 {
+    font-size: 1.75rem;
+    color: #064e3b;
+    margin-bottom: 0.5rem;
+  }
+
+  .section-header p {
+    color: #666;
+    margin: 0;
+  }
+
+  .observations-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .observation-card {
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04);
+    border: 1px solid #eef2f0;
+    transition: transform 0.2s;
+  }
+
+  .observation-card:hover {
+    transform: translateY(-4px);
+  }
+
+  .obs-image-wrapper img {
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+  }
+
+  .obs-content {
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .obs-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: #666;
+  }
+
+  .obs-notes {
+    font-size: 0.95rem;
+    color: #2d3748;
+    margin: 0.25rem 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .obs-coords {
+    font-family: monospace;
+    font-size: 0.85rem;
+    color: #888;
+  }
+
+  .btn-sm {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
+    border-radius: 4px;
+  }
+
+  .btn-link {
+    color: var(--color-primary);
+    padding: 0;
+    justify-content: flex-start;
+    font-weight: 600;
+  }
+
+  .btn-link:hover {
+    text-decoration: underline;
+  }
+
+  .no-observations-card {
+    text-align: center;
+    padding: 3rem 2rem;
+    background-color: #fcfdfd;
+    border-radius: 12px;
+    border: 2px dashed #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .empty-icon {
+    width: 48px;
+    height: 48px;
+    color: #94a3b8;
+  }
+
+  .no-observations-card p {
+    color: #64748b;
+    margin: 0;
+  }
+
+  /* Related Section */
+  .related-section {
+    margin-top: 4rem;
+    padding-top: 3rem;
+    border-top: 1px solid #eef2f0;
+  }
+
+  .related-section h2 {
+    font-size: 1.5rem;
+    color: #064e3b;
+    margin-bottom: 1.5rem;
+  }
+
+  .related-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .related-card {
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+    border: 1px solid #eef2f0;
+    text-decoration: none;
+    color: inherit;
+    transition: transform 0.2s;
+  }
+
+  .related-card:hover {
+    transform: translateY(-4px);
+  }
+
+  .related-img-wrapper img {
+    width: 100%;
+    height: 150px;
+    object-fit: cover;
+  }
+
+  .related-content {
+    padding: 1rem;
+  }
+
+  .related-cat {
+    font-size: 0.75rem;
+    color: var(--color-primary);
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .related-content h3 {
+    margin: 0.25rem 0;
+    font-size: 1.1rem;
+    color: #1a202c;
+  }
+
+  .related-scientific {
+    font-size: 0.9rem;
+    color: #718096;
+    margin: 0;
+  }
+
+  /* Responsive styling */
+  @media (max-width: 900px) {
+    .species-grid {
+      grid-template-columns: 1fr;
+      gap: 2rem;
+    }
+    
+    .species-gallery {
+      position: relative;
+      top: 0;
+    }
+    
+    .main-image {
+      height: 300px;
+    }
+
+    .species-info h1 {
+      font-size: 2.2rem;
+    }
+  }
+</style>

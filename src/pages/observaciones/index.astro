@@ -1,0 +1,204 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import ObservationsMap from '../../components/react/ObservationsMap';
+
+// Obtener filtro de categoría de la URL, si existe
+const { searchParams } = Astro.url;
+const categoryId = searchParams.get('categoria') || null;
+
+// Título de la página
+const title = "Inventario de Árboles Nativos - EcoRaíces";
+---
+
+
+<Layout title={title}>
+  <div class="observations-page">
+    <div class="page-header">
+      <h1>Inventario de Árboles Nativos</h1>
+      <p class="page-description">
+        Explora los árboles registrados por nuestra comunidad. Utiliza los
+        filtros para encontrar especies específicas, árboles verificados o
+        limitar por rango de fechas.
+      </p>
+    </div>
+
+    <div class="actions">
+      <a href="/observaciones/nueva" class="btn btn-primary"
+        >Registrar Nuevo Árbol</a
+      >
+    </div>
+
+    <div class="map-container">
+      <ObservationsMap
+        client:only="react"
+        initialFilterCategory={categoryId}
+        showFilters={true}
+      />
+    </div>
+
+    <section class="how-to">
+      <h2>¿Cómo contribuir al inventario forestal?</h2>
+      <div class="steps">
+        <div class="step">
+          <span class="step-number">1</span>
+          <h3>Crea una cuenta</h3>
+          <p>
+            Regístrate para poder empezar a documentar y compartir tus registros
+            de árboles.
+          </p>
+        </div>
+
+        <div class="step">
+          <span class="step-number">2</span>
+          <h3>Identifica árboles</h3>
+          <p>
+            Encuentra un árbol nativo en tu entorno e identifícalo utilizando
+            nuestra guía de especies.
+          </p>
+        </div>
+
+        <div class="step">
+          <span class="step-number">3</span>
+          <h3>Documenta y comparte</h3>
+          <p>
+            Toma fotos del árbol, su corteza, hojas y flores, registra la
+            ubicación exacta y comparte tu descubrimiento.
+          </p>
+        </div>
+
+        <div class="step">
+          <span class="step-number">4</span>
+          <h3>Contribuye a la conservación</h3>
+          <p>
+            Tus datos ayudan a forestales, investigadores y conservacionistas a
+            proteger nuestro patrimonio arbóreo.
+          </p>
+        </div>
+      </div>
+    </section>
+  </div>
+</Layout>
+
+<style>
+  .observations-page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1rem;
+  }
+
+  .page-header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+
+  .page-header h1 {
+    font-size: 2.5rem;
+    color: var(--color-primary);
+    margin-bottom: 1rem;
+  }
+
+  .page-description {
+    max-width: 800px;
+    margin: 0 auto 1.5rem;
+    font-size: 1.1rem;
+    color: var(--color-text);
+  }
+
+  .actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 1.5rem;
+  }
+
+  .map-container {
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    margin-bottom: 3rem;
+  }
+
+  /* Sección de cómo contribuir */
+  .how-to {
+    background-color: var(--color-background);
+    padding: 2rem;
+    border-radius: 8px;
+    margin-bottom: 2rem;
+  }
+
+  .how-to h2 {
+    text-align: center;
+    font-size: 1.8rem;
+    color: var(--color-primary);
+    margin-bottom: 2rem;
+  }
+
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 2rem;
+  }
+
+  .step {
+    background-color: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+    position: relative;
+    padding-top: 2.5rem;
+  }
+
+  .step-number {
+    position: absolute;
+    top: -1rem;
+    left: 1.5rem;
+    background-color: var(--color-primary);
+    color: white;
+    width: 2.5rem;
+    height: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-weight: bold;
+    font-size: 1.2rem;
+  }
+
+  .step h3 {
+    margin-bottom: 1rem;
+    color: var(--color-primary);
+    font-size: 1.3rem;
+  }
+
+  /* Botones */
+  .btn {
+    display: inline-block;
+    padding: 0.8rem 1.6rem;
+    border-radius: 4px;
+    font-weight: 500;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: none;
+    text-decoration: none;
+  }
+
+  .btn-primary {
+    background-color: var(--color-primary);
+    color: white;
+  }
+
+  .btn-primary:hover {
+    background-color: #1b5e20;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .page-header h1 {
+      font-size: 2rem;
+    }
+
+    .actions {
+      justify-content: center;
+    }
+  }
+</style>

@@ -1,0 +1,511 @@
+---
+/// <reference path="../../types/prisma.d.ts" />
+
+import Layout from "../../layouts/Layout.astro";
+import { prisma } from "../../lib/prisma.js";
+
+
+// Tipos para los parámetros de URL
+interface FilterParams {
+  categoria?: string;
+  habitat?: string;
+  estado?: string;
+  ordenar?: string;
+}
+
+// Tipo para las especies
+interface Especie {
+  id: string;
+  name: string;
+  scientificName: string;
+  description: string | null;
+  habitat: string | null;
+  imageUrl: string | null;
+  status: string | null;
+  categoryId: string;
+  createdAt: Date;
+  updatedAt: Date;
+  category: {
+    id: string;
+    name: string;
+    description: string | null;
+    imageUrl: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  };
+}
+
+// Obtener parámetros de la URL para filtrado
+const { searchParams } = Astro.url;
+const params: FilterParams = {
+  categoria: searchParams.get("categoria") || undefined,
+  habitat: searchParams.get("habitat") || undefined,
+  estado: searchParams.get("estado") || undefined,
+  ordenar: searchParams.get("ordenar") || "nombre-asc"
+};
+
+const { categoria, habitat, estado: estadoConservacion, ordenar } = params;
+
+// Obtener todas las categorías para el filtro
+const categorias = await prisma.category.findMany({
+  orderBy: { name: "asc" as const },
+});
+
+// Obtener hábitats únicos para el filtro
+const habitats = await prisma.species.findMany({
+  select: { habitat: true },
+  where: { NOT: { habitat: null } },
+  distinct: ['habitat' as const]
+});
+
+// Construir los filtros para la consulta
+const filtros: {
+  categoryId?: string;
+  habitat?: { contains: string; mode: 'insensitive' };
+  status?: string;
+} = {};
+
+if (categoria) {
+  filtros.categoryId = categoria;
+}
+
+if (habitat) {
+  filtros.habitat = { contains: habitat, mode: 'insensitive' };
+}
+
+if (estadoConservacion) {
+  filtros.status = estadoConservacion;
+}
+
+// Determinar el orden
+let orderBy: any = { name: 'asc' }; // Orden por defecto
+
+if (ordenar === 'nombre-desc') {
+  orderBy = { name: 'desc' };
+} else if (ordenar === 'fecha-reciente') {
+  orderBy = { createdAt: 'desc' };
+} else if (ordenar === 'fecha-antigua') {
+  orderBy = { createdAt: 'asc' };
+}
+
+// Función para obtener la etiqueta del estado de conservación
+const getStatusLabel = (status: string): string => {
+  const statusLabels: Record<string, string> = {
+    'EXTINCT': '🌍 Extinto (EX)',
+    'EXTINCT_IN_WILD': '🌳 Extinto en estado silvestre (EW)',
+    'CRITICALLY_ENDANGERED': '🚨 En peligro crítico (CR)',
+    'ENDANGERED': '⚠️ En peligro (EN)',
+    'VULNERABLE': '⚠️ Vulnerable (VU)',
+    'NEAR_THREATENED': '⚠️ Casi amenazado (NT)',
+    'LEAST_CONCERN': '✅ Preocupación menor (LC)',
+    'DATA_DEFICIENT': '❓ Datos insuficientes (DD)',
+    'NOT_EVALUATED': '❔ No evaluado (NE)'
+  };
+  return statusLabels[status] || status;
+};
+
+// Obtener especies según los filtros
+const especies = await prisma.species.findMany({
+  where: filtros,
+  include: {
+    category: true,
+  },
+  orderBy,
+});
+---
+
+<Layout title="Catálogo de Especies - EcoRaíces">
+  <div class="species-page">
+    <div class="page-header">
+      <h1>Catálogo de Especies Nativas</h1>
+      <p>Explora nuestra base de datos de especies nativas y contribuye a su conservación</p>
+    </div>
+
+    <div class="plants-container">
+      <!-- Filtros -->
+      <aside class="filters">
+        <h2>Filtros</h2>
+
+        <form id="filter-form" method="get">
+          <!-- Filtro por categoría -->
+          <div class="filter-group">
+            <h3>Categorías</h3>
+            <div class="categories-list">
+              <div class="category-option">
+                <input
+                  type="radio"
+                  id="todas"
+                  name="categoria"
+                  value=""
+                  checked={!categoria}
+                />
+                <label for="todas">Todas</label>
+              </div>
+
+              {
+                categorias.map((cat: { id: string; name: string }) => (
+                  <div class="category-option">
+                    <input
+                      type="radio"
+                      id={`cat-${cat.id}`}
+                      name="categoria"
+                      value={cat.id}
+                      checked={categoria === cat.id}
+                    />
+                    <label for={`cat-${cat.id}`}>{cat.name}</label>
+                  </div>
+                ))
+              }
+            </div>
+          </div>
+
+          <!-- Filtro por hábitat -->
+          <div class="filter-group">
+            <h3>Hábitat</h3>
+            <select name="habitat" id="habitat" class="form-control">
+              <option value="">Todos los hábitats</option>
+              {habitats.map((h: { habitat: string | null }) => (
+                <option value={h.habitat} selected={habitat === h.habitat}>
+                  {h.habitat}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <!-- Filtro por estado de conservación -->
+          <div class="filter-group">
+            <h3>Estado de conservación</h3>
+            <select name="estado" id="estado" class="form-control">
+              <option value="">Todos los estados</option>
+              <option value="EXTINCT" selected={estadoConservacion === 'EXTINCT'}>
+                🌍 Extinto (EX)
+              </option>
+              <option value="EXTINCT_IN_WILD" selected={estadoConservacion === 'EXTINCT_IN_WILD'}>
+                🌳 Extinto en estado silvestre (EW)
+              </option>
+              <option value="CRITICALLY_ENDANGERED" selected={estadoConservacion === 'CRITICALLY_ENDANGERED'}>
+                🚨 En peligro crítico (CR)
+              </option>
+              <option value="ENDANGERED" selected={estadoConservacion === 'ENDANGERED'}>
+                ⚠️ En peligro (EN)
+              </option>
+              <option value="VULNERABLE" selected={estadoConservacion === 'VULNERABLE'}>
+                ⚠️ Vulnerable (VU)
+              </option>
+              <option value="NEAR_THREATENED" selected={estadoConservacion === 'NEAR_THREATENED'}>
+                ⚠️ Casi amenazado (NT)
+              </option>
+              <option value="LEAST_CONCERN" selected={estadoConservacion === 'LEAST_CONCERN'}>
+                ✅ Preocupación menor (LC)
+              </option>
+            </select>
+          </div>
+
+          <!-- Ordenar por -->
+          <div class="filter-group">
+            <h3>Ordenar por</h3>
+            <select name="ordenar" id="ordenar">
+              <option value="nombre-asc" selected={ordenar === "nombre-asc"}
+                >Nombre (A-Z)</option
+              >
+              <option value="nombre-desc" selected={ordenar === "nombre-desc"}
+                >Nombre (Z-A)</option
+              >
+              <option value="fecha-reciente" selected={ordenar === "fecha-reciente"}
+                >Fecha (más reciente)</option
+              >
+              <option value="fecha-antigua" selected={ordenar === "fecha-antigua"}
+                >Fecha (más antigua)</option
+              >
+            </select>
+          </div>
+
+          <button type="submit" class="btn btn-primary">Aplicar filtros</button>
+          <button type="button" id="reset-filters" class="btn btn-secondary"
+            >Resetear filtros</button
+          >
+        </form>
+      </aside>
+
+      <!-- Listado de plantas -->
+      <div class="plants-grid">
+        {
+          especies.length > 0 ? (
+            especies.map((especie: Especie) => (
+              <div class="plant-card">
+                <div class="plant-image">
+                  <img src={especie.imageUrl || 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=600&q=80'} 
+                        onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=600&q=80';" 
+                        alt={especie.name} />
+                </div>
+                <div class="plant-content">
+                  <span class="plant-category">{especie.category.name}</span>
+                  <h3 class="plant-title">{especie.name}</h3>
+                  <p class="scientific-name"><i>{especie.scientificName}</i></p>
+                  {especie.habitat && (
+                    <div class="habitat">
+                      <span class="label">Hábitat:</span> {especie.habitat}
+                    </div>
+                  )}
+                  {especie.status && (
+                    <div class={`status ${especie.status.toLowerCase()}`}>
+                      {getStatusLabel(especie.status)}
+                    </div>
+                  )}
+                  <div class="plant-actions">
+                    <a href={`/plantas/${especie.id}`} class="btn btn-primary">
+                      Ver detalles
+                    </a>
+                    <button
+                      class="btn btn-secondary report-sighting"
+                      data-id={especie.id}
+                    >
+                      Reportar avistamiento
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div class="empty-state">
+              <p>No se encontraron especies con los filtros seleccionados.</p>
+              <button type="button" id="clear-filters" class="btn btn-primary">
+                Limpiar filtros
+              </button>
+            </div>
+          )
+        }
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  // Reset filtros y reportar avistamientos
+  document.addEventListener('DOMContentLoaded', () => {
+    // Botón de reset en el formulario de filtros
+    const resetButton = document.getElementById("reset-filters");
+    if (resetButton) {
+      resetButton.addEventListener("click", (e) => {
+        e.preventDefault();
+        window.location.href = "/plantas";
+      });
+    }
+
+    // Botón de limpiar filtros en estado vacío
+    const clearButton = document.getElementById("clear-filters");
+    if (clearButton) {
+      clearButton.addEventListener("click", () => {
+        window.location.href = "/plantas";
+      });
+    }
+
+    // Redirección para reportar avistamiento pre-seleccionando la especie
+    document.querySelectorAll(".report-sighting").forEach((button) => {
+      button.addEventListener("click", (e) => {
+        const target = e.currentTarget as HTMLElement;
+        const especieId = target.getAttribute("data-id");
+        if (especieId) {
+          window.location.href = `/observaciones/nueva?especieId=${especieId}`;
+        }
+      });
+    });
+  });
+</script>
+
+<style>
+  .plants-page {
+    margin-bottom: 3rem;
+  }
+
+  .page-header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+
+  .page-header h1 {
+    color: var(--color-primary);
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .plants-container {
+    display: grid;
+    grid-template-columns: 250px 1fr;
+    gap: 2rem;
+  }
+
+  /* Filtros */
+  .filters {
+    background-color: var(--color-card);
+    border-radius: 8px;
+    padding: 1.5rem;
+    align-self: start;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  }
+
+  .filters h2 {
+    margin-bottom: 1.5rem;
+    font-size: 1.3rem;
+    color: var(--color-primary);
+  }
+
+  .filter-group {
+    margin-bottom: 1.5rem;
+  }
+
+  .filter-group h3 {
+    font-size: 1rem;
+    margin-bottom: 0.8rem;
+    color: var(--color-text);
+  }
+
+  .categories-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .category-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .price-inputs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.8rem;
+  }
+
+  .price-input label {
+    display: block;
+    margin-bottom: 0.3rem;
+    font-size: 0.9rem;
+  }
+
+  .price-input input,
+  select {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+  }
+
+  select {
+    margin-bottom: 0.5rem;
+  }
+
+  .filters .btn {
+    width: 100%;
+    margin-bottom: 0.8rem;
+  }
+
+  /* Listado de plantas */
+  .plants-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .plant-card {
+    background-color: var(--color-card);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    transition:
+      transform 0.3s ease,
+      box-shadow 0.3s ease;
+  }
+
+  .plant-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+  }
+
+  .plant-image {
+    height: 200px;
+    overflow: hidden;
+  }
+
+  .plant-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.5s ease;
+  }
+
+  .plant-card:hover .plant-image img {
+    transform: scale(1.05);
+  }
+
+  .plant-content {
+    padding: 1.2rem;
+  }
+
+  .plant-category {
+    display: inline-block;
+    background-color: var(--color-accent);
+    color: var(--color-primary);
+    font-size: 0.8rem;
+    padding: 0.3rem 0.6rem;
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+  }
+
+  .plant-title {
+    margin-bottom: 0.5rem;
+    font-size: 1.1rem;
+  }
+
+  .plant-price {
+    font-weight: bold;
+    font-size: 1.2rem;
+    color: var(--color-primary);
+    margin-bottom: 1rem;
+  }
+
+  .plant-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .plant-actions .btn {
+    padding: 0.6rem;
+    font-size: 0.9rem;
+    flex: 1;
+  }
+
+  /* Estado vacío */
+  .empty-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 4rem 2rem;
+    background-color: var(--color-card);
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  }
+
+  .empty-state p {
+    margin-bottom: 1rem;
+  }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .plants-container {
+      grid-template-columns: 1fr;
+    }
+
+    .filters {
+      position: sticky;
+      top: 20px;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .plant-actions {
+      flex-direction: column;
+    }
+  }
+</style>
+

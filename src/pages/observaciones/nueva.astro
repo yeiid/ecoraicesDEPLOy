@@ -1,0 +1,190 @@
+---
+import Layout from "../../layouts/Layout.astro"; // Correcto: 2 niveles hacia arriba
+import NewObservationForm from "../../components/react/NewObservationForm";
+import jwt from 'jsonwebtoken';
+const { verify } = jwt;
+import { getUserById } from '../../lib/services/auth.service.js';
+
+// 🔐 Verificar estado de sesión y token
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const token = Astro.cookies.get('ecoraices_token')?.value;
+let user = null;
+
+if (token) {
+  try {
+    const decoded = verify(token, JWT_SECRET);
+    if (decoded && decoded.userId) {
+      user = await getUserById(decoded.userId);
+    }
+  } catch (error) {
+    console.error("Token verification failed in nueva.astro:", error.message);
+  }
+}
+
+// Redirigir si no está autenticado
+if (!user) {
+  return Astro.redirect(`/auth/login?redirect=${Astro.url.pathname}`);
+}
+
+// Obtener las categorías y especies para el formulario
+const categoriesResponse = await fetch(`${Astro.url.origin}/api/categories`);
+const categories = await categoriesResponse.json();
+
+const speciesResponse = await fetch(`${Astro.url.origin}/api/species`);
+const species = await speciesResponse.json();
+
+// Título de la página
+const title = "Registrar Nuevo Árbol - EcoRaices";
+---
+
+<Layout title={title}>
+  <div class="new-observation-page">
+    <div class="page-header">
+      <h1>Registrar Nuevo Árbol</h1>
+      <p class="page-description">
+        Contribuye a nuestro inventario forestal compartiendo los árboles nativos 
+        que encuentres. Completa el formulario con todos los detalles que puedas 
+        proporcionar sobre el ejemplar.
+      </p>
+    </div>
+
+    <div class="form-container">
+      <NewObservationForm
+        client:only="react"
+        categories={categories}
+        speciesList={species}
+        userId={user.id}
+      />
+    </div>
+
+    <section class="observation-tips">
+      <h2>Consejos para un buen registro forestal</h2>
+
+      <div class="tips-grid">
+        <div class="tip-card">
+          <div class="tip-icon">📸</div>
+          <h3>Fotografía</h3>
+          <p>
+            Toma fotos claras desde varios ángulos. Incluye detalles de hojas,
+            flores, corteza y la forma general del árbol.
+          </p>
+        </div>
+
+        <div class="tip-card">
+          <div class="tip-icon">📏</div>
+          <h3>Medidas</h3>
+          <p>
+            Si es posible, registra la altura aproximada y el diámetro del tronco 
+            para ayudar en la clasificación e inventario.
+          </p>
+        </div>
+
+        <div class="tip-card">
+          <div class="tip-icon">📍</div>
+          <h3>Ubicación</h3>
+          <p>
+            Asegúrate de registrar la ubicación exacta. Puedes usar el mapa
+            interactivo o activar la geolocalización de tu dispositivo.
+          </p>
+        </div>
+
+        <div class="tip-card">
+          <div class="tip-icon">🌳</div>
+          <h3>Identificación</h3>
+          <p>
+            Si no estás seguro de la especie del árbol, selecciona la más cercana o déjala
+            sin especificar para que los expertos forestales te ayuden.
+          </p>
+        </div>
+      </div>
+    </section>
+  </div>
+</Layout>
+
+<style>
+  .new-observation-page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1rem;
+  }
+
+  .page-header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+
+  .page-header h1 {
+    font-size: 2.5rem;
+    color: var(--color-primary);
+    margin-bottom: 1rem;
+  }
+
+  .page-description {
+    max-width: 800px;
+    margin: 0 auto;
+    font-size: 1.1rem;
+    color: var(--color-text);
+    line-height: 1.6;
+  }
+
+  .form-container {
+    background-color: white;
+    border-radius: 8px;
+    padding: 2rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    margin-bottom: 3rem;
+  }
+
+  .observation-tips {
+    margin-bottom: 3rem;
+  }
+
+  .observation-tips h2 {
+    text-align: center;
+    font-size: 1.8rem;
+    color: var(--color-primary);
+    margin-bottom: 2rem;
+  }
+
+  .tips-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .tip-card {
+    background-color: white;
+    border-radius: 8px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    text-align: center;
+  }
+
+  .tip-icon {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .tip-card h3 {
+    font-size: 1.3rem;
+    color: var(--color-primary);
+    margin-bottom: 0.8rem;
+  }
+
+  .tip-card p {
+    font-size: 0.95rem;
+    color: var(--color-text);
+    line-height: 1.5;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .page-header h1 {
+      font-size: 2rem;
+    }
+
+    .form-container {
+      padding: 1.5rem;
+    }
+  }
+</style>

@@ -1,0 +1,174 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale your database?
+// Try Prisma Pulse: https://pris.ly/pulse
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Enums para roles y estados
+enum UserRole {
+  COLLECTOR
+  COMMUNITY
+}
+
+enum MemberRole {
+  ADMIN
+  MODERATOR
+  MEMBER
+}
+
+enum ObservationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// Modelo de Usuario
+model User {
+  id               String            @id @default(cuid())
+  username         String            @unique
+  email            String            @unique
+  passwordHash     String
+  name             String?
+  avatarUrl        String?
+  bio              String?
+  role             UserRole          @default(COLLECTOR)
+  isAdmin          Boolean           @default(false)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  observations     Observation[]
+  comments         Comment[]
+  communityMembers CommunityMember[]
+  ownedCommunities Community[]       @relation("CommunityOwner")
+  verifiedObservations Observation[] @relation("VerifiedObservations")
+}
+
+enum Role {
+  ADMIN
+  MODERATOR
+  USER
+}
+
+// Modelo de Especie Nativa
+model Species {
+  id             String        @id @default(cuid())
+  name           String
+  scientificName String        @unique
+  description    String?
+  habitat        String?
+  imageUrl       String?
+  status         String?       // Estado de conservación (ej: "En peligro", "Vulnerable")
+  categoryId     String
+  category       Category      @relation(fields: [categoryId], references: [id])
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  observations   Observation[]
+
+  @@index([categoryId])
+}
+
+// Estado de conservación según UICN
+enum ConservationStatus {
+  EXTINCT              // Extinto (EX)
+  EXTINCT_IN_WILD      // Extinto en estado silvestre (EW)
+  CRITICALLY_ENDANGERED // En peligro crítico (CR)
+  ENDANGERED           // En peligro (EN)
+  VULNERABLE           // Vulnerable (VU)
+  NEAR_THREATENED      // Casi amenazado (NT)
+  LEAST_CONCERN        // Preocupación menor (LC)
+  DATA_DEFICIENT       // Datos insuficientes (DD)
+  NOT_EVALUATED        // No evaluado (NE)
+}
+
+// Modelo de Categoría (tipo de planta)
+model Category {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  imageUrl    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  species     Species[]
+}
+
+// Modelo de Comunidad
+model Community {
+  id          String            @id @default(cuid())
+  name        String
+  description String?
+  location    String?
+  latitude    Float?
+  longitude   Float?
+  imageUrl    String?
+  ownerId     String
+  owner       User              @relation("CommunityOwner", fields: [ownerId], references: [id])
+  members     CommunityMember[]
+  observations Observation[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+}
+
+// Modelo de Miembro de Comunidad
+model CommunityMember {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  communityId String
+  community   Community @relation(fields: [communityId], references: [id])
+  role        MemberRole @default(MEMBER)
+  joinedAt    DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([userId, communityId])
+}
+
+// Modelo de Observación (avistamiento de especie)
+model Observation {
+  id              String          @id @default(cuid())
+  speciesId       String
+  species         Species         @relation(fields: [speciesId], references: [id])
+  userId          String
+  user            User            @relation(fields: [userId], references: [id])
+  communityId     String?
+  community       Community?      @relation(fields: [communityId], references: [id])
+  observationDate DateTime
+  latitude        Float
+  longitude       Float
+  altitude        Float?
+  notes           String?
+  imageUrl        String?
+  status          ObservationStatus @default(PENDING)
+  verifiedById    String?
+  verifiedBy      User?           @relation("VerifiedObservations", fields: [verifiedById], references: [id])
+  verifiedAt      DateTime?
+  verificationNotes String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  comments        Comment[]
+
+  @@index([speciesId])
+  @@index([userId])
+  @@index([communityId])
+}
+
+model Comment {
+  id            String      @id @default(cuid())
+  observationId String
+  observation   Observation @relation(fields: [observationId], references: [id])
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  content       String
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([observationId])
+  @@index([userId])
+}
