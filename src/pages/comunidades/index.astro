@@ -1,18 +1,74 @@
 ---
-import Layout from '../../layouts/Layout.astro'; // Correcto: 2 niveles hacia arriba
+import Layout from '../../layouts/Layout.astro';
+import { prisma } from '../../lib/prisma.js';
+import { getSessionUser } from '../../lib/middleware/auth.js';
+
+const user = await getSessionUser({ cookies: Astro.cookies });
+
+const communities = await prisma.community.findMany({
+  include: { _count: { select: { members: true } }, owner: { select: { name: true, username: true } } },
+  orderBy: { name: 'asc' },
+});
+
+const title = 'Comunidades - EcoRaíces';
+const fallbackBanner = 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=600&q=80';
 ---
 
-<Layout title="Comunidades - EcoRaices">
+<Layout title={title}>
   <div class="container">
-    <div class="header">
-      <h1>Comunidades</h1>
-      <p>Únete a comunidades de amantes de las plantas y comparte tus conocimientos.</p>
-      <a href="/comunidades/nueva" class="btn btn-primary">Crear Comunidad</a>
+    <div class="header flex-between wrap gap-1">
+      <div>
+        <h1 class="page-title">Comunidades</h1>
+        <p class="text-muted">
+          Únete a comunidades de amantes de las plantas y comparte tus conocimientos.
+        </p>
+      </div>
+      {user && (
+        <a href="/comunidades/nueva" class="btn btn-accent">
+          Crear Comunidad
+        </a>
+      )}
     </div>
-    
+
     <div class="communities-grid">
-      <!-- Las comunidades se cargarán dinámicamente desde la API -->
-      <div class="loading">Cargando comunidades...</div>
+      {communities.length === 0 ? (
+        <div class="empty-state card">
+          <p class="text-muted">No hay comunidades disponibles todavía.</p>
+          {user && <a href="/comunidades/nueva" class="btn btn-accent mt-2">Crear la primera</a>}
+        </div>
+      ) : (
+        communities.map((community) => (
+          <a href={`/comunidades/${community.id}`} class="card card-hover community-card" key={community.id}>
+            <img
+              src={community.imageUrl || fallbackBanner}
+              alt={community.name}
+              class="community-banner"
+              loading="lazy"
+            />
+            <div class="community-info">
+              <h2 class="community-name">{community.name}</h2>
+              <div class="community-members">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+                <span>
+                  {community._count.members} {community._count.members === 1 ? 'miembro' : 'miembros'}
+                </span>
+              </div>
+              <p class="community-description">
+                {community.description || 'Únete a esta comunidad para compartir tu pasión por las plantas.'}
+              </p>
+              <div class="community-footer">
+                <span class="community-link">Ver comunidad →</span>
+                <span class="community-owner">por {community.owner?.name || community.owner?.username}</span>
+              </div>
+            </div>
+          </a>
+        ))
+      )}
     </div>
   </div>
 
@@ -20,140 +76,89 @@ import Layout from '../../layouts/Layout.astro'; // Correcto: 2 niveles hacia ar
     .container {
       max-width: 1200px;
       margin: 0 auto;
-      padding: 2rem 1.5rem;
+      padding: 1.5rem 1rem;
     }
-    
-    .header {
-      margin-bottom: 2rem;
-    }
-    
-    h1 {
-      color: var(--color-primary);
-      margin-bottom: 0.5rem;
-    }
-    
-    .btn {
-      display: inline-block;
-      padding: 0.5rem 1rem;
-      border-radius: 0.375rem;
-      font-weight: 500;
-      text-align: center;
-      text-decoration: none;
-      margin-top: 1rem;
-    }
-    
-    .btn-primary {
-      background-color: var(--color-primary);
-      color: white;
-    }
-    
+
+    .header { margin-bottom: 2rem; }
+
+    .header .text-muted { margin-top: 0.5rem; }
+
     .communities-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
       gap: 1.5rem;
     }
-    
+
     .community-card {
-      background: white;
-      border-radius: 0.5rem;
+      display: flex;
+      flex-direction: column;
       overflow: hidden;
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-      transition: transform 0.2s;
+      text-decoration: none;
+      color: inherit;
     }
-    
-    .community-card:hover {
-      transform: translateY(-4px);
-    }
-    
+
     .community-banner {
       width: 100%;
-      height: 120px;
+      height: 130px;
       object-fit: cover;
     }
-    
+
     .community-info {
       padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
     }
-    
+
     .community-name {
+      font-family: var(--font-heading);
       font-size: 1.25rem;
-      font-weight: 600;
+      font-weight: 700;
+      color: var(--color-text-main);
       margin-bottom: 0.5rem;
-      color: var(--color-text);
     }
-    
+
     .community-members {
       display: flex;
       align-items: center;
-      color: var(--color-text-light);
-      font-size: 0.9rem;
-      margin-bottom: 1rem;
+      gap: 0.5rem;
+      color: var(--color-text-muted);
+      font-size: 0.875rem;
+      margin-bottom: 0.75rem;
     }
-    
+
     .community-description {
-      color: var(--color-text);
+      color: var(--color-text-muted);
+      font-size: 0.95rem;
+      line-height: 1.5;
       margin-bottom: 1rem;
+      flex-grow: 1;
+    }
+
+    .community-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      border-top: 1px solid var(--color-border);
+      padding-top: 0.85rem;
+    }
+
+    .community-link {
+      color: var(--color-primary);
+      font-weight: 600;
       font-size: 0.95rem;
     }
-    
-    .community-link {
-      display: inline-block;
-      color: var(--color-primary);
-      font-weight: 500;
-      text-decoration: none;
-    }
-    
-    .loading {
-      text-align: center;
-      padding: 2rem;
+
+    .community-owner {
+      font-size: 0.8rem;
       color: var(--color-text-light);
+    }
+
+    .empty-state {
       grid-column: 1 / -1;
+      text-align: center;
+      padding: 3rem 1rem;
     }
   </style>
-
-  <script>
-    // Cargar comunidades desde la API
-    document.addEventListener('DOMContentLoaded', async () => {
-      try {
-        const response = await fetch('/api/communities');
-        const communities = await response.json();
-        
-        const grid = document.querySelector('.communities-grid');
-        if (communities.length > 0) {
-          grid.innerHTML = communities.map(community => `
-            <div class="community-card">
-              <img src="${community.bannerUrl || 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=600&q=80'}" 
-                   onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=600&q=80';" 
-                   alt="${community.name}" class="community-banner">
-              <div class="community-info">
-                <h3 class="community-name">${community.name}</h3>
-                <div class="community-members">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 0.5rem;">
-                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                    <circle cx="9" cy="7" r="4"></circle>
-                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                  </svg>
-                  ${community.memberCount || 0} miembros
-                </div>
-                <p class="community-description">${community.description || 'Únete a esta comunidad para compartir tu pasión por las plantas.'}</p>
-                <a href="/comunidades/${community.id}" class="community-link">Ver comunidad →</a>
-              </div>
-            </div>
-          `).join('');
-        } else {
-          grid.innerHTML = `
-            <div class="no-communities" style="grid-column: 1 / -1; text-align: center; padding: 2rem;">
-              <p>No hay comunidades disponibles. ¡Sé el primero en crear una!</p>
-              <a href="/comunidades/nueva" class="btn btn-primary" style="margin-top: 1rem;">Crear Comunidad</a>
-            </div>
-          `;
-        }
-      } catch (error) {
-        console.error('Error al cargar comunidades:', error);
-        document.querySelector('.communities-grid').innerHTML = 
-          '<p class="error">Error al cargar las comunidades. Por favor, inténtalo de nuevo más tarde.</p>';
-      }
-    });
-  </script>
 </Layout>

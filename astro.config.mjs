@@ -1,7 +1,6 @@
 // @ts-check
 import { defineConfig } from "astro/config";
 
-// import svelte from "@astrojs/svelte";
 import react from "@astrojs/react";
 
 import node from "@astrojs/node";

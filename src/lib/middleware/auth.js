@@ -13,10 +13,34 @@ if (!JWT_SECRET) {
 
 const SECRET = JWT_SECRET || 'dev-secret-key-only';
 
-export async function authenticateToken(req) {
-  // Verificar si el token está en las cookies
-  const token = req.cookies?.ecoraices_token;
-  
+export const TOKEN_NAME = 'ecoraices_token';
+export const MAX_AGE = 60 * 60 * 24 * 7; // 1 semana
+export const MAX_AGE_LONG = 60 * 60 * 24 * 30; // 30 días (recordar mi cuenta)
+
+const JSON_HEADERS = { 'Content-Type': 'application/json' };
+
+const userSelect = {
+  id: true,
+  username: true,
+  email: true,
+  name: true,
+  avatarUrl: true,
+  role: true,
+  isAdmin: true,
+};
+
+// Obtener el token desde el contexto de Astro (cookies)
+export function getToken(context) {
+  return (
+    context.cookies?.get?.(TOKEN_NAME)?.value ??
+    context.cookies?.[TOKEN_NAME] ??
+    null
+  );
+}
+
+export async function authenticateToken(context) {
+  const token = getToken(context);
+
   if (!token) {
     return { user: null, error: 'No token provided' };
   }
@@ -24,19 +48,11 @@ export async function authenticateToken(req) {
   try {
     // Verificar el token JWT
     const decoded = jwt.verify(token, SECRET);
-    
+
     // Obtener el usuario de la base de datos
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        name: true,
-        avatarUrl: true,
-        role: true,
-        isAdmin: true
-      }
+      select: userSelect,
     });
 
     if (!user) {
@@ -50,27 +66,58 @@ export async function authenticateToken(req) {
   }
 }
 
+// Devuelve el usuario autenticado o null (para endpoints de solo lectura)
+export async function getSessionUser(context) {
+  const { user, error } = await authenticateToken(context);
+  return error || !user ? null : user;
+}
+
+// Wrapper para rutas API de Astro. Añade `context.user` al contexto autenticado.
 export function withAuth(handler, roles = []) {
-  return async (req, res) => {
-    // Verificar autenticación
-    const { user, error } = await authenticateToken(req);
+  return async (context) => {
+    const { user, error } = await authenticateToken(context);
 
     if (error || !user) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return new Response(JSON.stringify({ message: 'Unauthorized' }), {
+        status: 401,
+        headers: JSON_HEADERS,
+      });
     }
 
-    // Verificar roles si se especifican
-    if (roles.length > 0 && !roles.includes(user.role) && !user.isAdmin) {
-      return res.status(403).json({ message: 'Forbidden' });
+    // Verificar roles si se especifican (el rol ADMIN se gestiona vía isAdmin)
+    if (roles.length > 0 && !user.isAdmin && !roles.includes(user.role)) {
+      return new Response(JSON.stringify({ message: 'Forbidden' }), {
+        status: 403,
+        headers: JSON_HEADERS,
+      });
     }
 
-    // Añadir el usuario al objeto de solicitud
-    req.user = user;
+    context.user = user;
 
-    return handler(req, res);
+    return handler(context);
   };
 }
 
 export function withAdmin(handler) {
-  return withAuth(handler, ['ADMIN']);
+  return async (context) => {
+    const { user, error } = await authenticateToken(context);
+
+    if (error || !user) {
+      return new Response(JSON.stringify({ message: 'Unauthorized' }), {
+        status: 401,
+        headers: JSON_HEADERS,
+      });
+    }
+
+    if (!user.isAdmin) {
+      return new Response(JSON.stringify({ message: 'Forbidden' }), {
+        status: 403,
+        headers: JSON_HEADERS,
+      });
+    }
+
+    context.user = user;
+
+    return handler(context);
+  };
 }

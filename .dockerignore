@@ -1,0 +1,29 @@
+# Dependencias / artefactos
+node_modules
+dist
+.astro
+
+# Control de versiones
+.git
+.gitignore
+
+# Variables de entorno (secretos nunca entran a la imagen)
+.env
+.env.production
+.env.*.local
+
+# Datos locales y logs
+public/uploads
+uploads
+data
+*.log
+
+# Documentación y config de despliegue (se copian explícitamente)
+docs
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Bases de datos locales
+prisma/dev.db
+prisma/*.db

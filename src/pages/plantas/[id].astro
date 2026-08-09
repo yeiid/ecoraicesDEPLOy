@@ -12,6 +12,10 @@ const especie = await prisma.species.findUnique({
   },
   include: {
     category: true,
+    photos: {
+      orderBy: { rank: "asc" },
+      take: 12,
+    },
     observations: {
       include: {
         user: {
@@ -67,13 +71,31 @@ const getStatusLabel = (status: string): string => {
 const getStatusClass = (status: string): string => {
   return (status || '').toLowerCase().replace(/_/g, '-');
 };
+
+// Etiqueta legible para licencias de las fotos
+const licenseLabel = (license: string): string => {
+  const labels: Record<string, string> = {
+    'cc0': 'CC0 · Dominio público',
+    'cc-by': 'CC BY · Atribución',
+    'cc-by-sa': 'CC BY-SA · Atribución-CompartirIgual',
+    'cc-by-nc': 'CC BY-NC · No comercial',
+    'cc-by-nc-sa': 'CC BY-NC-SA',
+    'public-domain': 'Dominio público',
+  };
+  const key = (license || '').toLowerCase();
+  return labels[key] || (license ? `Licencia ${license}` : '');
+};
+
+const IMAGE_FALLBACK = 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=800&q=80';
+const mainPhoto = especie.photos?.[0];
+const mainImageUrl = mainPhoto?.url || especie.imageUrl || IMAGE_FALLBACK;
 ---
 
 <Layout title={`${especie.name} - Catálogo EcoRaíces`}>
   <div class="species-detail-page">
     <div class="breadcrumbs">
-      <a href="/">Inicio</a> &gt;
-      <a href="/plantas">Catálogo</a> &gt;
+      <a href="/">Inicio</a> <span class="crumb-sep" aria-hidden="true">›</span>
+      <a href="/plantas">Catálogo</a> <span class="crumb-sep" aria-hidden="true">›</span>
       <span>{especie.name}</span>
     </div>
 
@@ -82,12 +104,35 @@ const getStatusClass = (status: string): string => {
       <div class="species-gallery">
         <div class="main-image-wrapper">
           <img 
-            src={especie.imageUrl || 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=800&q=80'} 
+            src={mainImageUrl} 
             onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=800&q=80';"
             alt={especie.name} 
             class="main-image"
+            id="gallery-main"
+            data-original={mainImageUrl}
           />
+          {mainPhoto?.attribution && (
+            <p class="photo-credit">
+              Foto: {mainPhoto.attribution} · {licenseLabel(mainPhoto.license)}
+            </p>
+          )}
         </div>
+
+        {especie.photos && especie.photos.length > 1 && (
+          <div class="gallery-thumbs">
+            {especie.photos.map((foto) => (
+              <button
+                type="button"
+                class="thumb-btn"
+                data-src={foto.url}
+                data-credit={foto.attribution ? `Foto: ${foto.attribution} · ${licenseLabel(foto.license)}` : ''}
+                aria-label={`Ver foto de ${especie.name}`}
+              >
+                <img src={foto.thumbnailUrl || foto.url} alt="" loading="lazy" />
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <!-- Información Científica -->
@@ -95,6 +140,25 @@ const getStatusClass = (status: string): string => {
         <span class="category-badge">{especie.category.name}</span>
         <h1>{especie.name}</h1>
         <p class="scientific-name"><i>{especie.scientificName}</i></p>
+
+        <div class="taxonomy-section">
+          {especie.family && (
+            <span class="taxonomy-item">
+              <span class="info-label">Familia:</span>
+              <span class="family-name"><i>{especie.family}</i></span>
+            </span>
+          )}
+          {especie.synonyms && especie.synonyms.length > 0 && (
+            <div class="synonyms-section">
+              <span class="info-label">Sinónimos:</span>
+              <ul class="synonyms-list">
+                {especie.synonyms.slice(0, 6).map((sin: string) => (
+                  <li><i>{sin}</i></li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
 
         {especie.status && (
           <div class="status-section">
@@ -254,6 +318,84 @@ const getStatusClass = (status: string): string => {
     display: block;
   }
 
+  .photo-credit {
+    margin: 0;
+    padding: 0.6rem 1rem;
+    font-size: 0.8rem;
+    color: #718096;
+    background-color: #fcfdfd;
+    border-top: 1px solid #eef2f0;
+  }
+
+  .gallery-thumbs {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+
+  .thumb-btn {
+    border: 2px solid #eef2f0;
+    border-radius: 8px;
+    overflow: hidden;
+    padding: 0;
+    cursor: pointer;
+    background: none;
+    transition: border-color 0.2s;
+  }
+
+  .thumb-btn:hover,
+  .thumb-btn.active {
+    border-color: var(--color-primary);
+  }
+
+  .thumb-btn img {
+    width: 100%;
+    height: 60px;
+    object-fit: cover;
+    display: block;
+  }
+
+  .taxonomy-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.9rem 1rem;
+    background-color: #f8faf8;
+    border-radius: 8px;
+    border: 1px solid #eef2f0;
+  }
+
+  .taxonomy-item {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+
+  .taxonomy-section .info-label {
+    margin-bottom: 0;
+  }
+
+  .family-name {
+    font-size: 1.05rem;
+    color: #2c3e35;
+  }
+
+  .synonyms-section .info-label {
+    margin-bottom: 0.3rem;
+  }
+
+  .synonyms-list {
+    margin: 0;
+    padding-left: 1.2rem;
+    color: #4a5d55;
+    font-size: 0.95rem;
+  }
+
+  .synonyms-list li {
+    margin-bottom: 0.2rem;
+  }
+
   /* Info */
   .species-info {
     display: flex;
@@ -274,7 +416,7 @@ const getStatusClass = (status: string): string => {
   .species-info h1 {
     font-family: 'Outfit', sans-serif;
     font-size: 2.75rem;
-    color: #064e3b;
+    color: var(--color-primary-dark);
     margin: 0;
     line-height: 1.15;
   }
@@ -330,7 +472,7 @@ const getStatusClass = (status: string): string => {
 
   .description-section h2 {
     font-size: 1.4rem;
-    color: #064e3b;
+    color: var(--color-primary-dark);
     margin-bottom: 0.75rem;
     padding-bottom: 0.4rem;
     border-bottom: 1px solid #eef2f0;
@@ -367,7 +509,7 @@ const getStatusClass = (status: string): string => {
   }
 
   .btn-primary:hover {
-    background-color: #059669;
+    background-color: var(--color-success-dark);
     transform: translateY(-2px);
   }
 
@@ -401,7 +543,7 @@ const getStatusClass = (status: string): string => {
 
   .section-header h2 {
     font-size: 1.75rem;
-    color: #064e3b;
+    color: var(--color-primary-dark);
     margin-bottom: 0.5rem;
   }
 
@@ -514,7 +656,7 @@ const getStatusClass = (status: string): string => {
 
   .related-section h2 {
     font-size: 1.5rem;
-    color: #064e3b;
+    color: var(--color-primary-dark);
     margin-bottom: 1.5rem;
   }
 
@@ -589,3 +731,30 @@ const getStatusClass = (status: string): string => {
     }
   }
 </style>
+
+<script>
+  document.addEventListener('astro:page-load', () => {
+    const main = document.getElementById('gallery-main');
+    if (!main) return;
+    const credit = document.querySelector('.photo-credit');
+    const thumbs = document.querySelectorAll('.thumb-btn');
+    const fallback = 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=800&q=80';
+
+    thumbs.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        thumbs.forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        main.src = btn.dataset.src;
+        if (credit) {
+          credit.textContent = btn.dataset.credit || '';
+        }
+      });
+      if (btn.dataset.src === (main.dataset.original || '')) {
+        btn.classList.add('active');
+      }
+    });
+    if (!main.dataset.original || main.src === fallback) {
+      thumbs[0]?.classList.add('active');
+    }
+  });
+</script>

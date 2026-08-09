@@ -1,0 +1,405 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { prisma } from "../../lib/prisma.js";
+import { getSessionUser } from "../../lib/middleware/auth.js";
+import { getUserCommunities } from "../../lib/services/community.service.js";
+
+const user = await getSessionUser({ cookies: Astro.cookies });
+
+if (!user) {
+  return Astro.redirect("/auth/login");
+}
+
+const [profile, observations, communities] = await Promise.all([
+  prisma.user.findUnique({
+    where: { id: user.id },
+    select: {
+      id: true,
+      username: true,
+      email: true,
+      name: true,
+      avatarUrl: true,
+      bio: true,
+      role: true,
+      isAdmin: true,
+      createdAt: true,
+    },
+  }),
+  prisma.observation.findMany({
+    where: { userId: user.id },
+    include: { species: { select: { id: true, name: true, scientificName: true, imageUrl: true } } },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+  }),
+  getUserCommunities(user.id),
+]);
+
+const statusLabel = { PENDING: "Pendiente", APPROVED: "Aprobada", REJECTED: "Rechazada" };
+const statusBadge = {
+  PENDING: "badge-warning",
+  APPROVED: "badge-success",
+  REJECTED: "badge-danger",
+};
+---
+
+<Layout title="Mi Perfil - EcoRaíces">
+  <div class="profile-container">
+    <header class="profile-header">
+      <div class="profile-avatar">
+        {profile.avatarUrl ? (
+          <img src={profile.avatarUrl} alt={profile.name || profile.username} class="avatar-img" />
+        ) : (
+          <span class="avatar-initial">{(profile.name || profile.username)[0].toUpperCase()}</span>
+        )}
+      </div>
+      <div class="profile-heading">
+        <h1>{profile.name || profile.username}</h1>
+        <p class="profile-sub">@{profile.username} · {profile.isAdmin ? "Administrador" : profile.role === "COMMUNITY" ? "Comunidad" : "Guardabosques"}</p>
+      </div>
+    </header>
+
+    <div class="profile-grid">
+      <!-- Editar perfil -->
+      <section class="card profile-card">
+        <h2 class="card-title">Editar perfil</h2>
+
+        <div id="profile-alert" class="alert-box error" style="display: none; margin-bottom: 1rem;"></div>
+        <div id="profile-success" class="alert-box success" style="display: none; margin-bottom: 1rem;"></div>
+
+        <form id="profile-form">
+          <div class="form-group">
+            <label for="name">Nombre</label>
+            <input type="text" id="name" name="name" value={profile.name || ""} class="input">
+          </div>
+          <div class="form-group">
+            <label for="username">Nombre de usuario</label>
+            <input type="text" id="username" name="username" value={profile.username} class="input">
+          </div>
+          <div class="form-group">
+            <label for="email">Correo electrónico</label>
+            <input type="email" id="email" name="email" value={profile.email} class="input">
+          </div>
+          <div class="form-group">
+            <label for="avatarUrl">URL de la foto de perfil</label>
+            <input type="url" id="avatarUrl" name="avatarUrl" value={profile.avatarUrl || ""} class="input" placeholder="https://ejemplo.com/foto.jpg">
+          </div>
+          <div class="form-group">
+            <label for="bio">Biografía</label>
+            <textarea id="bio" name="bio" rows="3" class="textarea" placeholder="Cuéntanos sobre ti...">{profile.bio || ""}</textarea>
+          </div>
+          <button type="submit" class="btn btn-primary">Guardar cambios</button>
+        </form>
+      </section>
+
+      <!-- Cambiar contraseña -->
+      <section class="card profile-card">
+        <h2 class="card-title">Cambiar contraseña</h2>
+
+        <div id="password-alert" class="alert-box error" style="display: none; margin-bottom: 1rem;"></div>
+        <div id="password-success" class="alert-box success" style="display: none; margin-bottom: 1rem;"></div>
+
+        <form id="password-form">
+          <div class="form-group">
+            <label for="currentPassword">Contraseña actual</label>
+            <input type="password" id="currentPassword" name="currentPassword" class="input" required>
+          </div>
+          <div class="form-group">
+            <label for="newPassword">Nueva contraseña</label>
+            <input type="password" id="newPassword" name="newPassword" class="input" minlength="8" required>
+          </div>
+          <button type="submit" class="btn btn-secondary">Actualizar contraseña</button>
+        </form>
+      </section>
+    </div>
+
+    <!-- Mis observaciones -->
+    <section class="card profile-card">
+      <div class="section-head">
+        <h2 class="card-title">Mis observaciones</h2>
+        <a href="/observaciones/nueva" class="btn btn-primary btn-sm">+ Nueva</a>
+      </div>
+      {observations.length === 0 ? (
+        <p class="empty-state">Aún no has registrado observaciones.</p>
+      ) : (
+        <div class="obs-list">
+          {observations.map((o) => (
+            <a href={`/observaciones/${o.id}`} class="obs-item">
+              {o.species?.imageUrl ? (
+                <img src={o.species.imageUrl} alt={o.species.name} class="obs-thumb" loading="lazy" />
+              ) : (
+                <div class="obs-thumb placeholder">🌿</div>
+              )}
+              <div class="obs-info">
+                <span class="obs-name">{o.species?.name || "Sin especie"}</span>
+                <span class="obs-date">{new Date(o.createdAt).toLocaleDateString("es-CO")} · {o.latitude.toFixed(4)}, {o.longitude.toFixed(4)}</span>
+              </div>
+              <span class={`badge ${statusBadge[o.status]}`}>{statusLabel[o.status]}</span>
+            </a>
+          ))}
+        </div>
+      )}
+    </section>
+
+    <!-- Mis comunidades -->
+    <section class="card profile-card">
+      <div class="section-head">
+        <h2 class="card-title">Mis comunidades</h2>
+        <a href="/comunidades/nueva" class="btn btn-primary btn-sm">+ Crear</a>
+      </div>
+      {communities.length === 0 ? (
+        <p class="empty-state">No perteneces a ninguna comunidad.</p>
+      ) : (
+        <div class="obs-list">
+          {communities.map((c) => (
+            <a href={`/comunidades/${c.id}`} class="obs-item">
+              <div class="obs-info">
+                <span class="obs-name">{c.name}</span>
+                <span class="obs-date">{c.location || "Sin ubicación"}</span>
+              </div>
+              <span class="badge badge-neutral">{c.role || "Miembro"}</span>
+            </a>
+          ))}
+        </div>
+      )}
+    </section>
+  </div>
+</Layout>
+
+<style>
+  .profile-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .profile-header {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+  }
+
+  .profile-avatar {
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: var(--color-success-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 3px solid var(--color-success);
+    flex-shrink: 0;
+  }
+
+  .avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .avatar-initial {
+    font-family: var(--font-heading);
+    font-size: 2.25rem;
+    font-weight: 800;
+    color: var(--color-success-dark);
+  }
+
+  .profile-heading h1 {
+    font-family: var(--font-heading);
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: var(--color-primary-dark);
+  }
+
+  .profile-sub {
+    color: var(--color-text-muted);
+    margin-top: 0.25rem;
+  }
+
+  .profile-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+  }
+
+  .profile-card {
+    padding: 1.75rem;
+  }
+
+  .card-title {
+    font-family: var(--font-heading);
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--color-primary-dark);
+    margin-bottom: 1.25rem;
+  }
+
+  .section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .section-head .card-title {
+    margin-bottom: 0;
+  }
+
+  .form-group {
+    margin-bottom: 1.1rem;
+  }
+
+  .form-group label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-text);
+    margin-bottom: 0.35rem;
+  }
+
+  .empty-state {
+    color: var(--color-text-muted);
+    padding: 0.5rem 0;
+  }
+
+  .obs-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin-top: 1rem;
+  }
+
+  .obs-item {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    transition: box-shadow 0.2s;
+  }
+
+  .obs-item:hover {
+    box-shadow: var(--shadow-hover);
+  }
+
+  .obs-thumb {
+    width: 52px;
+    height: 52px;
+    border-radius: var(--radius-sm);
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+
+  .obs-thumb.placeholder {
+    background: var(--color-success-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+  }
+
+  .obs-info {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .obs-name {
+    font-weight: 600;
+    color: var(--color-primary-dark);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .obs-date {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+  }
+
+  @media (max-width: 768px) {
+    .profile-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<script>
+  document.addEventListener("astro:page-load", () => {
+    const setBox = (id, message, type) => {
+      const box = document.getElementById(id);
+      box.textContent = message;
+      box.className = `alert-box ${type}`;
+      box.style.display = "block";
+    };
+    const hide = (id) => {
+      document.getElementById(id).style.display = "none";
+    };
+
+    const profileForm = document.getElementById("profile-form");
+    if (profileForm) {
+      profileForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        hide("profile-alert");
+        hide("profile-success");
+
+        const data = Object.fromEntries(new FormData(profileForm).entries());
+        const btn = profileForm.querySelector("button[type='submit']");
+        btn.disabled = true;
+        btn.textContent = "Guardando...";
+
+        try {
+          const res = await fetch("/api/perfil", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+          });
+          const result = await res.json();
+          if (!res.ok) throw new Error(result.message || "No se pudo guardar.");
+          setBox("profile-success", "Perfil actualizado correctamente.", "success");
+        } catch (err) {
+          setBox("profile-alert", err.message, "error");
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "Guardar cambios";
+        }
+      });
+    }
+
+    const passwordForm = document.getElementById("password-form");
+    if (passwordForm) {
+      passwordForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        hide("password-alert");
+        hide("password-success");
+
+        const data = Object.fromEntries(new FormData(passwordForm).entries());
+        const btn = passwordForm.querySelector("button[type='submit']");
+        btn.disabled = true;
+        btn.textContent = "Actualizando...";
+
+        try {
+          const res = await fetch("/api/perfil/password", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+          });
+          const result = await res.json();
+          if (!res.ok) throw new Error(result.message || "No se pudo cambiar la contraseña.");
+          setBox("password-success", result.message || "Contraseña actualizada.", "success");
+          passwordForm.reset();
+        } catch (err) {
+          setBox("password-alert", err.message, "error");
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "Actualizar contraseña";
+        }
+      });
+    }
+  });
+</script>

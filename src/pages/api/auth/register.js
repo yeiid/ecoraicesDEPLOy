@@ -1,16 +1,39 @@
 import { createUser } from '../../../lib/services/auth.service.js';
 import { prisma } from '../../../lib/prisma.js';
+import { z } from 'zod';
+
+const registerSchema = z.object({
+  fullName: z.string().min(2, 'Ingresa tu nombre completo.'),
+  email: z.string().email('Ingresa un correo electrónico válido.'),
+  password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres.'),
+  userType: z.enum(['individual', 'community'], { message: 'Tipo de cuenta inválido.' }),
+  communityName: z.string().optional(),
+  communityDescription: z.string().optional(),
+  latitude: z.coerce.number().optional(),
+  longitude: z.coerce.number().optional(),
+});
 
 export async function POST({ request }) {
   try {
     const body = await request.json();
-    const { fullName, email, password, userType, communityName, communityDescription, latitude, longitude } = body;
 
-    // Validar campos requeridos
-    if (!fullName || !email || !password || !userType) {
-      return new Response(JSON.stringify({ message: 'Todos los campos básicos son obligatorios.' }), {
+    // Validar campos con zod
+    const parsed = registerSchema.safeParse(body);
+    if (!parsed.success) {
+      const message = parsed.error.errors[0]?.message || 'Datos inválidos.';
+      return new Response(JSON.stringify({ message }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { fullName, email, password, userType, communityName, communityDescription, latitude, longitude } = parsed.data;
+
+    // Si es una cuenta de comunidad, el nombre de la comunidad es obligatorio
+    if (userType === 'community' && !communityName) {
+      return new Response(JSON.stringify({ message: 'El nombre de la comunidad es obligatorio.' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
       });
     }
 
@@ -26,13 +49,13 @@ export async function POST({ request }) {
       email,
       password,
       name: fullName,
-      role
+      role,
     });
 
     if (user.error) {
       return new Response(JSON.stringify({ message: user.error }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       });
     }
 
@@ -43,37 +66,42 @@ export async function POST({ request }) {
           data: {
             name: communityName,
             description: communityDescription || null,
+            latitude: latitude || null,
+            longitude: longitude || null,
             ownerId: user.id,
             members: {
               create: {
                 userId: user.id,
-                role: 'ADMIN'
-              }
-            }
-          }
+                role: 'ADMIN',
+              },
+            },
+          },
         });
       } catch (dbError) {
         console.error('Error creating community during registration:', dbError);
         return new Response(JSON.stringify({ message: 'Error al crear la comunidad vinculada al usuario' }), {
           status: 500,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json' },
         });
       }
     }
 
-    return new Response(JSON.stringify({ 
-      success: true,
-      message: 'Usuario registrado con éxito',
-      user 
-    }), {
-      status: 201,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: 'Usuario registrado con éxito',
+        user,
+      }),
+      {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
   } catch (error) {
     console.error('Registration API error:', error);
     return new Response(JSON.stringify({ message: error.message || 'Error en el servidor al registrar el usuario' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
     });
   }
 }

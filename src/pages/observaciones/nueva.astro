@@ -1,25 +1,10 @@
 ---
 import Layout from "../../layouts/Layout.astro"; // Correcto: 2 niveles hacia arriba
 import NewObservationForm from "../../components/react/NewObservationForm";
-import jwt from 'jsonwebtoken';
-const { verify } = jwt;
-import { getUserById } from '../../lib/services/auth.service.js';
+import { getSessionUser } from '../../lib/middleware/auth.js';
 
 // 🔐 Verificar estado de sesión y token
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-const token = Astro.cookies.get('ecoraices_token')?.value;
-let user = null;
-
-if (token) {
-  try {
-    const decoded = verify(token, JWT_SECRET);
-    if (decoded && decoded.userId) {
-      user = await getUserById(decoded.userId);
-    }
-  } catch (error) {
-    console.error("Token verification failed in nueva.astro:", error.message);
-  }
-}
+const user = await getSessionUser({ cookies: Astro.cookies });
 
 // Redirigir si no está autenticado
 if (!user) {

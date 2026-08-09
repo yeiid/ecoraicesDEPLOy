@@ -23,7 +23,7 @@ const pageTitle = "Inicio - EcoRaíces";
     <header class="hero-card">
       <div class="hero-content">
         <div class="logo-wrapper">
-          <img src="/images/logo.png" alt="EcoRaíces Logo" class="floating-logo" />
+          <img src="/eco.png" alt="EcoRaíces Logo" class="floating-logo" />
           <div class="glowing-halo"></div>
         </div>
         
@@ -31,9 +31,9 @@ const pageTitle = "Inicio - EcoRaíces";
         <div class="divider-line"></div>
         
         <p class="hero-description">
-          Descubre y protege la biodiversidad urbana de los municipios guajiros. 
-          Nuestra plataforma te permite <strong>geolocalizar y documentar</strong> en tiempo real las especies 
-          arbóreas que embellecen nuestras plazas, calles y veredas.
+          Plataforma de ciencia ciudadana para documentar, geolocalizar y proteger la biodiversidad. 
+          Registra especies en tiempo real, contribuye al mapa comunitario y ayuda a construir 
+          el inventario de tu región desde cero.
         </p>
 
         <div class="hero-badge-container">
@@ -105,7 +105,7 @@ const pageTitle = "Inicio - EcoRaíces";
         <div class="action-badge">GPS Móvil</div>
         <h2 class="action-title">Registrar Nuevo Árbol</h2>
         <p class="action-desc">
-          Usa tu teléfono como un GPS forestal. Captura la ubicación en tiempo real, sube fotos 
+          Usa tu teléfono como un GPS de campo. Captura la ubicación en tiempo real, sube fotos 
           de hojas o corteza y ayuda a inventariar el ecosistema local.
         </p>
         <div class="action-footer">
@@ -120,8 +120,8 @@ const pageTitle = "Inicio - EcoRaíces";
         <div class="action-badge border-badge">Mapa Interactivo</div>
         <h2 class="action-title">Mapa de Especies Nativas</h2>
         <p class="action-desc">
-          Visualiza los árboles registrados en toda La Guajira. Filtra por categoría y zoom inteligente 
-          a través de nuestro servidor de teselas vectoriales de alto rendimiento.
+          Visualiza los árboles registrados por la comunidad. Filtra por categoría y explora el 
+          territorio con nuestro visor de mapas en 3D de alto rendimiento.
         </p>
         <div class="action-footer">
           <span>Explorar el Mapa</span>
@@ -135,8 +135,8 @@ const pageTitle = "Inicio - EcoRaíces";
         <div class="action-badge border-badge">Herbario</div>
         <h2 class="action-title">Catálogo Científico</h2>
         <p class="action-desc">
-          Consulta la base de datos de especies nativas de la región. Aprende sobre hábitats, 
-          estado de conservación y características botánicas de nuestros árboles.
+          Consulta la base de datos de especies. Aprende sobre hábitats, 
+          estado de conservación y características botánicas de los árboles registrados.
         </p>
         <div class="action-footer">
           <span>Ver Catálogo</span>
@@ -188,7 +188,7 @@ const pageTitle = "Inicio - EcoRaíces";
     left: 0;
     right: 0;
     height: 4px;
-    background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+    background: linear-gradient(90deg, var(--color-success) 0%, var(--color-success-dark) 100%);
   }
 
   .hero-content {
@@ -240,19 +240,19 @@ const pageTitle = "Inicio - EcoRaíces";
     font-family: 'Outfit', sans-serif;
     font-size: 2.75rem;
     font-weight: 800;
-    color: #064e3b;
+    color: var(--color-primary-dark);
     margin-bottom: 1rem;
     letter-spacing: -0.025em;
   }
 
   .accent-text {
-    color: #10b981;
+    color: var(--color-success);
   }
 
   .divider-line {
     width: 60px;
     height: 3px;
-    background-color: #10b981;
+    background-color: var(--color-success);
     margin: 1.25rem auto;
     border-radius: 99px;
   }
@@ -317,7 +317,7 @@ const pageTitle = "Inicio - EcoRaíces";
     justify-content: center;
   }
 
-  .stat-icon-wrapper.obs { background-color: #ecfdf5; color: #059669; }
+  .stat-icon-wrapper.obs { background-color: var(--color-success-bg); color: var(--color-success-dark); }
   .stat-icon-wrapper.spc { background-color: #f0fdf4; color: #15803d; }
   .stat-icon-wrapper.com { background-color: #f0fdfa; color: #0d9488; }
 
@@ -432,7 +432,7 @@ const pageTitle = "Inicio - EcoRaíces";
     justify-content: space-between;
     font-weight: 600;
     font-size: 0.9375rem;
-    color: #059669;
+    color: var(--color-success-dark);
     border-top: 1px solid #f3f4f6;
     padding-top: 1rem;
     transition: color 0.2s;

@@ -1,4 +1,5 @@
 import { prisma } from '../../../lib/prisma.js';
+import { withAuth } from '../../../lib/middleware/auth.js';
 import { createId } from '@paralleldrive/cuid2';
 import path from 'path';
 import fs from 'fs/promises';
@@ -24,30 +25,30 @@ export async function GET({ request }) {
     const verified = url.searchParams.get('verified') === 'true';
     const dateFrom = url.searchParams.get('dateFrom');
     const dateTo = url.searchParams.get('dateTo');
-    
+
     // Construir condiciones de filtrado
     const where = {};
-    
+
     // Filtro por categoría (a través de la relación con species)
     if (categoryId) {
       where.species = {
-        categoryId
+        categoryId,
       };
     }
-    
+
     // Filtro por verificación
     if (verified) {
       where.status = 'APPROVED';
     }
-    
+
     // Filtros de fecha
     if (dateFrom || dateTo) {
       where.observationDate = {};
-      
+
       if (dateFrom) {
         where.observationDate.gte = new Date(dateFrom);
       }
-      
+
       if (dateTo) {
         // Ajustar la fecha final al final del día
         const endDate = new Date(dateTo);
@@ -55,83 +56,92 @@ export async function GET({ request }) {
         where.observationDate.lte = endDate;
       }
     }
-    
+
     // Obtener las observaciones con información relacionada
     const observations = await prisma.observation.findMany({
       where,
       include: {
         species: {
           include: {
-            category: true
-          }
+            category: true,
+          },
         },
         user: {
           select: {
             id: true,
             username: true,
-            avatarUrl: true
-          }
-        }
+            avatarUrl: true,
+          },
+        },
       },
       orderBy: {
-        createdAt: 'desc'
-      }
+        createdAt: 'desc',
+      },
     });
-    
+
     // Mapear para compatibilidad con la UI de React/Leaflet
-    const formattedObservations = observations.map(obs => ({
+    const formattedObservations = observations.map((obs) => ({
       ...obs,
       verified: obs.status === 'APPROVED',
-      isVerified: obs.status === 'APPROVED'
+      isVerified: obs.status === 'APPROVED',
     }));
 
     return new Response(JSON.stringify(formattedObservations), {
       status: 200,
       headers: {
-        'Content-Type': 'application/json'
-      }
+        'Content-Type': 'application/json',
+      },
     });
   } catch (error) {
     console.error('Error fetching observations:', error);
     return new Response(JSON.stringify({ message: 'Error al obtener las observaciones' }), {
       status: 500,
       headers: {
-        'Content-Type': 'application/json'
-      }
+        'Content-Type': 'application/json',
+      },
     });
   }
 }
 
-export async function POST({ request }) {
+// POST protegido: el autor de la observación se toma del token autenticado,
+// nunca del cuerpo de la petición (evita suplantación de identidad).
+export const POST = withAuth(async ({ request, user }) => {
   try {
     // Asegurar que el directorio de uploads existe
     await ensureUploadsDir();
-    
+
     // Manejar form-data con archivo de imagen
     const formData = await request.formData();
-    
+
     // Extraer datos del formulario
     const speciesId = formData.get('speciesId');
-    const userId = formData.get('userId');
     const observationDate = formData.get('observationDate');
     const latitude = parseFloat(formData.get('latitude'));
     const longitude = parseFloat(formData.get('longitude'));
     const altitude = formData.get('altitude') ? parseFloat(formData.get('altitude')) : null;
+    const municipio = formData.get('municipio') || null;
+    const estadoConservacion = formData.get('estadoConservacion') || null;
     const notes = formData.get('notes') || null;
     const imageFile = formData.get('image');
-    
+
+    // El userId proviene del token autenticado
+    const userId = user.id;
+
     // Validar datos requeridos
-    if (!speciesId || !userId || !observationDate || !latitude || !longitude) {
-      return new Response(JSON.stringify({ 
-        message: 'Faltan datos requeridos para la observación' 
-      }), {
-        status: 400,
-        headers: {
-          'Content-Type': 'application/json'
+    if (!speciesId || !observationDate || !latitude || !longitude) {
+      return new Response(
+        JSON.stringify({
+          message: 'Faltan datos requeridos para la observación',
+        }),
+        {
+          status: 400,
+          headers: {
+            'Content-Type': 'application/json',
+          },
         }
-      });
+      );
     }
-    
+
     // Procesar la imagen si existe
     let imageUrl = null;
     if (imageFile && imageFile instanceof File) {
@@ -139,17 +149,17 @@ export async function POST({ request }) {
       const fileExtension = path.extname(imageFile.name);
       const fileName = `${createId()}-${Date.now()}${fileExtension}`;
       const filePath = path.join(UPLOADS_DIR, fileName);
-      
+
       // Leer el contenido del archivo
       const fileBuffer = Buffer.from(await imageFile.arrayBuffer());
-      
+
       // Guardar el archivo
       await fs.writeFile(filePath, fileBuffer);
-      
+
       // URL pública del archivo
       imageUrl = `/uploads/observations/${fileName}`;
     }
-    
+
     // Crear la observación en la base de datos con status PENDING por defecto
     const observation = await prisma.observation.create({
       data: {
@@ -159,38 +169,44 @@ export async function POST({ request }) {
         latitude,
         longitude,
         altitude,
+        municipio,
+        estadoConservacion,
         notes,
         imageUrl,
-        status: 'PENDING'
-      }
+        status: 'PENDING',
+      },
     });
 
     try {
-      // Obtener el nombre de la especie
+      // Obtener la especie con su categoría (para tipo y altura en el mapa 3D)
       const species = await prisma.species.findUnique({
-        where: { id: speciesId }
+        where: { id: speciesId },
+        include: { category: true },
       });
       // Sincronizar con el motor de mapas PostGIS (tabla geo2)
-      await syncObservationToPostGIS(observation, species?.name || species?.commonName);
+      await syncObservationToPostGIS(species, observation);
     } catch (syncError) {
       console.error('Error during PostGIS sync:', syncError);
     }
-    
+
     return new Response(JSON.stringify(observation), {
       status: 201,
       headers: {
-        'Content-Type': 'application/json'
-      }
+        'Content-Type': 'application/json',
+      },
     });
   } catch (error) {
     console.error('Error creating observation:', error);
-    return new Response(JSON.stringify({ 
-      message: 'Error al crear la observación' 
-    }), {
-      status: 500,
-      headers: {
-        'Content-Type': 'application/json'
+    return new Response(
+      JSON.stringify({
+        message: 'Error al crear la observación',
+      }),
+      {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+        },
       }
-    });
+    );
   }
-} 
+});

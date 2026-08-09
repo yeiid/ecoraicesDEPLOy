@@ -1,5 +1,6 @@
 ---
 import Layout from "../../layouts/Layout.astro"; // Correcto: 2 niveles hacia arriba
+import MapComponent from "../../components/react/MapComponent.jsx";
 
 export const prerender = false;
 
@@ -28,6 +29,20 @@ try {
 const title = observation
   ? `${observation.species?.name || "Observación"} - EcoRaices`
   : "Observación - EcoRaices";
+
+// Marcador único para el mapa MapLibre (lectura, sin selección)
+const mapMarker = observation
+  ? {
+      latitude: observation.latitude,
+      longitude: observation.longitude,
+      verified: observation.isVerified,
+      comments: observation.notes,
+      species: {
+        name: observation.species?.name,
+        commonName: observation.species?.commonName,
+      },
+    }
+  : null;
 ---
 
 <Layout title={title}>
@@ -45,8 +60,8 @@ const title = observation
         <div class="observation-container">
           <div class="observation-header">
             <div class="breadcrumbs">
-              <a href="/">Inicio</a> &gt;
-              <a href="/observaciones">Observaciones</a> &gt;
+              <a href="/">Inicio</a> <span class="crumb-sep" aria-hidden="true">›</span>
+              <a href="/observaciones">Observaciones</a> <span class="crumb-sep" aria-hidden="true">›</span>
               <span>{observation.species?.name || "Especie desconocida"}</span>
             </div>
 
@@ -141,6 +156,20 @@ const title = observation
                     </div>
                   )}
 
+                  {observation.municipio && (
+                    <div class="info-item">
+                      <span class="label">Municipio:</span>
+                      <span class="value">{observation.municipio}</span>
+                    </div>
+                  )}
+
+                  {observation.estadoConservacion && (
+                    <div class="info-item">
+                      <span class="label">Estado de conservación:</span>
+                      <span class="value">{observation.estadoConservacion}</span>
+                    </div>
+                  )}
+
                   {observation.createdAt && (
                     <div class="info-item">
                       <span class="label">Agregada:</span>
@@ -177,7 +206,7 @@ const title = observation
                     </p>
                   )}
                   <a
-                    href={`/especies/${observation.species.id}`}
+                    href={`/plantas/${observation.species.id}`}
                     class="btn btn-outline"
                   >
                     Ver ficha completa de la especie
@@ -189,7 +218,15 @@ const title = observation
 
           <div class="map-container">
             <h2>Ubicación</h2>
-            <div class="map-wrapper" id="observation-map" />
+            <div class="map-wrapper">
+              <MapComponent
+                client:only="react"
+                center={[observation.latitude, observation.longitude]}
+                zoom={14}
+                readOnly={true}
+                markers={mapMarker ? [mapMarker] : []}
+              />
+            </div>
           </div>
 
           <div class="actions-container">
@@ -205,56 +242,6 @@ const title = observation
     }
   </div>
 </Layout>
-
-<script define:vars={{ observation }}>
-  // Cargar el mapa de Leaflet solo si hay coordenadas disponibles
-  if (observation && observation.latitude && observation.longitude) {
-    // Importar Leaflet de forma asíncrona
-    import("leaflet").then((L) => {
-      // Corregir el problema de íconos en Leaflet
-      delete L.Icon.Default.prototype._getIconUrl;
-
-      L.Icon.Default.mergeOptions({
-        iconRetinaUrl:
-          "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png",
-        iconUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png",
-        shadowUrl:
-          "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png",
-      });
-
-      // Crear el mapa
-      const map = L.map("observation-map").setView(
-        [observation.latitude, observation.longitude],
-        13
-      );
-
-      // Añadir capa de mapa base
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      }).addTo(map);
-
-      // Añadir marcador
-      const marker = L.marker([
-        observation.latitude,
-        observation.longitude,
-      ]).addTo(map);
-
-      // Añadir popup con información
-      if (observation.species?.name) {
-        marker
-          .bindPopup(
-            `
-        <b>${observation.species.name}</b><br>
-        ${observation.species.scientificName ? `<i>${observation.species.scientificName}</i><br>` : ""}
-        Observada: ${new Date(observation.observationDate).toLocaleDateString()}
-      `
-          )
-          .openPopup();
-      }
-    });
-  }
-</script>
 
 <style>
   .observation-detail-page {
@@ -436,7 +423,7 @@ const title = observation
   }
 
   .map-wrapper {
-    height: 400px;
+    height: 480px;
     border-radius: 8px;
     overflow: hidden;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);

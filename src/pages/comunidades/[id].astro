@@ -1,0 +1,350 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { prisma } from '../../lib/prisma.js';
+import { getSessionUser } from '../../lib/middleware/auth.js';
+
+export const prerender = false;
+
+const { id } = Astro.params;
+const user = await getSessionUser({ cookies: Astro.cookies });
+
+const community = await prisma.community.findUnique({
+  where: { id },
+  include: {
+    owner: { select: { id: true, username: true, name: true, avatarUrl: true } },
+    members: {
+      include: { user: { select: { id: true, username: true, name: true, avatarUrl: true } } },
+      orderBy: { role: 'asc' },
+    },
+    _count: { select: { members: true } },
+  },
+});
+
+if (!community) {
+  return Astro.redirect('/comunidades');
+}
+
+const observations = await prisma.observation.findMany({
+  where: { communityId: id },
+  include: { species: { select: { id: true, name: true, scientificName: true } } },
+  orderBy: { createdAt: 'desc' },
+});
+
+const title = `${community.name} - Comunidades - EcoRaíces`;
+
+const myMembership = user
+  ? community.members.find((m) => m.userId === user.id)
+  : null;
+const isOwner = user && community.ownerId === user.id;
+const canManage = user && (isOwner || user.isAdmin);
+
+const roleLabel = (role) =>
+  ({ ADMIN: 'Administrador', MODERATOR: 'Moderador', MEMBER: 'Miembro' })[role] || role;
+
+const statusInfo = {
+  PENDING: { label: 'Pendiente', cls: 'pending' },
+  APPROVED: { label: 'Aprobada', cls: 'approved' },
+  REJECTED: { label: 'Rechazada', cls: 'rejected' },
+};
+
+const bannerUrl =
+  community.imageUrl ||
+  'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=1200&q=80';
+---
+
+<Layout title={title}>
+  <div class="community-detail container">
+    <div class="breadcrumbs">
+      <a href="/">Inicio</a>
+      <span aria-hidden="true">›</span>
+      <a href="/comunidades">Comunidades</a>
+      <span aria-hidden="true">›</span>
+      <span class="current">{community.name}</span>
+    </div>
+
+    <div class="card community-hero">
+      <img src={bannerUrl} alt={community.name} class="community-banner" loading="lazy" />
+
+      <div class="hero-body">
+        <div class="hero-info">
+          <h1 class="page-title">{community.name}</h1>
+          <div class="hero-meta flex wrap gap-1">
+            <span class="badge badge-neutral">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+              {community._count.members} {community._count.members === 1 ? 'miembro' : 'miembros'}
+            </span>
+            {community.location && <span class="badge badge-neutral">📍 {community.location}</span>}
+          </div>
+          <p class="community-description">
+            {community.description || 'Comunidad de amantes de las plantas y defensores del bosque.'}
+          </p>
+          <div class="owner-line text-muted">
+            Creada por <strong>{community.owner.name || community.owner.username}</strong>
+          </div>
+        </div>
+
+        <div class="hero-actions">
+          {user ? (
+            myMembership ? (
+              <div class="flex wrap gap-1">
+                {!isOwner && (
+                  <button type="button" class="btn btn-outline" id="leave-btn">
+                    Abandonar comunidad
+                  </button>
+                )}
+                {canManage && (
+                  <button type="button" class="btn btn-secondary" id="edit-btn">
+                    Editar
+                  </button>
+                )}
+                {canManage && (
+                  <button type="button" class="btn btn-danger-outline" id="delete-btn">
+                    Eliminar
+                  </button>
+                )}
+              </div>
+            ) : (
+              <button type="button" class="btn btn-accent" id="join-btn">
+                Unirse a la comunidad
+              </button>
+            )
+          ) : (
+            <a href="/auth/login?redirect=/comunidades/${community.id}" class="btn btn-accent">
+              Inicia sesión para unirte
+            </a>
+          )}
+          <div id="feedback" class="alert-box" style="display: none;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="detail-grid">
+      <section class="card section-card">
+        <h2 class="section-title">Miembros ({community._count.members})</h2>
+        <ul class="members-list">
+          {community.members.map((m) => (
+            <li class="member-item" key={m.userId}>
+              <div class="avatar-circle">
+                {m.user.avatarUrl ? (
+                  <img src={m.user.avatarUrl} alt={m.user.name || m.user.username} class="avatar-img" />
+                ) : (
+                  <span class="avatar-initial">{(m.user.name || m.user.username || 'U')[0].toUpperCase()}</span>
+                )}
+              </div>
+              <div class="member-info">
+                <span class="member-name">{m.user.name || m.user.username}</span>
+                <span class="member-username text-muted">@{m.user.username}</span>
+              </div>
+              <span class={`badge ${m.role === 'ADMIN' ? 'badge-success' : m.role === 'MODERATOR' ? 'badge-info' : 'badge-neutral'}`}>
+                {roleLabel(m.role)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section class="card section-card">
+        <h2 class="section-title">Observaciones de la comunidad ({observations.length})</h2>
+        {observations.length === 0 ? (
+          <p class="text-muted">
+            Aún no hay observaciones registradas por esta comunidad.
+          </p>
+        ) : (
+          <ul class="obs-list">
+            {observations.map((obs) => (
+              <li key={obs.id}>
+                <a href={`/observaciones/${obs.id}`} class="obs-item">
+                  <div class="obs-info">
+                    <span class="obs-species">{obs.species?.name || 'Especie desconocida'}</span>
+                    <span class="obs-date text-muted">
+                      {new Date(obs.observationDate).toLocaleDateString('es-ES', {
+                        day: 'numeric', month: 'long', year: 'numeric',
+                      })}
+                    </span>
+                  </div>
+                  <span class={`status-badge ${statusInfo[obs.status]?.cls || 'pending'}`}>
+                    {statusInfo[obs.status]?.label || obs.status}
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  </div>
+
+  <script define:vars={{ communityId: community.id, isOwner, isMember: Boolean(myMembership) }}>
+    const feedback = document.getElementById('feedback');
+    const showFeedback = (message, type = 'error') => {
+      feedback.textContent = message;
+      feedback.className = `alert-box ${type}`;
+      feedback.style.display = 'block';
+      setTimeout(() => { feedback.style.display = 'none'; }, 4000);
+    };
+
+    const reload = () => window.location.reload();
+
+    const joinBtn = document.getElementById('join-btn');
+    joinBtn?.addEventListener('click', async () => {
+      try {
+        const res = await fetch(`/api/communities/${communityId}/members`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ self: true }),
+        });
+        if (!res.ok) throw new Error((await res.json()).message || 'No se pudo unir');
+        showFeedback('¡Te uniste a la comunidad!', 'success');
+        setTimeout(reload, 800);
+      } catch (err) { showFeedback(err.message); }
+    });
+
+    const leaveBtn = document.getElementById('leave-btn');
+    leaveBtn?.addEventListener('click', async () => {
+      if (!confirm('¿Seguro que deseas abandonar esta comunidad?')) return;
+      try {
+        const res = await fetch(`/api/communities/${communityId}/members`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ self: true }),
+        });
+        if (!res.ok) throw new Error((await res.json()).message || 'No se pudo abandonar');
+        setTimeout(reload, 500);
+      } catch (err) { showFeedback(err.message); }
+    });
+
+    const editBtn = document.getElementById('edit-btn');
+    editBtn?.addEventListener('click', () => {
+      window.location.href = `/comunidades/${communityId}/editar`;
+    });
+
+    const deleteBtn = document.getElementById('delete-btn');
+    deleteBtn?.addEventListener('click', async () => {
+      if (!confirm('¿Eliminar esta comunidad? Esta acción no se puede deshacer.')) return;
+      try {
+        const res = await fetch(`/api/communities/${communityId}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error((await res.json()).message || 'No se pudo eliminar');
+        window.location.href = '/comunidades';
+      } catch (err) { showFeedback(err.message); }
+    });
+  </script>
+
+  <style>
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 1.5rem 1rem;
+    }
+
+    .breadcrumbs {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+      color: var(--color-text-muted);
+      margin-bottom: 1.5rem;
+    }
+
+    .breadcrumbs a { color: var(--color-primary); }
+    .breadcrumbs a:hover { text-decoration: underline; }
+    .breadcrumbs .current { font-weight: 500; color: var(--color-text-main); }
+
+    .community-hero { overflow: hidden; margin-bottom: 2rem; }
+
+    .community-banner {
+      width: 100%;
+      height: 240px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .hero-body {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      padding: 1.75rem;
+      align-items: flex-start;
+      justify-content: space-between;
+    }
+
+    .hero-info { flex: 1 1 400px; }
+
+    .hero-meta { margin-top: 0.75rem; }
+
+    .community-description {
+      margin: 1rem 0;
+      line-height: 1.6;
+      color: var(--color-text-main);
+      max-width: 640px;
+    }
+
+    .owner-line { font-size: 0.9rem; }
+
+    .hero-actions { flex: 0 0 auto; min-width: 240px; }
+
+    .hero-actions .alert-box { margin-top: 0.75rem; }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+
+    .section-card { padding: 1.5rem; }
+    .section-title { margin-bottom: 1.25rem; font-size: 1.25rem; }
+
+    .members-list { list-style: none; display: flex; flex-direction: column; gap: 0.75rem; }
+
+    .member-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.6rem;
+      border-radius: var(--radius-sm);
+      background-color: var(--color-gray-50);
+    }
+
+    .avatar-circle {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background-color: var(--color-accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .avatar-img { width: 100%; height: 100%; object-fit: cover; }
+    .avatar-initial { font-weight: 700; color: var(--color-primary); font-family: var(--font-heading); }
+
+    .member-info { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+    .member-name { font-weight: 600; font-size: 0.95rem; color: var(--color-text-main); }
+    .member-username { font-size: 0.8rem; }
+
+    .obs-list { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
+
+    .obs-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.85rem 1rem;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .obs-item:hover { border-color: var(--color-accent-dark); box-shadow: var(--shadow-sm); }
+
+    .obs-info { display: flex; flex-direction: column; min-width: 0; }
+    .obs-species { font-weight: 600; color: var(--color-text-main); }
+    .obs-date { font-size: 0.8rem; }
+
+    @media (max-width: 768px) {
+      .detail-grid { grid-template-columns: 1fr; }
+      .community-banner { height: 180px; }
+    }
+  </style>
+</Layout>

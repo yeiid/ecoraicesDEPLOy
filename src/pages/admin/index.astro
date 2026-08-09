@@ -1,0 +1,413 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { prisma } from "../../lib/prisma.js";
+import { getSessionUser } from "../../lib/middleware/auth.js";
+
+const user = await getSessionUser({ cookies: Astro.cookies });
+
+if (!user) {
+  return Astro.redirect("/auth/login");
+}
+if (!user.isAdmin) {
+  return Astro.redirect("/");
+}
+
+// Estadísticas generales
+const [obsCount, obsPending, obsApproved, obsRejected, communityCount, speciesCount, userCount] =
+  await Promise.all([
+    prisma.observation.count(),
+    prisma.observation.count({ where: { status: "PENDING" } }),
+    prisma.observation.count({ where: { status: "APPROVED" } }),
+    prisma.observation.count({ where: { status: "REJECTED" } }),
+    prisma.community.count(),
+    prisma.species.count(),
+    prisma.user.count(),
+  ]);
+
+const communities = await prisma.community.findMany({
+  include: {
+    owner: { select: { id: true, username: true, name: true } },
+    _count: { select: { members: true } },
+  },
+  orderBy: { createdAt: "desc" },
+});
+
+const observations = await prisma.observation.findMany({
+  include: {
+    species: { select: { id: true, name: true, scientificName: true } },
+    user: { select: { id: true, username: true } },
+  },
+  orderBy: { createdAt: "desc" },
+  take: 100,
+});
+
+const statusLabel = { PENDING: "Pendiente", APPROVED: "Aprobada", REJECTED: "Rechazada" };
+const statusBadge = {
+  PENDING: "badge-warning",
+  APPROVED: "badge-success",
+  REJECTED: "badge-danger",
+};
+const statusClass = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejected" };
+---
+
+<Layout title="Panel Admin - EcoRaíces">
+  <div class="admin-container">
+    <header class="admin-header">
+      <h1>Panel de Administración</h1>
+      <p class="admin-subtitle">Gestión de datos generales y comunidades</p>
+    </header>
+
+    <!-- Stats -->
+    <section class="stats-grid">
+      <div class="stat-box">
+        <span class="stat-value">{obsCount}</span>
+        <span class="stat-label">Observaciones</span>
+      </div>
+      <div class="stat-box warning">
+        <span class="stat-value">{obsPending}</span>
+        <span class="stat-label">Pendientes de revisión</span>
+      </div>
+      <div class="stat-box success">
+        <span class="stat-value">{obsApproved}</span>
+        <span class="stat-label">Aprobadas</span>
+      </div>
+      <div class="stat-box danger">
+        <span class="stat-value">{obsRejected}</span>
+        <span class="stat-label">Rechazadas</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-value">{communityCount}</span>
+        <span class="stat-label">Comunidades</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-value">{speciesCount}</span>
+        <span class="stat-label">Especies</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-value">{userCount}</span>
+        <span class="stat-label">Usuarios</span>
+      </div>
+    </section>
+
+    <!-- Comunidades -->
+    <section class="panel-section card">
+      <div class="section-head">
+        <h2>Comunidades</h2>
+        <span class="muted">{communities.length} total</span>
+      </div>
+      {communities.length === 0 ? (
+        <p class="empty-state">No hay comunidades registradas.</p>
+      ) : (
+        <div class="table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Propietario</th>
+                <th>Miembros</th>
+                <th>Creada</th>
+                <th class="col-actions">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {communities.map((c) => (
+                <tr>
+                  <td>
+                    <a href={`/comunidades/${c.id}`} class="cell-link">{c.name}</a>
+                    {c.location ? <div class="cell-sub">{c.location}</div> : null}
+                  </td>
+                  <td>{c.owner?.username || "—"}</td>
+                  <td>{c._count.members}</td>
+                  <td>{new Date(c.createdAt).toLocaleDateString("es-CO")}</td>
+                  <td class="col-actions">
+                    <button
+                      class="btn btn-danger btn-sm"
+                      data-action="delete-community"
+                      data-id={c.id}
+                      data-name={c.name}
+                    >Eliminar</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+
+    <!-- Observaciones -->
+    <section class="panel-section card">
+      <div class="section-head">
+        <h2>Observaciones</h2>
+        <span class="muted">Últimas {observations.length}</span>
+      </div>
+      {observations.length === 0 ? (
+        <p class="empty-state">No hay observaciones registradas.</p>
+      ) : (
+        <div class="table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Especie</th>
+                <th>Autor</th>
+                <th>Fecha</th>
+                <th>Estado</th>
+                <th class="col-actions">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {observations.map((o) => (
+                <tr class={statusClass[o.status]}>
+                  <td>
+                    <a href={`/observaciones/${o.id}`} class="cell-link">{o.species?.name || "—"}</a>
+                    {o.species?.scientificName ? <div class="cell-sub">{o.species.scientificName}</div> : null}
+                  </td>
+                  <td>{o.user?.username || "—"}</td>
+                  <td>{new Date(o.createdAt).toLocaleDateString("es-CO")}</td>
+                  <td><span class={`badge ${statusBadge[o.status]}`}>{statusLabel[o.status]}</span></td>
+                  <td class="col-actions">
+                    {o.status !== "APPROVED" && (
+                      <button
+                        class="btn btn-primary btn-sm"
+                        data-action="verify-observation"
+                        data-id={o.id}
+                        data-status="APPROVED"
+                      >Aprobar</button>
+                    )}
+                    {o.status !== "REJECTED" && (
+                      <button
+                        class="btn btn-secondary btn-sm"
+                        data-action="verify-observation"
+                        data-id={o.id}
+                        data-status="REJECTED"
+                      >Rechazar</button>
+                    )}
+                    <button
+                      class="btn btn-danger btn-sm"
+                      data-action="delete-observation"
+                      data-id={o.id}
+                    >Eliminar</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+
+    <div id="admin-alert" class="alert-box error" style="display: none;"></div>
+  </div>
+</Layout>
+
+<style>
+  .admin-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+  }
+
+  .admin-header h1 {
+    font-family: var(--font-heading);
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--color-primary-dark);
+  }
+
+  .admin-subtitle {
+    color: var(--color-text-light);
+    margin-top: 0.25rem;
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 1rem;
+  }
+
+  .stat-box {
+    background: #ffffff;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 1.25rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .stat-box.warning { border-top: 3px solid var(--color-warning); }
+  .stat-box.success { border-top: 3px solid var(--color-success); }
+  .stat-box.danger  { border-top: 3px solid var(--color-danger); }
+
+  .stat-value {
+    font-family: var(--font-heading);
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: #1f2937;
+  }
+
+  .stat-label {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+  }
+
+  .panel-section {
+    padding: 1.5rem;
+  }
+
+  .section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+  }
+
+  .section-head h2 {
+    font-family: var(--font-heading);
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--color-primary-dark);
+  }
+
+  .muted {
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+  }
+
+  .empty-state {
+    color: var(--color-text-muted);
+    padding: 1rem 0;
+  }
+
+  .table-wrap {
+    overflow-x: auto;
+  }
+
+  .admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+
+  .admin-table th {
+    text-align: left;
+    padding: 0.6rem 0.75rem;
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 2px solid var(--color-border);
+    white-space: nowrap;
+  }
+
+  .admin-table td {
+    padding: 0.65rem 0.75rem;
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: middle;
+  }
+
+  .admin-table tr.rejected { background: rgba(239, 68, 68, 0.04); }
+
+  .cell-link {
+    color: var(--color-primary-dark);
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .cell-link:hover {
+    color: var(--color-success);
+  }
+
+  .cell-sub {
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+    margin-top: 0.15rem;
+  }
+
+  .col-actions {
+    white-space: nowrap;
+    text-align: right;
+  }
+
+  .col-actions .btn + .btn {
+    margin-left: 0.4rem;
+  }
+</style>
+
+<script>
+  document.addEventListener("astro:page-load", () => {
+    const alertBox = document.getElementById("admin-alert");
+    const showAlert = (message) => {
+      alertBox.textContent = message;
+      alertBox.style.display = "block";
+      alertBox.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    };
+    const hideAlert = () => {
+      alertBox.style.display = "none";
+    };
+
+    const run = async (path, options) => {
+      const res = await fetch(path, options);
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.message || `Error (${res.status})`);
+      return body;
+    };
+
+    document.querySelectorAll("[data-action='delete-community']").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const name = btn.dataset.name;
+        if (!confirm(`¿Eliminar la comunidad "${name}" y todos sus miembros?`)) return;
+        try {
+          hideAlert();
+          btn.disabled = true;
+          await run(`/api/communities/${btn.dataset.id}`, { method: "DELETE" });
+          window.location.reload();
+        } catch (err) {
+          btn.disabled = false;
+          showAlert(err.message);
+        }
+      });
+    });
+
+    document.querySelectorAll("[data-action='verify-observation']").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const status = btn.dataset.status;
+        const notes = status === "REJECTED"
+          ? prompt("Motivo del rechazo (opcional):") ?? ""
+          : null;
+        try {
+          hideAlert();
+          btn.disabled = true;
+          await run(`/api/admin/observations/${btn.dataset.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status, verificationNotes: notes }),
+          });
+          window.location.reload();
+        } catch (err) {
+          btn.disabled = false;
+          showAlert(err.message);
+        }
+      });
+    });
+
+    document.querySelectorAll("[data-action='delete-observation']").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        if (!confirm("¿Eliminar esta observación? Esta acción no se puede deshacer.")) return;
+        try {
+          hideAlert();
+          btn.disabled = true;
+          await run(`/api/admin/observations/${btn.dataset.id}`, { method: "DELETE" });
+          window.location.reload();
+        } catch (err) {
+          btn.disabled = false;
+          showAlert(err.message);
+        }
+      });
+    });
+  });
+</script>

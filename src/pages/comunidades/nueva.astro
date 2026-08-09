@@ -1,0 +1,142 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CommunityLocationPicker from '../../components/react/CommunityLocationPicker.jsx';
+import { getSessionUser } from '../../lib/middleware/auth.js';
+
+const user = await getSessionUser({ cookies: Astro.cookies });
+
+if (!user) {
+  return Astro.redirect(`/auth/login?redirect=${Astro.url.pathname}`);
+}
+
+const title = 'Crear Comunidad - EcoRaíces';
+---
+
+<Layout title={title}>
+  <div class="container">
+    <div class="breadcrumbs">
+      <a href="/">Inicio</a>
+      <span aria-hidden="true">›</span>
+      <a href="/comunidades">Comunidades</a>
+      <span aria-hidden="true">›</span>
+      <span class="current">Crear comunidad</span>
+    </div>
+
+    <div class="card form-card">
+      <h1 class="page-title">Crear comunidad</h1>
+      <p class="text-muted">
+        Crea un espacio para que otros amantes de la naturaleza se unan y compartan
+        observaciones forestales.
+      </p>
+
+      <div id="alert" class="alert-box" style="display: none;"></div>
+
+      <form id="create-form" class="form" novalidate>
+        <div class="form-group">
+          <label for="name">Nombre de la comunidad *</label>
+          <input type="text" id="name" name="name" class="input" required placeholder="Ej. Guardabosques del Río Ranchería" />
+        </div>
+
+        <div class="form-group">
+          <label for="description">Descripción</label>
+          <textarea id="description" name="description" class="textarea" rows="4" placeholder="¿Qué motiva a tu comunidad?"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="location">Ubicación (texto)</label>
+          <input type="text" id="location" name="location" class="input" placeholder="Ej. Riohacha, La Guajira" />
+        </div>
+
+        <div class="form-group">
+          <label>Ubicación en el mapa</label>
+          <CommunityLocationPicker client:only="react" />
+        </div>
+
+        <button type="submit" id="submit-btn" class="btn btn-accent btn-lg btn-block">
+          Crear comunidad
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener("astro:page-load", () => {
+      const form = document.getElementById('create-form');
+      const alertBox = document.getElementById('alert');
+      const submitBtn = document.getElementById('submit-btn');
+
+      const showAlert = (message, type = 'error') => {
+        alertBox.textContent = message;
+        alertBox.className = `alert-box ${type}`;
+        alertBox.style.display = 'block';
+      };
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        alertBox.style.display = 'none';
+
+        const fd = new FormData(form);
+        const payload = {
+          name: fd.get('name'),
+          description: fd.get('description') || null,
+          location: fd.get('location') || null,
+          latitude: fd.get('latitude') || null,
+          longitude: fd.get('longitude') || null,
+        };
+
+        if (!payload.name.trim()) {
+          showAlert('El nombre de la comunidad es obligatorio.');
+          return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Creando...';
+
+        try {
+          const res = await fetch('/api/communities', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.message || 'No se pudo crear la comunidad.');
+
+          showAlert('¡Comunidad creada con éxito!', 'success');
+          setTimeout(() => {
+            window.location.href = `/comunidades/${data.id}`;
+          }, 900);
+        } catch (err) {
+          showAlert(err.message);
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Crear comunidad';
+        }
+      });
+    });
+  </script>
+
+  <style>
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 1.5rem 1rem;
+    }
+
+    .breadcrumbs {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+      color: var(--color-text-muted);
+      margin-bottom: 1.5rem;
+    }
+
+    .breadcrumbs a { color: var(--color-primary); }
+    .breadcrumbs a:hover { text-decoration: underline; }
+    .breadcrumbs .current { font-weight: 500; color: var(--color-text-main); }
+
+    .form-card { padding: 2rem; }
+
+    .form-card .page-title { margin-bottom: 0.5rem; font-size: 1.8rem; }
+    .form-card .text-muted { margin-bottom: 1.75rem; }
+  </style>
+</Layout>

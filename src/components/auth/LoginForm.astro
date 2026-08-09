@@ -142,10 +142,20 @@ import AuthForm from './AuthForm.astro';
   </style>
 
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('astro:page-load', () => {
       const loginForm = document.getElementById('loginForm');
       const loginAlert = document.getElementById('login-alert');
       const submitBtn = document.getElementById('submit-btn');
+
+      function getSafeRedirect() {
+        const params = new URLSearchParams(window.location.search);
+        const target = params.get('redirect');
+        // Solo rutas relativas del mismo sitio
+        if (target && target.startsWith('/') && !target.startsWith('//')) {
+          return target;
+        }
+        return '/';
+      }
 
       if (loginForm && loginAlert && submitBtn) {
         loginForm.addEventListener('submit', async (e) => {
@@ -162,6 +172,7 @@ import AuthForm from './AuthForm.astro';
           const formData = new FormData(loginForm);
           const email = formData.get('email');
           const password = formData.get('password');
+          const remember = formData.get('remember') === 'on';
 
           try {
             const response = await fetch('/api/auth/login', {
@@ -169,7 +180,7 @@ import AuthForm from './AuthForm.astro';
               headers: {
                 'Content-Type': 'application/json'
               },
-              body: JSON.stringify({ email, password })
+              body: JSON.stringify({ email, password, remember })
             });
 
             const data = await response.json();
@@ -178,8 +189,8 @@ import AuthForm from './AuthForm.astro';
               throw new Error(data.message || 'Error en las credenciales.');
             }
 
-            // Exito: Redirigir a inicio
-            window.location.href = '/';
+            // Exito: Redirigir al destino original (o inicio)
+            window.location.href = getSafeRedirect();
           } catch (err) {
             console.error('Login submit error:', err);
             loginAlert.textContent = err.message;

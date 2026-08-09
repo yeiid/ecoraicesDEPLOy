@@ -20,19 +20,165 @@ export default function NewObservationForm({ categories = [], speciesList = [], 
   const fileInputRef = useRef(null);
   const [imagePreview, setImagePreview] = useState(null);
 
+  // Autocompletado de especie
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [selectedSpecies, setSelectedSpecies] = useState(null);
+  const debounceRef = useRef(null);
+  const searchInputRef = useRef(null);
+
+  // Nueva especie (cuando el árbol no está en el catálogo)
+  const [newSpecies, setNewSpecies] = useState(null);
+  const [newSpeciesName, setNewSpeciesName] = useState("");
+  const [newSpeciesScientific, setNewSpeciesScientific] = useState("");
+
+  // Identificación con IA (Pl@ntNet)
+  const [isIdentifying, setIsIdentifying] = useState(false);
+  const [identifyResults, setIdentifyResults] = useState([]);
+  const [identifyError, setIdentifyError] = useState("");
+  const [identifyInfo, setIdentifyInfo] = useState("");
+
   // Auto-seleccionar especie si viene por URL (desde el catálogo)
   useEffect(() => {
     if (typeof window !== "undefined") {
       const searchParams = new URLSearchParams(window.location.search);
       const querySpeciesId = searchParams.get("especieId");
       if (querySpeciesId) {
+        const match = speciesList.find((sp) => sp.id === querySpeciesId);
         setFormData(prev => ({
           ...prev,
           speciesId: querySpeciesId
         }));
+        if (match) {
+          setSelectedSpecies(match);
+          setSearchTerm(match.name);
+        }
       }
     }
-  }, []);
+  }, [speciesList]);
+
+  // Búsqueda debounced de especies en el catálogo
+  const searchSpecies = (term) => {
+    clearTimeout(debounceRef.current);
+    if (!term || term.trim().length < 2) {
+      setSearchResults([]);
+      setSearching(false);
+      return;
+    }
+    debounceRef.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await fetch(`/api/species?q=${encodeURIComponent(term.trim())}&pageSize=8`);
+        if (!res.ok) throw new Error("Error buscando especies");
+        const data = await res.json();
+        setSearchResults(data.data || []);
+        setShowDropdown(true);
+      } catch (err) {
+        console.error(err);
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 250);
+  };
+
+  const handleSearchChange = (e) => {
+    const value = e.target.value;
+    setSearchTerm(value);
+    setSelectedSpecies(null);
+    setFormData(prev => ({ ...prev, speciesId: "" }));
+    setNewSpecies(null);
+    searchSpecies(value);
+  };
+
+  const selectSpecies = (sp) => {
+    setSelectedSpecies(sp);
+    setSearchTerm(sp.name);
+    setFormData(prev => ({ ...prev, speciesId: sp.id }));
+    setShowDropdown(false);
+    setNewSpecies(null);
+  };
+
+  const activateNewSpecies = () => {
+    setNewSpecies({ mode: true });
+    setSelectedSpecies(null);
+    setFormData(prev => ({ ...prev, speciesId: "" }));
+    setShowDropdown(false);
+  };
+
+  // Crear una especie nueva en el catálogo (para observaciones de árboles no registrados)
+  const createNewSpecies = async () => {
+    const body = {
+      name: newSpeciesName.trim(),
+      scientificName: newSpeciesScientific.trim(),
+      categoryId: categories[0]?.id || null,
+    };
+    const res = await fetch("/api/species", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.message || "Error al registrar la especie en el catálogo");
+    }
+    return res.json();
+  };
+
+  // Identificar el árbol con IA (Pl@ntNet)
+  const handleIdentify = async () => {
+    const file = fileInputRef.current?.files[0];
+    if (!file) {
+      setIdentifyError("Primero selecciona una fotografía para identificar.");
+      return;
+    }
+    setIsIdentifying(true);
+    setIdentifyError("");
+    setIdentifyResults([]);
+    setIdentifyInfo("Identificando con Pl@ntNet, un momento...");
+    try {
+      const fd = new FormData();
+      fd.append("image", file);
+      const res = await fetch("/api/plantnet/identify", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || "No se pudo identificar la especie");
+      }
+      setIdentifyResults(data.results || []);
+      if (!data.results || data.results.length === 0) {
+        setIdentifyInfo("Pl@ntNet no encontró coincidencias confiables.");
+      } else {
+        setIdentifyInfo("");
+      }
+    } catch (err) {
+      console.error(err);
+      setIdentifyError(err.message || "Error al identificar la especie");
+    } finally {
+      setIsIdentifying(false);
+    }
+  };
+
+  // Elegir un resultado de la identificación IA
+  const selectIdentifyResult = (result) => {
+    const match = speciesList.find(
+      (sp) => sp.scientificName.toLowerCase() === (result.scientificName || "").toLowerCase()
+    );
+    if (match) {
+      selectSpecies(match);
+      setIdentifyInfo(`Seleccionada: ${match.name} (${match.scientificName})`);
+    } else {
+      setNewSpecies({ mode: true, fromAI: true });
+      setNewSpeciesName(result.commonName || result.scientificName || "");
+      setNewSpeciesScientific(result.scientificName || "");
+      setSearchTerm(result.commonName || result.scientificName || "");
+      setFormData(prev => ({ ...prev, speciesId: "" }));
+      setIdentifyInfo(
+        `"${result.scientificName}" no está en el catálogo. Se registrará como especie nueva; completa los datos.`
+      );
+    }
+  };
 
 
   // Usar geolocalización
@@ -103,7 +249,22 @@ export default function NewObservationForm({ categories = [], speciesList = [], 
       return;
     }
 
-    if (!formData.speciesId) {
+    // Si el árbol no está en el catálogo, registrar la especie nueva primero
+    let speciesId = formData.speciesId;
+    if (!speciesId && newSpecies) {
+      try {
+        const created = await createNewSpecies();
+        speciesId = created.id;
+        setFormData(prev => ({ ...prev, speciesId: created.id }));
+        setSelectedSpecies(created);
+      } catch (err) {
+        setErrorMessage(err.message || "No se pudo registrar la especie nueva.");
+        setIsLoading(false);
+        return;
+      }
+    }
+
+    if (!speciesId) {
       setErrorMessage("Por favor, selecciona una especie.");
       setIsLoading(false);
       return;
@@ -118,11 +279,13 @@ export default function NewObservationForm({ categories = [], speciesList = [], 
     // Preparar FormData
     const imageFile = fileInputRef.current?.files[0];
     const formToSubmit = new FormData();
-    formToSubmit.append("speciesId", formData.speciesId);
+    formToSubmit.append("speciesId", speciesId);
     formToSubmit.append("userId", userId);
     formToSubmit.append("latitude", position.lat);
     formToSubmit.append("longitude", position.lng);
-    formToSubmit.append("notes", `${formData.notes} | Municipio: ${formData.municipio || "No especificado"} | Estado de Conservación: ${formData.estadoConservacion || "No especificado"}`);
+    formToSubmit.append("municipio", formData.municipio || "");
+    formToSubmit.append("estadoConservacion", formData.estadoConservacion || "");
+    formToSubmit.append("notes", formData.notes || "");
     formToSubmit.append("observationDate", new Date().toISOString().split("T")[0]);
 
     if (imageFile) {
@@ -163,10 +326,6 @@ export default function NewObservationForm({ categories = [], speciesList = [], 
       setIsLoading(false);
     }
   };
-
-  // Servidor de mapas neuraljira o fallback a OSM
-  const TILE_URL = "https://map.neuraljira.tech/styles/osm-bright/{z}/{x}/{y}.png";
-  const FALLBACK_TILE_URL = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 
   return (
     <div className="registration-wrapper">
@@ -223,21 +382,94 @@ export default function NewObservationForm({ categories = [], speciesList = [], 
             </div>
             
             <div className="card-body">
-              <select 
-                id="speciesId"
-                name="speciesId"
-                value={formData.speciesId}
-                onChange={handleInputChange}
-                className="input-select"
-                required
-              >
-                <option value="">Ej. Ceiba pentandra</option>
-                {speciesList.map((sp) => (
-                  <option key={sp.id} value={sp.id}>
-                    {sp.name} ({sp.scientificName})
-                  </option>
-                ))}
-              </select>
+              <div className="species-search">
+                <input
+                  type="text"
+                  id="speciesSearch"
+                  ref={searchInputRef}
+                  value={searchTerm}
+                  onChange={handleSearchChange}
+                  onFocus={() => setShowDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+                  className="input-text"
+                  placeholder="Busca la especie por nombre común o científico..."
+                  autoComplete="off"
+                />
+                {searching && <span className="search-spinner">Buscando…</span>}
+
+                {selectedSpecies && (
+                  <div className="selected-species-chip">
+                    <span>✓ {selectedSpecies.name} <i>({selectedSpecies.scientificName})</i></span>
+                    <button
+                      type="button"
+                      className="chip-clear"
+                      onClick={() => {
+                        setSelectedSpecies(null);
+                        setSearchTerm("");
+                        setFormData(prev => ({ ...prev, speciesId: "" }));
+                      }}
+                      aria-label="Quitar selección"
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
+
+                {showDropdown && searchResults.length > 0 && !selectedSpecies && (
+                  <ul className="species-dropdown">
+                    {searchResults.map((sp) => (
+                      <li key={sp.id}>
+                        <button type="button" onMouseDown={() => selectSpecies(sp)}>
+                          <strong>{sp.name}</strong>
+                          <span className="dd-sci"><i>{sp.scientificName}</i></span>
+                          <span className="dd-cat">{sp.category?.name}</span>
+                        </button>
+                      </li>
+                    ))}
+                    <li>
+                      <button type="button" className="dd-new" onMouseDown={activateNewSpecies}>
+                        ➕ No está en el catálogo — registrar especie nueva
+                      </button>
+                    </li>
+                  </ul>
+                )}
+              </div>
+
+              {newSpecies && (
+                <div className="new-species-box">
+                  <p className="ns-title">
+                    {newSpecies.fromAI
+                      ? "Especie nueva sugerida por IA"
+                      : "Registrar especie nueva"}
+                  </p>
+                  <input
+                    type="text"
+                    value={newSpeciesName}
+                    onChange={(e) => setNewSpeciesName(e.target.value)}
+                    className="input-text"
+                    placeholder="Nombre común (ej. Guayacán)"
+                    required
+                  />
+                  <input
+                    type="text"
+                    value={newSpeciesScientific}
+                    onChange={(e) => setNewSpeciesScientific(e.target.value)}
+                    className="input-text"
+                    placeholder="Nombre científico (ej. Guaiacum officinale)"
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="btn-link-style"
+                    onClick={() => {
+                      setNewSpecies(null);
+                      setSearchTerm("");
+                    }}
+                  >
+                    Cancelar — elegir del catálogo
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -339,6 +571,32 @@ export default function NewObservationForm({ categories = [], speciesList = [], 
                 onChange={handleImageChange}
                 className="input-file"
               />
+              <button
+                type="button"
+                className="btn-identify"
+                onClick={handleIdentify}
+                disabled={isIdentifying}
+              >
+                {isIdentifying ? "Identificando…" : "🔍 Identificar con IA (Pl@ntNet)"}
+              </button>
+              {identifyInfo && <p className="identify-info">{identifyInfo}</p>}
+              {identifyError && <p className="identify-error">{identifyError}</p>}
+              {identifyResults.length > 0 && (
+                <div className="identify-results">
+                  <p className="identify-title">Sugerencias — haz clic para seleccionar:</p>
+                  <ul>
+                    {identifyResults.map((r, idx) => (
+                      <li key={idx}>
+                        <button type="button" onMouseDown={() => selectIdentifyResult(r)}>
+                          <strong>{r.commonName || r.scientificName}</strong>
+                          <span className="ai-sci"><i>{r.scientificName}</i></span>
+                          <span className="ai-score">{Math.round((r.score || 0) * 100)}%</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               {imagePreview && (
                 <div className="form-image-preview">
                   <img src={imagePreview} alt="Vista previa del árbol" />
@@ -449,11 +707,11 @@ export default function NewObservationForm({ categories = [], speciesList = [], 
         }
 
         .green-icon {
-          color: #10b981;
+          color: var(--color-success);
         }
 
         .info-icon {
-          color: #10b981;
+          color: var(--color-success);
           cursor: pointer;
         }
 
@@ -476,7 +734,7 @@ export default function NewObservationForm({ categories = [], speciesList = [], 
         }
 
         .input-text:focus, .input-select:focus, .input-textarea:focus {
-          border-color: #10b981;
+          border-color: var(--color-success);
           background-color: #ffffff;
           box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
         }
@@ -530,7 +788,7 @@ export default function NewObservationForm({ categories = [], speciesList = [], 
 
         /* Botón Submit */
         .btn-submit-green {
-          background-color: #10b981;
+          background-color: var(--color-success);
           color: white;
           border: none;
           padding: 1rem 2rem;
@@ -545,7 +803,7 @@ export default function NewObservationForm({ categories = [], speciesList = [], 
         }
 
         .btn-submit-green:hover {
-          background-color: #059669;
+          background-color: var(--color-success-dark);
           transform: translateY(-2px);
           box-shadow: 0 8px 20px rgba(16, 185, 129, 0.35);
         }
@@ -581,6 +839,232 @@ export default function NewObservationForm({ categories = [], speciesList = [], 
           font-weight: 500;
           margin-bottom: 0.5rem;
         }
+
+        /* Autocompletado de especies */
+        .species-search {
+          position: relative;
+        }
+
+        .search-spinner {
+          position: absolute;
+          right: 0.9rem;
+          top: 50%;
+          transform: translateY(-50%);
+          font-size: 0.8rem;
+          color: #94a3b8;
+        }
+
+        .species-dropdown {
+          position: absolute;
+          top: 100%;
+          left: 0;
+          right: 0;
+          z-index: 50;
+          margin: 0.35rem 0 0;
+          padding: 0.25rem;
+          list-style: none;
+          background: #ffffff;
+          border: 1px solid #e2e8f0;
+          border-radius: 10px;
+          box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+          max-height: 280px;
+          overflow-y: auto;
+        }
+
+        .species-dropdown li {
+          margin: 0;
+        }
+
+        .species-dropdown button {
+          width: 100%;
+          text-align: left;
+          padding: 0.6rem 0.75rem;
+          border: none;
+          background: none;
+          border-radius: 6px;
+          cursor: pointer;
+          display: flex;
+          flex-direction: column;
+          gap: 0.1rem;
+          font-family: 'Inter', sans-serif;
+        }
+
+        .species-dropdown button:hover {
+          background-color: #f0fdf4;
+        }
+
+        .species-dropdown button strong {
+          font-size: 0.95rem;
+          color: #0f3d24;
+        }
+
+        .dd-sci {
+          font-size: 0.85rem;
+          color: #64748b;
+        }
+
+        .dd-cat {
+          font-size: 0.72rem;
+          color: var(--color-success);
+          font-weight: 600;
+        }
+
+        .species-dropdown .dd-new {
+          color: var(--color-success);
+          font-weight: 600;
+          font-size: 0.88rem;
+        }
+
+        .selected-species-chip {
+          margin-top: 0.6rem;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.5rem;
+          padding: 0.5rem 0.75rem;
+          background-color: #f0fdf4;
+          border: 1px solid #bbf7d0;
+          border-radius: 8px;
+          font-size: 0.9rem;
+          color: #166534;
+        }
+
+        .chip-clear {
+          border: none;
+          background: none;
+          color: #166534;
+          font-size: 1.2rem;
+          cursor: pointer;
+          line-height: 1;
+        }
+
+        .new-species-box {
+          margin-top: 0.75rem;
+          padding: 0.9rem;
+          background-color: #fffbeb;
+          border: 1px solid #fde68a;
+          border-radius: 10px;
+          display: flex;
+          flex-direction: column;
+          gap: 0.6rem;
+        }
+
+        .ns-title {
+          margin: 0;
+          font-size: 0.9rem;
+          font-weight: 700;
+          color: #92400e;
+        }
+
+        .btn-link-style {
+          border: none;
+          background: none;
+          color: #b45309;
+          font-size: 0.85rem;
+          cursor: pointer;
+          text-decoration: underline;
+          text-align: left;
+          padding: 0;
+        }
+
+        /* Identificación con IA */
+        .btn-identify {
+          margin-top: 0.75rem;
+          width: 100%;
+          padding: 0.75rem 1rem;
+          background: linear-gradient(135deg, #10b981, #059669);
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-family: 'Outfit', sans-serif;
+          font-weight: 600;
+          font-size: 0.95rem;
+          cursor: pointer;
+          transition: all 0.3s ease;
+        }
+
+        .btn-identify:hover:not(:disabled) {
+          transform: translateY(-1px);
+          box-shadow: 0 6px 16px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-identify:disabled {
+          opacity: 0.7;
+          cursor: not-allowed;
+        }
+
+        .identify-info {
+          margin: 0.6rem 0 0;
+          font-size: 0.85rem;
+          color: #0f766e;
+        }
+
+        .identify-error {
+          margin: 0.6rem 0 0;
+          font-size: 0.85rem;
+          color: #dc2626;
+        }
+
+        .identify-results {
+          margin-top: 0.75rem;
+          border: 1px solid #e2e8f0;
+          border-radius: 10px;
+          padding: 0.75rem;
+          background: #f8fafc;
+        }
+
+        .identify-title {
+          margin: 0 0 0.5rem;
+          font-size: 0.85rem;
+          font-weight: 700;
+          color: #334155;
+        }
+
+        .identify-results ul {
+          margin: 0;
+          padding: 0;
+          list-style: none;
+          display: flex;
+          flex-direction: column;
+          gap: 0.35rem;
+        }
+
+        .identify-results button {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.5rem 0.7rem;
+          border: 1px solid #e2e8f0;
+          border-radius: 6px;
+          background: #fff;
+          cursor: pointer;
+          font-family: 'Inter', sans-serif;
+          text-align: left;
+        }
+
+        .identify-results button:hover {
+          border-color: var(--color-success);
+          background: #f0fdf4;
+        }
+
+        .identify-results button strong {
+          flex: 1;
+          font-size: 0.9rem;
+          color: #0f3d24;
+        }
+
+        .ai-sci {
+          font-size: 0.8rem;
+          color: #64748b;
+        }
+
+        .ai-score {
+          font-size: 0.8rem;
+          font-weight: 700;
+          color: var(--color-success);
+        }
+
 
         .alert-box.success {
           background-color: #e8f5e9;

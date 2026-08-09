@@ -221,7 +221,7 @@ import AuthForm from './AuthForm.astro';
   </style>
 
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('astro:page-load', () => {
       const userTypeSelect = document.getElementById('userType');
       const communityFields = document.getElementById('communityFields');
       const registerForm = document.getElementById('registerForm');

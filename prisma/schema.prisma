@@ -5,30 +5,35 @@
 // Try Prisma Pulse: https://pris.ly/pulse
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
+  schemas  = ["public"]
 }
 
 // Enums para roles y estados
 enum UserRole {
   COLLECTOR
   COMMUNITY
+  @@schema("public")
 }
 
 enum MemberRole {
   ADMIN
   MODERATOR
   MEMBER
+  @@schema("public")
 }
 
 enum ObservationStatus {
   PENDING
   APPROVED
   REJECTED
+  @@schema("public")
 }
 
 // Modelo de Usuario
@@ -42,6 +47,10 @@ model User {
   bio              String?
   role             UserRole          @default(COLLECTOR)
   isAdmin          Boolean           @default(false)
+  provider         String            @default("local") // local | google | facebook
+  providerId       String?           @unique
+  resetTokenHash   String?           // Token de reseteo de contraseña (hasheado)
+  resetTokenExpiresAt DateTime?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
   observations     Observation[]
@@ -49,30 +58,56 @@ model User {
   communityMembers CommunityMember[]
   ownedCommunities Community[]       @relation("CommunityOwner")
   verifiedObservations Observation[] @relation("VerifiedObservations")
+  @@schema("public")
 }
 
 enum Role {
   ADMIN
   MODERATOR
   USER
+  @@schema("public")
 }
 
 // Modelo de Especie Nativa
 model Species {
-  id             String        @id @default(cuid())
-  name           String
-  scientificName String        @unique
-  description    String?
-  habitat        String?
-  imageUrl       String?
-  status         String?       // Estado de conservación (ej: "En peligro", "Vulnerable")
-  categoryId     String
-  category       Category      @relation(fields: [categoryId], references: [id])
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  observations   Observation[]
+  id                 String         @id @default(cuid())
+  name               String
+  scientificName     String         @unique
+  description        String?
+  habitat            String?
+  imageUrl           String?
+  status             String?        // Estado de conservación (ej: "En peligro", "Vulnerable")
+  categoryId         String
+  category           Category       @relation(fields: [categoryId], references: [id])
+  // Datos enriquecidos desde APIs externas (GBIF/iNaturalist)
+  gbifKey            Int?           // usageKey / nubKey de GBIF
+  inaturalistTaxonId Int?           // id del taxón en iNaturalist
+  family             String?        // Familia botánica (ej: "Malvaceae")
+  synonyms           Json?          // Nombres científicos alternativos (array de strings)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  observations       Observation[]
+  photos             SpeciesPhoto[]
 
   @@index([categoryId])
+  @@schema("public")
+}
+
+// Foto de una especie con datos de licencia y atribución (requisito CC)
+model SpeciesPhoto {
+  id            String   @id @default(cuid())
+  speciesId     String
+  species       Species  @relation(fields: [speciesId], references: [id])
+  url           String
+  thumbnailUrl  String?
+  license       String?  // cc0 | cc-by | cc-by-sa | cc-by-nc ...
+  attribution   String?  // Autor + crédito
+  source        String   @default("INATURALIST") // INATURALIST | GBIF | WIKIMEDIA
+  rank          Int      @default(0) // Orden de visualización (0 = principal)
+  createdAt     DateTime @default(now())
+
+  @@index([speciesId])
+  @@schema("public")
 }
 
 // Estado de conservación según UICN
@@ -86,6 +121,7 @@ enum ConservationStatus {
   LEAST_CONCERN        // Preocupación menor (LC)
   DATA_DEFICIENT       // Datos insuficientes (DD)
   NOT_EVALUATED        // No evaluado (NE)
+  @@schema("public")
 }
 
 // Modelo de Categoría (tipo de planta)
@@ -97,6 +133,7 @@ model Category {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   species     Species[]
+  @@schema("public")
 }
 
 // Modelo de Comunidad
@@ -114,6 +151,7 @@ model Community {
   observations Observation[]
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
+  @@schema("public")
 }
 
 // Modelo de Miembro de Comunidad
@@ -128,6 +166,7 @@ model CommunityMember {
   updatedAt   DateTime  @updatedAt
 
   @@unique([userId, communityId])
+  @@schema("public")
 }
 
 // Modelo de Observación (avistamiento de especie)
@@ -143,6 +182,8 @@ model Observation {
   latitude        Float
   longitude       Float
   altitude        Float?
+  municipio       String?
+  estadoConservacion String?
   notes           String?
   imageUrl        String?
   status          ObservationStatus @default(PENDING)
@@ -157,6 +198,7 @@ model Observation {
   @@index([speciesId])
   @@index([userId])
   @@index([communityId])
+  @@schema("public")
 }
 
 model Comment {
@@ -171,4 +213,5 @@ model Comment {
 
   @@index([observationId])
   @@index([userId])
+  @@schema("public")
 }

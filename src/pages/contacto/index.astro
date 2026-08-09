@@ -18,7 +18,7 @@ import Layout from '../../layouts/Layout.astro'; // Correcto: 2 niveles hacia ar
           </div>
           <div class="details">
             <h3>Correo Electrónico</h3>
-            <p>info@ecoraices.com</p>
+            <p>yeifran67@gmail.com</p>
           </div>
         </div>
         
@@ -29,8 +29,8 @@ import Layout from '../../layouts/Layout.astro'; // Correcto: 2 niveles hacia ar
             </svg>
           </div>
           <div class="details">
-            <h3>Teléfono</h3>
-            <p>+57 123 456 7890</p>
+            <h3>Teléfono / WhatsApp</h3>
+            <p>+57 305 807 9573</p>
           </div>
         </div>
         
@@ -51,28 +51,31 @@ import Layout from '../../layouts/Layout.astro'; // Correcto: 2 niveles hacia ar
     
     <form class="contact-form">
       <h2>Envíanos un mensaje</h2>
-      
+
+      <div id="contact-alert" class="alert-box error" style="display: none; margin-bottom: 1rem;"></div>
+      <div id="contact-success" class="alert-box success" style="display: none; margin-bottom: 1rem;"></div>
+
       <div class="form-group">
         <label for="name">Nombre completo</label>
-        <input type="text" id="name" name="name" required>
+        <input type="text" id="name" name="name" required class="input">
       </div>
       
       <div class="form-group">
         <label for="email">Correo electrónico</label>
-        <input type="email" id="email" name="email" required>
+        <input type="email" id="email" name="email" required class="input">
       </div>
       
       <div class="form-group">
         <label for="subject">Asunto</label>
-        <input type="text" id="subject" name="subject" required>
+        <input type="text" id="subject" name="subject" required class="input">
       </div>
       
       <div class="form-group">
         <label for="message">Mensaje</label>
-        <textarea id="message" name="message" rows="5" required></textarea>
+        <textarea id="message" name="message" rows="5" required class="textarea"></textarea>
       </div>
       
-      <button type="submit" class="btn btn-primary">Enviar mensaje</button>
+      <button type="submit" id="submit-btn" class="btn btn-primary">Enviar mensaje</button>
     </form>
   </div>
 
@@ -142,43 +145,6 @@ import Layout from '../../layouts/Layout.astro'; // Correcto: 2 niveles hacia ar
       margin-bottom: 1.25rem;
     }
     
-    label {
-      display: block;
-      margin-bottom: 0.5rem;
-      font-weight: 500;
-    }
-    
-    input,
-    textarea {
-      width: 100%;
-      padding: 0.75rem;
-      border: 1px solid #e2e8f0;
-      border-radius: 0.375rem;
-      font-size: 1rem;
-    }
-    
-    textarea {
-      resize: vertical;
-      min-height: 120px;
-    }
-    
-    .btn {
-      display: inline-block;
-      padding: 0.75rem 1.5rem;
-      background: var(--color-primary);
-      color: white;
-      border: none;
-      border-radius: 0.375rem;
-      font-size: 1rem;
-      font-weight: 500;
-      cursor: pointer;
-      transition: background-color 0.2s;
-    }
-    
-    .btn:hover {
-      background: var(--color-primary-dark);
-    }
-    
     @media (max-width: 768px) {
       .contact-container {
         grid-template-columns: 1fr;
@@ -187,27 +153,48 @@ import Layout from '../../layouts/Layout.astro'; // Correcto: 2 niveles hacia ar
   </style>
 
   <script>
-    // Manejar el envío del formulario
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('astro:page-load', () => {
       const form = document.querySelector('.contact-form');
-      
+      const alertBox = document.getElementById('contact-alert');
+      const successBox = document.getElementById('contact-success');
+      const submitBtn = document.getElementById('submit-btn');
+
       if (form) {
         form.addEventListener('submit', async (e) => {
           e.preventDefault();
-          
+
+          alertBox.style.display = 'none';
+          successBox.style.display = 'none';
+
           const formData = new FormData(form);
           const data = Object.fromEntries(formData.entries());
-          
+
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Enviando...';
+
           try {
-            // Aquí iría la lógica para enviar el formulario
-            console.log('Datos del formulario:', data);
-            
-            // Mostrar mensaje de éxito
-            alert('¡Gracias por tu mensaje! Nos pondremos en contacto contigo pronto.');
+            const response = await fetch('/api/contact', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(data),
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+              throw new Error(result.message || 'No se pudo enviar el mensaje.');
+            }
+
+            successBox.textContent = result.message;
+            successBox.style.display = 'block';
             form.reset();
           } catch (error) {
-            console.error('Error al enviar el formulario:', error);
-            alert('Hubo un error al enviar el mensaje. Por favor, inténtalo de nuevo más tarde.');
+            console.error('Contact submit error:', error);
+            alertBox.textContent = error.message;
+            alertBox.style.display = 'block';
+          } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Enviar mensaje';
           }
         });
       }

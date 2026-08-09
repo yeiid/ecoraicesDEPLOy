@@ -1,0 +1,68 @@
+# Despliegue en Dokploy — EcoRaíces
+# Uso: en tu proyecto Dokploy, crea un despliegue tipo "Compose" y pega este archivo.
+# Define las variables de entorno en la pestaña "Environment" de Dokploy.
+# El DNS `ecoraices.neuraljira.tech` debe apuntar (A record) a la IP del servidor Dokploy.
+
+name: ecoraices
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ecoraices}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ecoraices_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-ecoraices}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/init-postgis.sql:/docker-entrypoint-initdb.d/init-postgis.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ecoraices} -d ${POSTGRES_DB:-ecoraices}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 8080
+      # Base de datos compartida: el mapa (map.neuraljira.tech) sirve la capa geo2
+      # desde el MISMO PostGIS. En producción, apuntar a este servicio o a la BD
+      # compartida si el mapa la lee directamente.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ecoraices}:${POSTGRES_PASSWORD:-ecoraices_dev}@db:5432/${POSTGRES_DB:-ecoraices}
+      POSTGIS_URL: postgresql://${POSTGRES_USER:-ecoraices}:${POSTGRES_PASSWORD:-ecoraices_dev}@db:5432/${POSTGRES_DB:-ecoraices}
+      # Dominio de producción (obligatorio: define el origen de cookies y links de correo)
+      APP_URL: ${APP_URL:-https://ecoraices.neuraljira.tech}
+      # API del mapa NeuralJIRA. Se inlinea en el bundle al BUILD: si la cambias, recompila.
+      PUBLIC_MAP_API_URL: ${PUBLIC_MAP_API_URL:-https://map.neuraljira.tech}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET es obligatoria}
+      PLANTNET_API_KEY: ${PLANTNET_API_KEY:-}
+      CONTACT_EMAIL: ${CONTACT_EMAIL:-yeifran67@gmail.com}
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USER: ${MAIL_USER:-}
+      MAIL_PASS: ${MAIL_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      MAIL_SECURE: ${MAIL_SECURE:-false}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      FACEBOOK_CLIENT_ID: ${FACEBOOK_CLIENT_ID:-}
+      FACEBOOK_CLIENT_SECRET: ${FACEBOOK_CLIENT_SECRET:-}
+    volumes:
+      - uploads_data:/data/uploads
+
+volumes:
+  pgdata:
+  uploads_data:
+
+# En Dokploy (modo Compose), el dominio HTTPS (https://ecoraices.neuraljira.tech)
+# se configura en el panel por servicio ("app") — Dokploy añade las etiquetas
+# de Traefik y el certificado Let's Encrypt automáticamente.

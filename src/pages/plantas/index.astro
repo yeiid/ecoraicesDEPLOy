@@ -198,6 +198,12 @@ const especies = await prisma.species.findMany({
               <option value="LEAST_CONCERN" selected={estadoConservacion === 'LEAST_CONCERN'}>
                 ✅ Preocupación menor (LC)
               </option>
+              <option value="DATA_DEFICIENT" selected={estadoConservacion === 'DATA_DEFICIENT'}>
+                ❓ Datos insuficientes (DD)
+              </option>
+              <option value="NOT_EVALUATED" selected={estadoConservacion === 'NOT_EVALUATED'}>
+                ➖ No evaluado (NE)
+              </option>
             </select>
           </div>
 
@@ -282,7 +288,7 @@ const especies = await prisma.species.findMany({
 
 <script>
   // Reset filtros y reportar avistamientos
-  document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('astro:page-load', () => {
     // Botón de reset en el formulario de filtros
     const resetButton = document.getElementById("reset-filters");
     if (resetButton) {
@@ -341,6 +347,8 @@ const especies = await prisma.species.findMany({
     border-radius: 8px;
     padding: 1.5rem;
     align-self: start;
+    position: sticky;
+    top: 1rem;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
   }
 
@@ -370,26 +378,6 @@ const especies = await prisma.species.findMany({
     display: flex;
     align-items: center;
     gap: 0.5rem;
-  }
-
-  .price-inputs {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.8rem;
-  }
-
-  .price-input label {
-    display: block;
-    margin-bottom: 0.3rem;
-    font-size: 0.9rem;
-  }
-
-  .price-input input,
-  select {
-    width: 100%;
-    padding: 0.5rem;
-    border: 1px solid #ddd;
-    border-radius: 4px;
   }
 
   select {

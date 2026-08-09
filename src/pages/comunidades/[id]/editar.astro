@@ -1,0 +1,155 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import CommunityLocationPicker from '../../../components/react/CommunityLocationPicker.jsx';
+import { prisma } from '../../../lib/prisma.js';
+import { getSessionUser } from '../../../lib/middleware/auth.js';
+
+export const prerender = false;
+
+const { id } = Astro.params;
+const user = await getSessionUser({ cookies: Astro.cookies });
+
+if (!user) {
+  return Astro.redirect(`/auth/login?redirect=${Astro.url.pathname}`);
+}
+
+const community = await prisma.community.findUnique({ where: { id } });
+
+if (!community || (community.ownerId !== user.id && !user.isAdmin)) {
+  return Astro.redirect('/comunidades');
+}
+
+const title = `Editar ${community.name} - EcoRaíces`;
+---
+
+<Layout title={title}>
+  <div class="container">
+    <div class="breadcrumbs">
+      <a href="/">Inicio</a>
+      <span aria-hidden="true">›</span>
+      <a href="/comunidades">Comunidades</a>
+      <span aria-hidden="true">›</span>
+      <a href={`/comunidades/${community.id}`}>{community.name}</a>
+      <span aria-hidden="true">›</span>
+      <span class="current">Editar</span>
+    </div>
+
+    <div class="card form-card">
+      <h1 class="page-title">Editar comunidad</h1>
+
+      <div id="alert" class="alert-box" style="display: none;"></div>
+
+      <form id="edit-form" class="form" novalidate>
+        <div class="form-group">
+          <label for="name">Nombre de la comunidad *</label>
+          <input type="text" id="name" name="name" class="input" required value={community.name} />
+        </div>
+
+        <div class="form-group">
+          <label for="description">Descripción</label>
+          <textarea id="description" name="description" class="textarea" rows="4">{community.description || ''}</textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="location">Ubicación (texto)</label>
+          <input type="text" id="location" name="location" class="input" value={community.location || ''} placeholder="Ej. Riohacha, La Guajira" />
+        </div>
+
+        <div class="form-group">
+          <label>Ubicación en el mapa</label>
+          <CommunityLocationPicker
+            client:only="react"
+            initialLat={community.latitude}
+            initialLng={community.longitude}
+          />
+        </div>
+
+        <div class="flex gap-1">
+          <button type="submit" id="submit-btn" class="btn btn-accent">
+            Guardar cambios
+          </button>
+          <a href={`/comunidades/${community.id}`} class="btn btn-secondary">
+            Cancelar
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script define:vars={{ communityId: community.id }}>
+    const form = document.getElementById('edit-form');
+    const alertBox = document.getElementById('alert');
+    const submitBtn = document.getElementById('submit-btn');
+
+    const showAlert = (message, type = 'error') => {
+      alertBox.textContent = message;
+      alertBox.className = `alert-box ${type}`;
+      alertBox.style.display = 'block';
+    };
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      alertBox.style.display = 'none';
+
+      const fd = new FormData(form);
+      const payload = {
+        name: fd.get('name'),
+        description: fd.get('description') || null,
+        location: fd.get('location') || null,
+        latitude: fd.get('latitude') || null,
+        longitude: fd.get('longitude') || null,
+      };
+
+      if (!payload.name.trim()) {
+        showAlert('El nombre de la comunidad es obligatorio.');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Guardando...';
+
+      try {
+        const res = await fetch(`/api/communities/${communityId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'No se pudieron guardar los cambios.');
+
+        showAlert('Cambios guardados.', 'success');
+        setTimeout(() => {
+          window.location.href = `/comunidades/${communityId}`;
+        }, 900);
+      } catch (err) {
+        showAlert(err.message);
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Guardar cambios';
+      }
+    });
+  </script>
+
+  <style>
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 1.5rem 1rem;
+    }
+
+    .breadcrumbs {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+      color: var(--color-text-muted);
+      margin-bottom: 1.5rem;
+    }
+
+    .breadcrumbs a { color: var(--color-primary); }
+    .breadcrumbs a:hover { text-decoration: underline; }
+    .breadcrumbs .current { font-weight: 500; color: var(--color-text-main); }
+
+    .form-card { padding: 2rem; }
+    .form-card .page-title { margin-bottom: 1.75rem; font-size: 1.8rem; }
+  </style>
+</Layout>
