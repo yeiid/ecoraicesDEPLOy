@@ -26,6 +26,9 @@ export async function createUser({ username, email, password, name, role = 'COLL
       }
     });
   } catch (error) {
+    if (error.code === 'P2002' && error.meta?.target?.includes('email')) {
+      return { error: 'Ya existe una cuenta con este correo.' };
+    }
     return handleDatabaseError(error, 'Error creating user');
   }
 }
