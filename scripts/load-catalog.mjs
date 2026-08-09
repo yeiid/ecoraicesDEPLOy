@@ -24,6 +24,27 @@ const statements = sql
 const client = new pg.Client({ connectionString: DATABASE_URL });
 await client.connect();
 
+// Sube la resolución de imágenes ya cargadas (idempotente).
+// iNaturalist: square (250px) -> large (1024px). Wikimedia: 960px -> 1280px.
+const UPGRADES = [
+  `UPDATE "Species" SET "imageUrl" = regexp_replace("imageUrl",
+     'photos/[0-9]+/square\\.(jpe?g|png)', 'photos/large.\\1', 'g')`,
+  `UPDATE "Species" SET "imageUrl" = regexp_replace("imageUrl", 'page1-960px-', 'page1-1280px-', 'g')`,
+  `UPDATE "Species" SET "imageUrl" = regexp_replace("imageUrl", '/960px-', '/1280px-', 'g')`,
+  `UPDATE "SpeciesPhoto" SET url = regexp_replace(url,
+     'photos/[0-9]+/square\\.(jpe?g|png)', 'photos/large.\\1', 'g'),
+     "thumbnailUrl" = regexp_replace("thumbnailUrl",
+     'photos/[0-9]+/square\\.(jpe?g|png)', 'photos/large.\\1', 'g')`,
+  `UPDATE "SpeciesPhoto" SET url = regexp_replace(url, 'page1-960px-', 'page1-1280px-', 'g'),
+     "thumbnailUrl" = regexp_replace("thumbnailUrl", 'page1-960px-', 'page1-1280px-', 'g')`,
+  `UPDATE "SpeciesPhoto" SET url = regexp_replace(url, '/960px-', '/1280px-', 'g'),
+     "thumbnailUrl" = regexp_replace("thumbnailUrl", '/960px-', '/1280px-', 'g')`,
+];
+for (const q of UPGRADES) {
+  const res = await client.query(q);
+  if (res.rowCount > 0) console.log(`↑ URLs mejoradas: ${res.rowCount}`);
+}
+
 let ok = 0;
 for (const stmt of statements) {
   try {
