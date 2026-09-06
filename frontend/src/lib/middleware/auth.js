@@ -1,33 +1,9 @@
-import jwt from 'jsonwebtoken';
-import { prisma } from '../prisma.js';
-
-// Validar variable de entorno
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-  if (process.env.NODE_ENV !== 'production') {
-    console.warn('JWT_SECRET no está definido. Usando valor por defecto para desarrollo.');
-  } else {
-    throw new Error('JWT_SECRET no está configurado en las variables de entorno');
-  }
-}
-
-const SECRET = JWT_SECRET || 'dev-secret-key-only';
-
+// Wrapper middleware auth
 export const TOKEN_NAME = 'ecoraices_token';
 export const MAX_AGE = 60 * 60 * 24 * 7; // 1 semana
 export const MAX_AGE_LONG = 60 * 60 * 24 * 30; // 30 días (recordar mi cuenta)
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' };
-
-const userSelect = {
-  id: true,
-  username: true,
-  email: true,
-  name: true,
-  avatarUrl: true,
-  role: true,
-  isAdmin: true,
-};
 
 // Obtener el token desde el contexto de Astro (cookies)
 export function getToken(context) {
@@ -46,20 +22,23 @@ export async function authenticateToken(context) {
   }
 
   try {
-    // Verificar el token JWT
-    const decoded = jwt.verify(token, SECRET);
-
-    // Obtener el usuario de la base de datos
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      select: userSelect,
+    const backendUrl = process.env.BACKEND_URL || "http://backend:8000";
+    const res = await fetch(`${backendUrl}/api/auth/session`, {
+      headers: {
+        'Cookie': `${TOKEN_NAME}=${token}`
+      }
     });
 
-    if (!user) {
+    if (!res.ok) {
+      return { user: null, error: 'User not found or invalid token' };
+    }
+
+    const data = await res.json();
+    if (!data.user) {
       return { user: null, error: 'User not found' };
     }
 
-    return { user, error: null };
+    return { user: data.user, error: null };
   } catch (error) {
     console.error('Token verification error:', error);
     return { user: null, error: 'Invalid token' };
