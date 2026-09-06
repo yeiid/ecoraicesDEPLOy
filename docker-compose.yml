@@ -43,7 +43,7 @@ services:
       MAIL_SECURE: ${MAIL_SECURE:-false}
       CONTACT_EMAIL: ${CONTACT_EMAIL:-}
     ports:
-      - "${APP_PORT:-3000}:8080"
+      - "${APP_PORT:-48080}:8080"
     volumes:
       - uploads_data:/data/uploads
     healthcheck:
@@ -63,7 +63,7 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-ecoraices}:${POSTGRES_PASSWORD:-ecoraices_dev}@db:5432/${POSTGRES_DB:-ecoraices}
     ports:
-      - "${BACKEND_PORT:-8000}:8000"
+      - "${BACKEND_PORT:-48000}:8000"
     volumes:
       - ./backend:/app
       - uploads_data:/data/uploads
