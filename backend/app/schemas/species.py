@@ -5,6 +5,19 @@ from .category import CategoryResponse
 from .species_photo import SpeciesPhotoResponse
 from .observation import ObservationResponse
 
+class SpeciesCreate(BaseModel):
+    name: str
+    scientificName: str
+    categoryId: str
+    description: Optional[str] = None
+    habitat: Optional[str] = None
+    imageUrl: Optional[str] = None
+    status: Optional[str] = None
+    gbifKey: Optional[int] = None
+    inaturalistTaxonId: Optional[int] = None
+    family: Optional[str] = None
+    synonyms: Optional[Any] = None
+
 class SpeciesBase(BaseModel):
     name: str
     scientificName: str
