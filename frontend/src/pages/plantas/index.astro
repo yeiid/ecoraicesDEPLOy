@@ -1,9 +1,5 @@
 ---
-/// <reference path="../../types/prisma.d.ts" />
-
 import Layout from "../../layouts/Layout.astro";
-import { prisma } from "../../lib/prisma.js";
-
 
 // Tipos para los parámetros de URL
 interface FilterParams {
@@ -23,15 +19,15 @@ interface Especie {
   imageUrl: string | null;
   status: string | null;
   categoryId: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
   category: {
     id: string;
     name: string;
     description: string | null;
     imageUrl: string | null;
-    createdAt: Date;
-    updatedAt: Date;
+    createdAt: string;
+    updatedAt: string;
   };
 }
 
@@ -46,47 +42,27 @@ const params: FilterParams = {
 
 const { categoria, habitat, estado: estadoConservacion, ordenar } = params;
 
+// URL base del backend interno (Docker)
+const API_URL = "http://backend:8000/api";
+
 // Obtener todas las categorías para el filtro
-const categorias = await prisma.category.findMany({
-  orderBy: { name: "asc" as const },
-});
+const categoriasRes = await fetch(`${API_URL}/categories`);
+const categorias = categoriasRes.ok ? await categoriasRes.json() : [];
 
 // Obtener hábitats únicos para el filtro
-const habitats = await prisma.species.findMany({
-  select: { habitat: true },
-  where: { NOT: { habitat: null } },
-  distinct: ['habitat' as const]
-});
+const habitatsRes = await fetch(`${API_URL}/species/habitats`);
+const habitats = habitatsRes.ok ? await habitatsRes.json() : [];
 
-// Construir los filtros para la consulta
-const filtros: {
-  categoryId?: string;
-  habitat?: { contains: string; mode: 'insensitive' };
-  status?: string;
-} = {};
+// Construir la query string para especies
+const queryParams = new URLSearchParams();
+if (categoria) queryParams.append("categoria", categoria);
+if (habitat) queryParams.append("habitat", habitat);
+if (estadoConservacion) queryParams.append("estado", estadoConservacion);
+if (ordenar) queryParams.append("ordenar", ordenar);
 
-if (categoria) {
-  filtros.categoryId = categoria;
-}
-
-if (habitat) {
-  filtros.habitat = { contains: habitat, mode: 'insensitive' };
-}
-
-if (estadoConservacion) {
-  filtros.status = estadoConservacion;
-}
-
-// Determinar el orden
-let orderBy: any = { name: 'asc' }; // Orden por defecto
-
-if (ordenar === 'nombre-desc') {
-  orderBy = { name: 'desc' };
-} else if (ordenar === 'fecha-reciente') {
-  orderBy = { createdAt: 'desc' };
-} else if (ordenar === 'fecha-antigua') {
-  orderBy = { createdAt: 'asc' };
-}
+// Obtener especies según los filtros
+const especiesRes = await fetch(`${API_URL}/species?${queryParams.toString()}`);
+const especies: Especie[] = especiesRes.ok ? await especiesRes.json() : [];
 
 // Función para obtener la etiqueta del estado de conservación
 const getStatusLabel = (status: string): string => {
@@ -103,15 +79,6 @@ const getStatusLabel = (status: string): string => {
   };
   return statusLabels[status] || status;
 };
-
-// Obtener especies según los filtros
-const especies = await prisma.species.findMany({
-  where: filtros,
-  include: {
-    category: true,
-  },
-  orderBy,
-});
 ---
 
 <Layout title="Catálogo de Especies - EcoRaíces">

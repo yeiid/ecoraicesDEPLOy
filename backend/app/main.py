@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.api.routers import species
 
 app = FastAPI(
     title="EcoRaíces API",
@@ -14,6 +15,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(species.router)
 
 @app.get("/api/health")
 async def health_check():
