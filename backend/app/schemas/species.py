@@ -2,6 +2,8 @@ from pydantic import BaseModel
 from typing import Optional, List, Any
 from datetime import datetime
 from .category import CategoryResponse
+from .species_photo import SpeciesPhotoResponse
+from .observation import ObservationResponse
 
 class SpeciesBase(BaseModel):
     name: str
@@ -24,3 +26,7 @@ class SpeciesResponse(SpeciesBase):
 
     class Config:
         from_attributes = True
+
+class SpeciesDetailResponse(SpeciesResponse):
+    photos: List[SpeciesPhotoResponse] = []
+    observations: List[ObservationResponse] = []

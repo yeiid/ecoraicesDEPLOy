@@ -23,3 +23,5 @@ class Species(Base):
     updatedAt = Column(DateTime, default=func.now(), onupdate=func.now())
 
     category = relationship("Category", back_populates="species")
+    photos = relationship("SpeciesPhoto", back_populates="species", order_by="SpeciesPhoto.rank")
+    observations = relationship("Observation", back_populates="species", order_by="desc(Observation.observationDate)")

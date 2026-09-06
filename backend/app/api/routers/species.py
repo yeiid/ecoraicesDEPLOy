@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc
 from typing import List, Optional
 
 from ...db.database import get_db
 from ...models.species import Species
 from ...models.category import Category
-from ...schemas.species import SpeciesResponse
+from ...models.observation import Observation
+from ...schemas.species import SpeciesResponse, SpeciesDetailResponse
 from ...schemas.category import CategoryResponse
 
 router = APIRouter(
@@ -28,7 +29,7 @@ def get_species(
     ordenar: Optional[str] = Query("nombre-asc"),
     db: Session = Depends(get_db)
 ):
-    query = db.query(Species)
+    query = db.query(Species).options(joinedload(Species.category))
     
     if categoria:
         query = query.filter(Species.categoryId == categoria)
@@ -54,9 +55,27 @@ def get_habitats(db: Session = Depends(get_db)):
     habitats = db.query(Species.habitat).filter(Species.habitat.isnot(None)).distinct().all()
     return [{"habitat": h[0]} for h in habitats]
 
-@router.get("/species/{species_id}", response_model=SpeciesResponse)
+@router.get("/species/{species_id}", response_model=SpeciesDetailResponse)
 def get_species_by_id(species_id: str, db: Session = Depends(get_db)):
-    species = db.query(Species).filter(Species.id == species_id).first()
+    species = db.query(Species).options(
+        joinedload(Species.category),
+        joinedload(Species.photos),
+        joinedload(Species.observations).joinedload(Observation.user)
+    ).filter(Species.id == species_id).first()
+    
     if species is None:
         raise HTTPException(status_code=404, detail="Species not found")
     return species
+
+@router.get("/species/{species_id}/related", response_model=List[SpeciesResponse])
+def get_related_species(species_id: str, db: Session = Depends(get_db)):
+    species = db.query(Species).filter(Species.id == species_id).first()
+    if species is None:
+        raise HTTPException(status_code=404, detail="Species not found")
+        
+    related = db.query(Species).options(joinedload(Species.category)).filter(
+        Species.categoryId == species.categoryId,
+        Species.id != species_id
+    ).limit(4).all()
+    
+    return related

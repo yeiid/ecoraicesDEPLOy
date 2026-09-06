@@ -1,56 +1,25 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import { prisma } from "../../lib/prisma.js";
 
 // Obtener el ID de la especie desde los parámetros de la URL
 const { id } = Astro.params;
 
-// Obtener la especie específica desde la base de datos
-const especie = await prisma.species.findUnique({
-  where: {
-    id: id,
-  },
-  include: {
-    category: true,
-    photos: {
-      orderBy: { rank: "asc" },
-      take: 12,
-    },
-    observations: {
-      include: {
-        user: {
-          select: {
-            id: true,
-            username: true,
-            avatarUrl: true
-          }
-        }
-      },
-      orderBy: {
-        observationDate: "desc",
-      },
-    },
-  },
-});
+// URL base del backend interno
+const API_URL = "http://backend:8000/api";
+
+// Obtener la especie específica desde la API
+const especieRes = await fetch(`${API_URL}/species/${id}`);
 
 // Si la especie no existe, redirigir al catálogo
-if (!especie) {
+if (!especieRes.ok) {
   return Astro.redirect("/plantas");
 }
 
-// Obtener especies relacionadas (de la misma categoría)
-const especiesRelacionadas = await prisma.species.findMany({
-  where: {
-    categoryId: especie.categoryId,
-    id: {
-      not: id,
-    },
-  },
-  take: 4,
-  include: {
-    category: true
-  }
-});
+const especie = await especieRes.json();
+
+// Obtener especies relacionadas
+const especiesRelacionadasRes = await fetch(`${API_URL}/species/${id}/related`);
+const especiesRelacionadas = especiesRelacionadasRes.ok ? await especiesRelacionadasRes.json() : [];
 
 // Función para obtener la etiqueta del estado de conservación
 const getStatusLabel = (status: string): string => {
