@@ -2,7 +2,6 @@ import os
 from datetime import datetime, timedelta
 from typing import Any, Union
 from jose import jwt
-from passlib.context import CryptContext
 
 # Configuration
 JWT_SECRET = os.getenv("JWT_SECRET", "dev-secret-key-only")
@@ -10,13 +9,17 @@ ALGORITHM = "HS256"
 # 30 days in minutes (matching frontend remember me MAX_AGE_LONG)
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 30 
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+import bcrypt
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+    except ValueError:
+        return False
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
 
 def create_access_token(subject: Union[str, Any], expires_delta: timedelta = None) -> str:
     if expires_delta:
