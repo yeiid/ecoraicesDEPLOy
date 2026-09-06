@@ -290,7 +290,7 @@ const user = await getSessionUser({ cookies: Astro.cookies });
   /* Sidebar Estilos */
   .sidebar {
     width: var(--sidebar-width);
-    height: 100vh;
+    height: 100dvh;
     background-color: var(--color-sidebar-bg);
     border-right: 1px solid var(--color-border);
     position: fixed;
@@ -299,22 +299,23 @@ const user = await getSessionUser({ cookies: Astro.cookies });
     z-index: 90;
     display: flex;
     flex-direction: column;
-    padding: 2rem 1.5rem;
+    padding: 1.5rem 1.25rem;
     transition: var(--transition-smooth);
+    overflow-y: auto;
   }
 
   .logo-container {
     display: flex;
     justify-content: center;
     align-items: center;
-    margin-bottom: 2.5rem;
-    padding-bottom: 1rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.5rem;
   }
 
   .logo-img {
-    width: 150px;
+    width: 120px;
     height: auto;
-    max-height: 150px;
+    max-height: 120px;
     border-radius: 50%;
     transition: var(--transition-smooth);
   }
@@ -373,7 +374,7 @@ const user = await getSessionUser({ cookies: Astro.cookies });
   }
 
   .sidebar-footer {
-    padding-top: 1.5rem;
+    padding-top: 1rem;
     border-top: 1px solid var(--color-border);
   }
 
@@ -383,7 +384,7 @@ const user = await getSessionUser({ cookies: Astro.cookies });
     justify-content: center;
     gap: 0.75rem;
     width: 100%;
-    padding: 0.9rem;
+    padding: 0.7rem;
     background-color: #10b981; /* Color exacto del botón verde */
     color: white;
     border-radius: 25px; /* Súper redondeado tipo pastilla */
