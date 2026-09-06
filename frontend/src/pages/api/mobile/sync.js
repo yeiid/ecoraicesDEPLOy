@@ -3,6 +3,25 @@ import { syncObservationToPostGIS } from '../../../lib/postgis.js';
 import { createId } from '@paralleldrive/cuid2';
 import path from 'path';
 import fs from 'fs/promises';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-key-only';
+
+/**
+ * Extrae y valida el userId desde el header Authorization: Bearer <token>
+ * Retorna null si no hay token (modo anónimo — solo dev).
+ */
+function getUserIdFromRequest(request) {
+  const authHeader = request.headers.get('Authorization') || '';
+  const token = authHeader.replace('Bearer ', '').trim();
+  if (!token) return null;
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    return decoded.userId || null;
+  } catch {
+    return null;
+  }
+}
 
 const UPLOADS_DIR = path.join(process.cwd(), 'public', 'uploads', 'observations');
 
@@ -69,11 +88,22 @@ export async function POST({ request }) {
     let id, userId, nombreComun, nombreCientifico, categoria, latitude, longitude, observaciones, imageBase64, imageFile;
     const contentType = request.headers.get('content-type') || '';
 
+    // Leer userId desde JWT (seguro) — nunca desde el body (inseguro)
+    const authenticatedUserId = getUserIdFromRequest(request);
+    // En dev se permite 'anonymous', en prod se exige autenticación
+    if (!authenticatedUserId && process.env.NODE_ENV === 'production') {
+      return new Response(JSON.stringify({ error: 'Autenticación requerida' }), {
+        status: 401,
+        headers: { 'Access-Control-Allow-Origin': '*' }
+      });
+    }
+    userId = authenticatedUserId || 'anonymous';
+
     if (contentType.includes('application/json')) {
       // Cargar datos vía JSON (Base64)
       const data = await request.json();
       id = data.id || createId();
-      userId = data.userId || 'anonymous';
+      // userId ya está definido desde el JWT — ignorar data.userId del body
       nombreComun = data.nombreComun || 'Árbol no identificado';
       nombreCientifico = data.nombreCientifico || '';
       categoria = data.categoria || 'Planta';
@@ -85,7 +115,7 @@ export async function POST({ request }) {
       // Cargar datos vía Form-Data estándar
       const formData = await request.formData();
       id = formData.get('id') || createId();
-      userId = formData.get('userId') || 'anonymous';
+      // userId ya está definido desde el JWT — ignorar formData.userId
       nombreComun = formData.get('nombreComun') || 'Árbol no identificado';
       nombreCientifico = formData.get('nombreCientifico') || '';
       categoria = formData.get('categoria') || 'Planta';

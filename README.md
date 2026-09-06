@@ -2,6 +2,8 @@
 
 EcoRaíces es una plataforma colaborativa para el monitoreo y conservación de especies nativas, permitiendo a recolectores y comunidades registrar observaciones de flora local, contribuyendo a la investigación y conservación de la biodiversidad.
 
+**🔴 En producción**: https://ecoraices.neuraljira.tech · Desarrollado por **NeuralJIRA** (https://neuraljira.tech)
+
 ## 🎯 Características Principales
 
 ### 👥 Gestión de Usuarios
@@ -54,31 +56,61 @@ EcoRaíces es una plataforma colaborativa para el monitoreo y conservación de e
 | `pnpm build`      | Construir para producción                      |
 | `pnpm preview`    | Vista previa de la versión de producción       |
 | `pnpm prisma`     | Comandos de Prisma ORM                          |
+| `pnpm etl:all`    | Sembrar/enriquecer catálogo desde GBIF/iNaturalist |
+| `node scripts/load-catalog.mjs` | Cargar catálogo en producción (BD vacía) |
 
 ## 📚 Base de Datos
 
-El proyecto utiliza SQLite con Prisma ORM. El esquema incluye:
+El proyecto utiliza **PostgreSQL + PostGIS** con Prisma ORM (schema `public`). La tabla geográfica `geo2` vive en el schema `gis`, aislada de Prisma, y alimenta el mapa 3D de `map.neuraljira.tech`. El esquema incluye:
 
-- **Usuarios**: Gestión de perfiles y autenticación
-- **Especies**: Catálogo de especies nativas
+- **Usuarios**: Gestión de perfiles y autenticación (JWT + OAuth Google/Facebook)
+- **Especies**: Catálogo de especies nativas (61 especies + 326 fotos licenciadas)
 - **Comunidades**: Grupos de usuarios por ubicación
-- **Observaciones**: Registros de avistamientos
+- **Observaciones**: Registros de avistamientos con geolocalización y verificación admin
 - **Categorías**: Clasificación de especies
+- **Fotos**: `SpeciesPhoto` con licencia CC y atribución (fuente: GBIF/iNaturalist/Wikimedia)
 
 ## 🔒 Variables de Entorno
 
 Crea un archivo `.env` en la raíz con las siguientes variables:
 
 ```env
-DATABASE_URL="file:./dev.db"
-# Otras variables de entorno necesarias
+DATABASE_URL="postgresql://user:pass@localhost:5432/ecoraices"
+POSTGIS_URL="postgresql://user:pass@localhost:5432/ecoraices"
+JWT_SECRET="un_secreto_largo_aleatorio"
+APP_URL="https://ecoraices.neuraljira.tech"
+CONTACT_EMAIL="yeifran67@gmail.com"
+PLANTNET_API_KEY="tu_key_de_plantnet"   # identificación por foto
+# MAIL_HOST / MAIL_PORT / MAIL_USER / MAIL_PASS / MAIL_FROM (SMTP opcional)
+# GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET (OAuth opcional)
+# FACEBOOK_CLIENT_ID / FACEBOOK_CLIENT_SECRET (OAuth opcional)
 ```
 
 ## 🌐 Despliegue
 
-1. Configura las variables de entorno de producción
-2. Ejecuta `pnpm build`
-3. Despliega la carpeta `dist` generada
+Producción se despliega en **Dokploy** bajo `https://ecoraices.neuraljira.tech`. Guía paso a paso: [`docs/DEPLOY-DOKPLOY.md`](docs/DEPLOY-DOKPLOY.md).
+
+- Compose de producción: `docker-compose.dokploy.yml` (sin puertos; Traefik + Let's Encrypt automáticos)
+- Variables de ejemplo: `.env.dokploy.example`
+- El primer arranque aplica migraciones y provisiona PostGIS (`scripts/init-postgis.sql`)
+- Para cargar el catálogo en una BD nueva: `node scripts/load-catalog.mjs`
+
+## 🏢 Sobre NeuralJIRA
+
+EcoRaíces es desarrollado por **NeuralJIRA**, una start-up de asesoría y desarrollo de software a medida con base en Colombia.
+
+| | |
+|---|---|
+| **Sitio web** | https://neuraljira.tech |
+| **Dominio e infraestructura** | `neuraljira.tech` (web) · `map.neuraljira.tech` (API de mapas 3D) · `ecoraices.neuraljira.tech` (EcoRaíces) |
+| **Servicios** | Asesoría estratégica tecnológica · Desarrollo de software a medida (MVP → plataformas) |
+| **Email** | yeifran67@gmail.com |
+| **WhatsApp** | https://wa.me/573058079573 |
+| **LinkedIn** | https://www.linkedin.com/in/yeifran-hernandez-751665203/ |
+| **GitHub** | https://github.com/yeiid |
+| **X** | https://x.com/YeifranH |
+
+EcoRaíces integra la **infraestructura NeuralJIRA**: el mapa 3D de ciudades y la capa de árboles (`geo2`) se sirven desde `map.neuraljira.tech`, y el catálogo se enriquece con GBIF/iNaturalist/Wikimedia. Marketing y contenido para redes: [`docs/MARKETING-REDES.md`](docs/MARKETING-REDES.md).
 
 ## 🤝 Contribución
 

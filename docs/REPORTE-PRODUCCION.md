@@ -1,7 +1,7 @@
 # 📋 Reporte Completo — EcoRaíces · Producción y Móvil
 
-> Documento vivo del proyecto. Actualizado al sprint: **Despliegue en producción con Docker (SSR standalone + PostgreSQL/PostGIS)**.
-> Fecha: 2026-08-08
+> Documento vivo del proyecto. Actualizado al sprint: **Despliegue en producción con Docker (SSR standalone + PostgreSQL/PostGIS)** + **Lanzamiento/marketing**.
+> Fecha: 2026-08-09
 
 ---
 
@@ -19,6 +19,9 @@
 | Comunidades | 🟢 Funcionales | CRUD + unirse/abandonar autoservicio + mapa en formulario |
 | Super admin | 🟢 Panel `/admin` | Gestión de comunidades (eliminar) y observaciones (aprobar/rechazar/eliminar); acceso por `isAdmin` |
 | Perfil de usuario | 🟢 Activado | Página `/perfil`: editar nombre/usuario/email/bio/avatar + cambio de contraseña + ver mis observaciones/comunidades |
+| Registro (email duplicado) | 🟢 Corregido | `createUser` captura P2002 → responde **400** `"Ya existe una cuenta con este correo."` (antes 500) |
+| Catálogo en producción | 🟢 Cargable | `scripts/load-catalog.mjs` + `scripts/data/catalog-dump.sql` (61 especies / 326 fotos) + upgrade de resolución de imágenes (`square`→`large`, `960px`→`1280px`) |
+| Marketing / redes | 🟢 Guía creada | `docs/MARKETING-REDES.md` (calendario 30 días, copy, KPIs, perfil NeuralJIRA) |
 | Sistema móvil | 🔴 No funcional | `sync.js` falla con usuarios anónimos (Fase 4) |
 | Verificación científica | 🟢 Curaduría por admin | `PATCH /api/admin/observations/[id]` (APPROVED/REJECTED con notas); `DELETE` también limpia `geo2` |
 
@@ -198,6 +201,12 @@ USUARIO WEB                     USUARIO MÓVIL
 - [ ] `mobile/sync` autenticado, resolución segura de usuario/especie, respetar `PENDING`.
 - [x] Endpoint de verificación admin (curaduría): panel `/admin` + APIs `PATCH/DELETE /api/admin/observations/[id]`.
 
+### ✅ Bloc F — Lanzamiento y marketing (completado)
+- [x] Fix registro con email duplicado: P2002 → 400 con mensaje amigable (verificado: duplicado 400, válido 201).
+- [x] Catálogo transportable: dump SQL + loader idempotente + upgrade de resolución de imágenes.
+- [x] `docs/MARKETING-REDES.md`: pilares, calendario 30 días, copy listo, KPIs y perfiles a reservar.
+- [x] README actualizado con datos de producción y la start-up **NeuralJIRA** (dominio `neuraljira.tech`).
+
 ---
 
 ## 6. 🐳 Despliegue con Docker
@@ -220,6 +229,7 @@ USUARIO WEB                     USUARIO MÓVIL
 - La DB del contenedor arranca **vacía** (solo migraciones). Para replicar el entorno real de dev:
   `pg_dump "postgresql://<user>:<pass>@localhost:5434/ecoraices" --no-owner --no-acl | docker exec -i ecoraices-db psql -U ecoraices -d ecoraices`
   (recrear antes la DB con `DROP DATABASE`/`CREATE DATABASE` con la app detenida).
+- **Catálogo (rápido, sin GBIF)**: `scripts/data/catalog-dump.sql` trae Categorías + 61 Especies + 326 SpeciesPhoto (dump `--column-inserts`, con FKs respetadas). Se carga con `node scripts/load-catalog.mjs` (usa `pg`, es idempotente, y además **sube la resolución** de URLs ya guardadas: `square`→`large` 1024px iNaturalist, `960px`→`1280px` Wikimedia). Verificado: en BD nueva inserta 400 sentencias; en BD existente actualiza URLs y salta duplicados.
 
 ### Comandos
 | Comando | Descripción |
@@ -251,6 +261,7 @@ USUARIO WEB                     USUARIO MÓVIL
 | `pnpm etl:enrich` | Re-matchear especies existentes contra GBIF (familia/sinónimos/nombres comunes) |
 | `pnpm etl:photos` | Descargar fotos licenciadas (iNaturalist + Wikimedia) a `SpeciesPhoto` |
 | `pnpm etl:all` | Seed + fotos (secuencial) |
+| `node scripts/load-catalog.mjs` | Cargar catálogo en BD nueva (dump) y subir resolución de imágenes ya guardadas |
 | `psql "$DATABASE_URL" -f scripts/init-postgis.sql` | Provisionar PostGIS en entorno nuevo (schema `gis.geo2`) |
 
 ## 8. Variables de entorno
