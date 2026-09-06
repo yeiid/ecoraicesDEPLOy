@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routers import species, auth
+import app.models  # Trigger SQLAlchemy registry for all models
 
 app = FastAPI(
     title="EcoRaíces API",
