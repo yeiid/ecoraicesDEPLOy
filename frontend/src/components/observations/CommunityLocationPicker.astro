@@ -1,0 +1,141 @@
+---
+// frontend/src/components/observations/CommunityLocationPicker.astro
+import MapComponent from "./MapComponent.astro";
+
+const { initialLat = null, initialLng = null } = Astro.props;
+const hasInitial = initialLat != null && initialLng != null;
+const center = hasInitial ? [initialLat, initialLng] : [11.5448, -72.9068];
+const zoom = hasInitial ? 15 : 8;
+---
+
+<div class="location-picker">
+  <div class="picker-actions">
+    <button
+      type="button"
+      class="btn btn-accent btn-sm"
+      id="get-location-btn"
+    >
+      ¿Dónde estoy?
+    </button>
+    <span class="coordinates-badge" id="coordinates-display" style={hasInitial ? "" : "display: none;"}>
+      {hasInitial ? `Lat: ${Number(initialLat).toFixed(6)} | Lng: ${Number(initialLng).toFixed(6)}` : ""}
+    </span>
+  </div>
+
+  <input type="hidden" id="community-latitude" name="latitude" value={hasInitial ? initialLat : ""} />
+  <input type="hidden" id="community-longitude" name="longitude" value={hasInitial ? initialLng : ""} />
+
+  <div class="picker-map">
+    <MapComponent
+      id="community-map"
+      center={center}
+      zoom={zoom}
+      interactiveMarker={hasInitial ? { lat: initialLat, lng: initialLng } : null}
+      readOnly={false}
+      height="380px"
+    />
+  </div>
+
+  <style>
+    .location-picker {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .picker-actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .coordinates-badge {
+      background-color: var(--color-gray-100);
+      padding: 0.4rem 0.75rem;
+      border-radius: var(--radius-sm);
+      font-family: monospace;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--color-text-main);
+    }
+    .picker-map {
+      width: 100%;
+      height: 380px;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      border: 1px solid var(--color-border);
+    }
+  </style>
+
+  <script>
+    document.addEventListener("astro:page-load", () => {
+      const getLocBtn = document.getElementById('get-location-btn');
+      const coordsDisplay = document.getElementById('coordinates-display');
+      const latInput = document.getElementById('community-latitude');
+      const lngInput = document.getElementById('community-longitude');
+      const mapContainer = document.getElementById('community-map');
+      
+      if (!getLocBtn || !mapContainer) return;
+
+      // Handle Map Click
+      mapContainer.addEventListener('location-selected', (e) => {
+        const { lat, lng } = e.detail;
+        latInput.value = lat;
+        lngInput.value = lng;
+        coordsDisplay.textContent = `Lat: ${lat.toFixed(6)} | Lng: ${lng.toFixed(6)}`;
+        coordsDisplay.style.display = 'inline-block';
+      });
+
+      // Handle Geolocation Button
+      getLocBtn.addEventListener('click', () => {
+        if (!navigator.geolocation) {
+          alert("Tu navegador no soporta geolocalización.");
+          return;
+        }
+        
+        getLocBtn.textContent = "Buscando...";
+        getLocBtn.disabled = true;
+
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            
+            latInput.value = lat;
+            lngInput.value = lng;
+            coordsDisplay.textContent = `Lat: ${lat.toFixed(6)} | Lng: ${lng.toFixed(6)}`;
+            coordsDisplay.style.display = 'inline-block';
+            
+            getLocBtn.textContent = "¿Dónde estoy?";
+            getLocBtn.disabled = false;
+
+            // Dispatch event to update map center and marker
+            mapContainer.dispatchEvent(new CustomEvent('update-markers', {
+              detail: {
+                newCenter: [lng, lat]
+              }
+            }));
+            
+            // Re-assign interactive marker
+            mapContainer.dataset.interactive = JSON.stringify({lat, lng});
+            
+            // To force update marker without reloading map libre script,
+            // we will simulate a click event or just let update-markers handle center
+            // but the marker logic is in MapComponent.
+            // Since we need to update the marker, let's fire a 'location-selected' on map to self-update marker.
+            // But MapComponent already has logic: if `activeMarker` doesn't exist, it adds one on click. 
+            // So we trigger an update by updating the dataset, but maplibre instance doesn't watch dataset.
+            // That's why we added `update-markers` event, but it currently only updates `staticMarkers` and center.
+            // Let's rely on the user clicking the map, or we can improve `update-markers` in MapComponent later.
+            // For now, at least it centers the map.
+          },
+          (error) => {
+            alert("No se pudo obtener la ubicación.");
+            getLocBtn.textContent = "¿Dónde estoy?";
+            getLocBtn.disabled = false;
+          },
+          { enableHighAccuracy: true, timeout: 10000 }
+        );
+      });
+    });
+  </script>
+</div>

@@ -1,17 +1,18 @@
 ---
 import Layout from "../layouts/Layout.astro";
-import { prisma } from "../lib/prisma.js";
+import { apiGet } from "../lib/api/client.js";
 
 let totalObservations = 0;
 let totalSpecies = 0;
 let totalCommunities = 0;
 
 try {
-  totalObservations = await prisma.observation.count();
-  totalSpecies = await prisma.species.count();
-  totalCommunities = await prisma.community.count();
+  const stats = await apiGet("/stats");
+  totalObservations = stats.observations;
+  totalSpecies = stats.species;
+  totalCommunities = stats.communities;
 } catch (error) {
-  console.error("Error al obtener estadísticas de Prisma:", error);
+  console.error("Error al obtener estadísticas de FastAPI:", error);
 }
 
 const pageTitle = "Inicio - EcoRaíces";

@@ -1,0 +1,83 @@
+---
+/**
+ * @file StatCard.astro
+ * @description Tarjeta de métricas (KPI) para paneles de control y vistas de administración.
+ */
+
+interface Props {
+  value: number | string;
+  label: string;
+  icon?: string;
+  color?: 'primary' | 'success' | 'warning' | 'info';
+}
+
+const { value, label, icon, color = 'primary' } = Astro.props;
+
+// Class mappings for the icon container
+const colorClassMap = {
+  primary: 'bg-primary',
+  success: 'bg-success',
+  warning: 'bg-warning',
+  info: 'bg-info'
+};
+const iconBgClass = colorClassMap[color];
+---
+
+<div class="card card-hover stat-card">
+  <dl class="stat-content">
+    <div class="stat-info">
+      <dt class="stat-label text-muted">{label}</dt>
+      <dd class="stat-value">{value}</dd>
+    </div>
+    {icon && (
+      <div class={`stat-icon ${iconBgClass}`}>
+        <span aria-hidden="true">{icon}</span>
+      </div>
+    )}
+  </dl>
+</div>
+
+<style>
+  .stat-card {
+    padding: 1.5rem;
+  }
+  .stat-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 0;
+  }
+  .stat-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .stat-label {
+    font-size: 0.9rem;
+    font-weight: 500;
+    margin: 0;
+  }
+  .stat-value {
+    font-family: var(--font-heading);
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--color-text-main);
+    margin: 0;
+    line-height: 1.2;
+  }
+  .stat-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 50%;
+    font-size: 1.5rem;
+  }
+  
+  /* Icon background colors based on global.css tokens */
+  .bg-primary { background-color: var(--color-accent); color: var(--color-primary); }
+  .bg-success { background-color: var(--color-success-bg); color: var(--color-success); }
+  .bg-warning { background-color: var(--color-warning-bg); color: var(--color-warning); }
+  .bg-info { background-color: var(--color-info-bg); color: var(--color-info); }
+</style>

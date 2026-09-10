@@ -8,7 +8,7 @@ class Observation(Base):
     id = Column(String, primary_key=True, index=True)
     speciesId = Column(String, ForeignKey("Species.id"), nullable=False)
     userId = Column(String, ForeignKey("User.id"), nullable=False)
-    communityId = Column(String, nullable=True) # Will link to Community when migrated
+    communityId = Column(String, ForeignKey("Community.id"), nullable=True)
     
     observationDate = Column(DateTime, nullable=False)
     latitude = Column(Float, nullable=False)
@@ -29,3 +29,5 @@ class Observation(Base):
 
     species = relationship("Species", back_populates="observations")
     user = relationship("User", back_populates="observations", foreign_keys=[userId])
+    community = relationship("Community", back_populates="observations", foreign_keys=[communityId])
+    comments = relationship("Comment", back_populates="observation", cascade="all, delete-orphan")

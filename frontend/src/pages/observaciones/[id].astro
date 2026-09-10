@@ -1,6 +1,6 @@
 ---
 import Layout from "../../layouts/Layout.astro"; // Correcto: 2 niveles hacia arriba
-import MapComponent from "../../components/react/MapComponent.jsx";
+import MapComponent from "../../components/observations/MapComponent.astro";
 
 export const prerender = false;
 
@@ -220,11 +220,12 @@ const mapMarker = observation
             <h2>Ubicación</h2>
             <div class="map-wrapper">
               <MapComponent
-                client:only="react"
+                id="observation-detail-map"
                 center={[observation.latitude, observation.longitude]}
                 zoom={14}
                 readOnly={true}
                 markers={mapMarker ? [mapMarker] : []}
+                height="480px"
               />
             </div>
           </div>

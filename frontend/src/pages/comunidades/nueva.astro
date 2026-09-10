@@ -1,6 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import CommunityLocationPicker from '../../components/react/CommunityLocationPicker.jsx';
+import CommunityLocationPicker from '../../components/observations/CommunityLocationPicker.astro';
 import { getSessionUser } from '../../lib/middleware/auth.js';
 
 const user = await getSessionUser({ cookies: Astro.cookies });
@@ -29,7 +29,7 @@ const title = 'Crear Comunidad - EcoRaíces';
         observaciones forestales.
       </p>
 
-      <div id="alert" class="alert-box" style="display: none;"></div>
+      <div id="alert" class="alert-box" role="alert" aria-live="polite" style="display: none;"></div>
 
       <form id="create-form" class="form" novalidate>
         <div class="form-group">
@@ -48,8 +48,9 @@ const title = 'Crear Comunidad - EcoRaíces';
         </div>
 
         <div class="form-group">
-          <label>Ubicación en el mapa</label>
-          <CommunityLocationPicker client:only="react" />
+          <label>Ubicación Exacta en el Mapa</label>
+          <p class="text-sm text-muted mb-2">Haz clic en el mapa para registrar las coordenadas de la comunidad.</p>
+          <CommunityLocationPicker />
         </div>
 
         <button type="submit" id="submit-btn" class="btn btn-accent btn-lg btn-block">

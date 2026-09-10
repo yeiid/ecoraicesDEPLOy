@@ -1,6 +1,6 @@
 ---
 import Layout from "../../layouts/Layout.astro"; // Correcto: 2 niveles hacia arriba
-import NewObservationForm from "../../components/react/NewObservationForm";
+import NewObservationForm from "../../components/observations/NewObservationForm.astro";
 import { getSessionUser } from '../../lib/middleware/auth.js';
 
 // 🔐 Verificar estado de sesión y token
@@ -35,7 +35,6 @@ const title = "Registrar Nuevo Árbol - EcoRaices";
 
     <div class="form-container">
       <NewObservationForm
-        client:only="react"
         categories={categories}
         speciesList={species}
         userId={user.id}

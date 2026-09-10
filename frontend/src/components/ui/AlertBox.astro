@@ -1,0 +1,24 @@
+---
+/**
+ * @file AlertBox.astro
+ * @description Componente de alerta reutilizable con diferentes tipos (error, success, info, warning).
+ */
+
+interface Props {
+  id: string;
+  type?: 'error' | 'success' | 'info' | 'warning';
+  hidden?: boolean;
+}
+
+const { id, type = 'info', hidden = true } = Astro.props;
+---
+
+<div
+  id={id}
+  class={`alert-box ${type}`}
+  role="alert"
+  aria-live="polite"
+  style={hidden ? "display: none;" : ""}
+>
+  <slot />
+</div>

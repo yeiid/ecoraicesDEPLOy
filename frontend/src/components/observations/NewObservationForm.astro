@@ -1,0 +1,390 @@
+---
+// frontend/src/components/observations/NewObservationForm.astro
+const { categories = [], speciesList = [], userId } = Astro.props;
+---
+
+<div class="registration-wrapper">
+  <div class="form-card-column">
+    <h1 class="form-title">Registro de Especies</h1>
+
+    <div id="alert-success" class="alert-box success" style="display: none;"></div>
+    <div id="alert-error" class="alert-box error" style="display: none;"></div>
+
+    <form id="observation-form" class="premium-form">
+      <!-- Datos ocultos para estado -->
+      <input type="hidden" id="userId" name="userId" value={userId} />
+      <input type="hidden" id="speciesId" name="speciesId" />
+      <input type="hidden" id="latitude" name="latitude" />
+      <input type="hidden" id="longitude" name="longitude" />
+      <input type="hidden" id="newSpeciesName" name="newSpeciesName" />
+      <input type="hidden" id="newSpeciesScientificName" name="newSpeciesScientificName" />
+
+      <!-- Map Component / Location Picker -->
+      <div class="location-picker-wrapper form-field-card">
+        <label>Ubicación del Árbol</label>
+        <p class="text-sm text-muted mb-2">Haz clic en el mapa para registrar las coordenadas.</p>
+        <div id="map-container" style="height: 300px; width: 100%; border-radius: 8px; overflow: hidden; border: 1px solid var(--color-border); position: relative;">
+          <!-- Maplibre se inyectará aquí -->
+          <div id="location-display" style="display:none; position:absolute; bottom:10px; left:10px; background:rgba(0,0,0,0.7); color:white; padding:4px 8px; border-radius:4px; font-size:12px; z-index:10;">
+            Seleccionando...
+          </div>
+        </div>
+      </div>
+
+      <!-- Species Autocomplete -->
+      <div class="form-field-card">
+        <label for="speciesSearch">Nombre de la Especie</label>
+        <div class="species-autocomplete" style="position: relative;">
+          <input 
+            type="text" 
+            id="speciesSearch" 
+            class="input-text" 
+            placeholder="Buscar especie..."
+            autocomplete="off"
+          />
+          <ul id="species-suggestions" class="suggestions-list" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid var(--color-border); z-index: 50; max-height: 200px; overflow-y: auto;">
+          </ul>
+        </div>
+        <div id="selected-species-info" style="display: none; margin-top: 0.5rem; padding: 0.5rem; background: var(--color-bg-light); border-radius: 4px;">
+          <strong id="selected-species-name"></strong>
+          <div id="selected-species-scientific" class="text-muted text-sm"></div>
+        </div>
+      </div>
+
+      <div class="form-field-card">
+        <label for="municipio">Municipio</label>
+        <input 
+          type="text"
+          id="municipio"
+          name="municipio"
+          class="input-text"
+          placeholder="Ej. Riohacha"
+        />
+      </div>
+
+      <div class="form-field-card">
+        <label for="estadoConservacion">Estado de Conservación</label>
+        <select 
+          id="estadoConservacion"
+          name="estadoConservacion"
+          class="input-select"
+        >
+          <option value="">Seleccione un estado</option>
+          <option value="Preocupación menor (LC)">Preocupación menor (LC)</option>
+          <option value="Casi amenazado (NT)">Casi amenazado (NT)</option>
+          <option value="Vulnerable (VU)">Vulnerable (VU)</option>
+          <option value="En peligro (EN)">En peligro (EN)</option>
+          <option value="En peligro crítico (CR)">En peligro crítico (CR)</option>
+        </select>
+      </div>
+
+      <div class="form-field-card">
+        <label for="notes">Descripción</label>
+        <textarea 
+          id="notes"
+          name="notes"
+          class="input-textarea"
+          rows="4"
+          placeholder="Describa brevemente la especie y su entorno..."
+        ></textarea>
+      </div>
+
+      <div class="form-field-card">
+        <label for="image">Fotografía del Árbol (Opcional)</label>
+        <input 
+          type="file"
+          id="image"
+          name="image"
+          accept="image/*"
+          class="input-file"
+        />
+        <div id="image-preview" style="display: none; margin-top: 1rem;">
+          <img id="preview-img" src="" alt="Vista previa" style="max-width: 100%; max-height: 200px; border-radius: 8px;" />
+        </div>
+      </div>
+
+      <div class="form-actions-row" style="margin-top: 1.5rem;">
+        <button 
+          type="submit" 
+          id="submit-btn"
+          class="btn btn-primary"
+        >
+          Registrar Árbol
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+  .form-field-card {
+    background: white;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+    box-shadow: var(--shadow-sm);
+  }
+  .form-field-card label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--color-primary-dark);
+  }
+  .suggestions-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-radius: 4px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  }
+  .suggestions-list li {
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .suggestions-list li:hover {
+    background: var(--color-bg-light);
+  }
+</style>
+
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" />
+
+<script define:vars={{ speciesList, categories }}>
+  // Scripts de inicialización
+  const form = document.getElementById('observation-form');
+  const alertSuccess = document.getElementById('alert-success');
+  const alertError = document.getElementById('alert-error');
+  const submitBtn = document.getElementById('submit-btn');
+
+  // Funciones de alerta
+  const showSuccess = (msg) => { alertSuccess.textContent = msg; alertSuccess.style.display = 'block'; alertError.style.display = 'none'; };
+  const showError = (msg) => { alertError.textContent = msg; alertError.style.display = 'block'; alertSuccess.style.display = 'none'; };
+  const hideAlerts = () => { alertSuccess.style.display = 'none'; alertError.style.display = 'none'; };
+
+  // 1. Imagen preview
+  const imageInput = document.getElementById('image');
+  const imagePreview = document.getElementById('image-preview');
+  const previewImg = document.getElementById('preview-img');
+  
+  imageInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        previewImg.src = e.target.result;
+        imagePreview.style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+    } else {
+      imagePreview.style.display = 'none';
+    }
+  });
+
+  // 2. Autocomplete de especies
+  const searchInput = document.getElementById('speciesSearch');
+  const suggestionsList = document.getElementById('species-suggestions');
+  const speciesIdInput = document.getElementById('speciesId');
+  const newSpeciesNameInput = document.getElementById('newSpeciesName');
+  const newSpeciesScientificNameInput = document.getElementById('newSpeciesScientificName');
+  const selectedInfo = document.getElementById('selected-species-info');
+  const selectedName = document.getElementById('selected-species-name');
+  const selectedScientific = document.getElementById('selected-species-scientific');
+
+  // Chequear parámetro URL (si venimos de una especie preseleccionada)
+  const urlParams = new URLSearchParams(window.location.search);
+  const querySpeciesId = urlParams.get("especieId");
+  if (querySpeciesId) {
+    const match = speciesList.find(s => s.id === querySpeciesId);
+    if (match) {
+      selectSpecies(match);
+    }
+  }
+
+  function selectSpecies(species) {
+    speciesIdInput.value = species.id;
+    newSpeciesNameInput.value = "";
+    newSpeciesScientificNameInput.value = "";
+    searchInput.value = species.name;
+    selectedName.textContent = species.name;
+    selectedScientific.textContent = species.scientificName || "";
+    selectedInfo.style.display = 'block';
+    suggestionsList.style.display = 'none';
+  }
+
+  searchInput.addEventListener('input', (e) => {
+    const val = e.target.value.toLowerCase();
+    suggestionsList.innerHTML = '';
+    speciesIdInput.value = '';
+    selectedInfo.style.display = 'none';
+
+    if (!val) {
+      suggestionsList.style.display = 'none';
+      return;
+    }
+
+    const matches = speciesList.filter(s => 
+      s.name.toLowerCase().includes(val) || 
+      (s.scientificName && s.scientificName.toLowerCase().includes(val))
+    );
+
+    if (matches.length > 0) {
+      matches.forEach(m => {
+        const li = document.createElement('li');
+        li.innerHTML = `<strong>${m.name}</strong> <span style="color:#666; font-size:0.85em;">${m.scientificName || ''}</span>`;
+        li.addEventListener('click', () => selectSpecies(m));
+        suggestionsList.appendChild(li);
+      });
+      suggestionsList.style.display = 'block';
+    } else {
+      const li = document.createElement('li');
+      li.innerHTML = `<em>Crear nueva especie: "${e.target.value}"</em>`;
+      li.addEventListener('click', () => {
+        speciesIdInput.value = '';
+        newSpeciesNameInput.value = e.target.value;
+        newSpeciesScientificNameInput.value = 'Especie por identificar'; // Default
+        selectedName.textContent = e.target.value;
+        selectedScientific.textContent = '(Nueva Especie)';
+        selectedInfo.style.display = 'block';
+        suggestionsList.style.display = 'none';
+        searchInput.value = e.target.value;
+      });
+      suggestionsList.appendChild(li);
+      suggestionsList.style.display = 'block';
+    }
+  });
+
+  // Cerrar sugerencias al hacer clic fuera
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.species-autocomplete')) {
+      suggestionsList.style.display = 'none';
+    }
+  });
+
+  // 3. Mapa (Maplibre GL)
+  let map;
+  let marker;
+  const latInput = document.getElementById('latitude');
+  const lngInput = document.getElementById('longitude');
+  const locDisplay = document.getElementById('location-display');
+
+  // Inicializar mapa dinámicamente para asegurar que se carga en cliente
+  setTimeout(() => {
+    import('https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js').then((maplibreglModule) => {
+      const maplibregl = maplibreglModule.default || window.maplibregl;
+      
+      map = new maplibregl.Map({
+        container: 'map-container',
+        style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+        center: [-74.0817, 4.6097], // Bogotá
+        zoom: 5
+      });
+      
+      map.addControl(new maplibregl.NavigationControl());
+
+      map.on('click', (e) => {
+        const lat = e.lngLat.lat;
+        const lng = e.lngLat.lng;
+        
+        latInput.value = lat;
+        lngInput.value = lng;
+        
+        locDisplay.textContent = `Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}`;
+        locDisplay.style.display = 'block';
+
+        if (marker) {
+          marker.setLngLat([lng, lat]);
+        } else {
+          marker = new maplibregl.Marker({ color: "#ef4444" })
+            .setLngLat([lng, lat])
+            .addTo(map);
+        }
+      });
+    }).catch(err => console.error("Error loading maplibre", err));
+  }, 100);
+
+  // 4. Submit logic
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    hideAlerts();
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Registrando...';
+
+    const userId = document.getElementById('userId').value;
+    if (!userId) {
+      showError("Por favor, inicia sesión para registrar.");
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Registrar Árbol';
+      return;
+    }
+
+    if (!latInput.value || !lngInput.value) {
+      showError("Por favor, selecciona una ubicación en el mapa.");
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Registrar Árbol';
+      return;
+    }
+
+    let currentSpeciesId = speciesIdInput.value;
+    const isNewSpecies = !currentSpeciesId && newSpeciesNameInput.value;
+    
+    if (!currentSpeciesId && !isNewSpecies) {
+      showError("Por favor, selecciona o ingresa una especie.");
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Registrar Árbol';
+      return;
+    }
+
+    try {
+      // 1. Crear especie nueva si es necesario
+      if (isNewSpecies) {
+        const spBody = {
+          name: newSpeciesNameInput.value,
+          scientificName: newSpeciesScientificNameInput.value,
+          categoryId: categories.length > 0 ? categories[0].id : null
+        };
+        const spRes = await fetch('/api/species', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(spBody)
+        });
+        if (!spRes.ok) throw new Error("Error al crear la especie nueva.");
+        const spData = await spRes.json();
+        currentSpeciesId = spData.id;
+      }
+
+      // 2. Crear observación
+      const formToSubmit = new FormData();
+      formToSubmit.append("speciesId", currentSpeciesId);
+      formToSubmit.append("userId", userId);
+      formToSubmit.append("latitude", latInput.value);
+      formToSubmit.append("longitude", lngInput.value);
+      formToSubmit.append("municipio", document.getElementById('municipio').value);
+      formToSubmit.append("estadoConservacion", document.getElementById('estadoConservacion').value);
+      formToSubmit.append("notes", document.getElementById('notes').value);
+      formToSubmit.append("observationDate", new Date().toISOString().split("T")[0]);
+
+      if (imageInput.files[0]) {
+        formToSubmit.append("image", imageInput.files[0]);
+      }
+
+      const res = await fetch('/api/observations', {
+        method: 'POST',
+        body: formToSubmit
+      });
+
+      if (!res.ok) throw new Error("Error al registrar la observación.");
+
+      showSuccess("¡Árbol registrado con éxito!");
+      setTimeout(() => {
+        window.location.href = '/observaciones';
+      }, 1500);
+
+    } catch (err) {
+      showError(err.message);
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Registrar Árbol';
+    }
+  });
+
+</script>

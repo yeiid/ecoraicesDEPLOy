@@ -1,0 +1,24 @@
+---
+/**
+ * @file StatusBadge.astro
+ * @description Insignia para mostrar el estado de una observación o comunidad.
+ */
+
+interface Props {
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+}
+
+const { status } = Astro.props;
+
+const statusConfig = {
+  PENDING: { label: 'Pendiente', class: 'badge-warning' },
+  APPROVED: { label: 'Aprobada', class: 'badge-success' },
+  REJECTED: { label: 'Rechazada', class: 'badge-danger' },
+};
+
+const config = statusConfig[status];
+---
+
+<span class={`badge ${config.class}`}>
+  {config.label}
+</span>

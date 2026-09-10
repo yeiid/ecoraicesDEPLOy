@@ -1,13 +1,11 @@
 // @ts-check
 import { defineConfig } from "astro/config";
-import react from "@astrojs/react";
 import node from "@astrojs/node";
 import AstroPWA from "@vite-pwa/astro";
 
 // https://astro.build/config
 export default defineConfig({
   integrations: [
-    react(),
     AstroPWA({
       registerType: 'autoUpdate',
       injectRegister: 'script',

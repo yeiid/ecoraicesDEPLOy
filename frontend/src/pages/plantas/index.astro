@@ -96,34 +96,36 @@ const getStatusLabel = (status: string): string => {
         <form id="filter-form" method="get">
           <!-- Filtro por categoría -->
           <div class="filter-group">
-            <h3>Categorías</h3>
-            <div class="categories-list">
-              <div class="category-option">
-                <input
-                  type="radio"
-                  id="todas"
-                  name="categoria"
-                  value=""
-                  checked={!categoria}
-                />
-                <label for="todas">Todas</label>
-              </div>
+            <fieldset>
+              <legend><h3>Categorías</h3></legend>
+              <div class="categories-list">
+                <div class="category-option">
+                  <input
+                    type="radio"
+                    id="todas"
+                    name="categoria"
+                    value=""
+                    checked={!categoria}
+                  />
+                  <label for="todas">Todas</label>
+                </div>
 
-              {
-                categorias.map((cat: { id: string; name: string }) => (
-                  <div class="category-option">
-                    <input
-                      type="radio"
-                      id={`cat-${cat.id}`}
-                      name="categoria"
-                      value={cat.id}
-                      checked={categoria === cat.id}
-                    />
-                    <label for={`cat-${cat.id}`}>{cat.name}</label>
-                  </div>
-                ))
-              }
-            </div>
+                {
+                  categorias.map((cat: { id: string; name: string }) => (
+                    <div class="category-option">
+                      <input
+                        type="radio"
+                        id={`cat-${cat.id}`}
+                        name="categoria"
+                        value={cat.id}
+                        checked={categoria === cat.id}
+                      />
+                      <label for={`cat-${cat.id}`}>{cat.name}</label>
+                    </div>
+                  ))
+                }
+              </div>
+            </fieldset>
           </div>
 
           <!-- Filtro por hábitat -->
@@ -176,7 +178,7 @@ const getStatusLabel = (status: string): string => {
 
           <!-- Ordenar por -->
           <div class="filter-group">
-            <h3>Ordenar por</h3>
+            <label for="ordenar"><h3>Ordenar por</h3></label>
             <select name="ordenar" id="ordenar">
               <option value="nombre-asc" selected={ordenar === "nombre-asc"}
                 >Nombre (A-Z)</option

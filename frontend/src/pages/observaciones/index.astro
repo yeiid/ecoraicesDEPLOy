@@ -1,6 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import ObservationsMap from '../../components/react/ObservationsMap';
+import ObservationsMap from '../../components/observations/ObservationsMap.astro';
 
 // Obtener filtro de categoría de la URL, si existe
 const { searchParams } = Astro.url;
@@ -30,7 +30,6 @@ const title = "Inventario de Árboles Nativos - EcoRaíces";
 
     <div class="map-container">
       <ObservationsMap
-        client:only="react"
         initialFilterCategory={categoryId}
         showFilters={true}
       />

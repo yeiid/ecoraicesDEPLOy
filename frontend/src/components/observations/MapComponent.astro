@@ -1,0 +1,230 @@
+---
+// frontend/src/components/observations/MapComponent.astro
+const {
+  id = "map-container",
+  center = [-74.0817, 4.6097],
+  zoom = 5,
+  markers = [],
+  readOnly = false,
+  interactiveMarker = null,
+  height = "450px"
+} = Astro.props;
+
+// Pass props to client script via data attributes
+---
+
+<div style="position: relative; width: 100%; height: 100%; min-height: {height};">
+  <div 
+    id={id} 
+    class="astro-map"
+    style={`width: 100%; height: 100%; min-height: ${height}; border-radius: 12px;`}
+    data-center={JSON.stringify(center)}
+    data-zoom={zoom}
+    data-markers={JSON.stringify(markers)}
+    data-readonly={readOnly.toString()}
+    data-interactive={interactiveMarker ? JSON.stringify(interactiveMarker) : ""}
+  ></div>
+  <div 
+    id={`${id}-coords`}
+    style="display: none; position: absolute; bottom: 12px; left: 12px; background: rgba(15, 23, 42, 0.85); color: white; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-family: monospace; border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(6px); pointer-events: none; z-index: 5;"
+  >
+  </div>
+</div>
+
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" />
+
+<script>
+  const MAP_API_URL = "https://map.neuraljira.tech";
+
+  async function buildStyle() {
+    try {
+      const res = await fetch(`${MAP_API_URL}/api/v1/style.json`);
+      if (!res.ok) throw new Error(`Style HTTP ${res.status}`);
+      const style = await res.json();
+      
+      style.sources.geo2 = {
+        type: "vector",
+        tiles: [`${MAP_API_URL}/tiles/geo2/{z}/{x}/{y}`],
+      };
+      style.layers = [
+        ...style.layers,
+        {
+          id: "vegetation-3d",
+          type: "fill-extrusion",
+          source: "geo2",
+          "source-layer": "geo2",
+          paint: {
+            "fill-extrusion-color": "#059669",
+            "fill-extrusion-height": ["coalesce", ["get", "height"], 12],
+            "fill-extrusion-base": 0,
+            "fill-extrusion-opacity": 0.65,
+          },
+        },
+      ];
+      return style;
+    } catch (error) {
+      console.warn("[Mapa] No se pudo cargar style.json, usando estilo de respaldo:", error);
+      return {
+        version: 8,
+        sources: {
+          "osm-tiles": {
+            type: "raster",
+            tiles: [
+              "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
+              "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png",
+              "https://c.tile.openstreetmap.org/{z}/{x}/{y}.png",
+            ],
+            tileSize: 256,
+            attribution: '&copy; OpenStreetMap',
+          },
+        },
+        layers: [
+          {
+            id: "osm-layer",
+            type: "raster",
+            source: "osm-tiles",
+            minzoom: 0,
+            maxzoom: 19,
+          }
+        ],
+      };
+    }
+  }
+
+  document.addEventListener("astro:page-load", () => {
+    import('https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js').then(async (maplibreglModule) => {
+      const maplibregl = maplibreglModule.default || window.maplibregl;
+      
+      const mapElements = document.querySelectorAll('.astro-map');
+      
+      for (const el of mapElements) {
+        if (el.dataset.mapInitialized) continue;
+        el.dataset.mapInitialized = 'true';
+        
+        let center = JSON.parse(el.dataset.center || "[0,0]");
+        const zoom = parseFloat(el.dataset.zoom || "5");
+        const readOnly = el.dataset.readonly === 'true';
+        const markers = JSON.parse(el.dataset.markers || "[]");
+        const interactiveMarkerData = el.dataset.interactive ? JSON.parse(el.dataset.interactive) : null;
+        
+        // Normalize center
+        if (Array.isArray(center) && center.length === 2) {
+          if (center[0] > -30 && center[0] < 30) {
+            center = [center[1], center[0]]; // Swap if likely [lat, lng]
+          }
+        } else if (center && typeof center === "object" && center.lat !== undefined) {
+          center = [center.lng, center.lat];
+        }
+
+        const style = await buildStyle();
+        
+        const map = new maplibregl.Map({
+          container: el.id,
+          style: style,
+          center: center,
+          zoom: zoom,
+          pitch: 45,
+          antialias: true
+        });
+
+        map.addControl(new maplibregl.NavigationControl(), "top-right");
+        
+        let activeMarker = null;
+        const coordsDisplay = document.getElementById(`${el.id}-coords`);
+
+        if (!readOnly) {
+          map.on('click', (e) => {
+            const lng = e.lngLat.lng;
+            const lat = e.lngLat.lat;
+            
+            if (coordsDisplay) {
+              coordsDisplay.textContent = `📍 Lat: ${lat.toFixed(6)} | Lng: ${lng.toFixed(6)}`;
+              coordsDisplay.style.display = 'block';
+            }
+
+            if (activeMarker) {
+              activeMarker.setLngLat([lng, lat]);
+            } else {
+              activeMarker = new maplibregl.Marker({ color: "#ef4444" })
+                .setLngLat([lng, lat])
+                .setPopup(
+                  new maplibregl.Popup({ offset: 25 }).setHTML(
+                    "<p style='margin:0; font-family:sans-serif;'><b>Ubicación seleccionada</b></p>"
+                  )
+                )
+                .addTo(map);
+            }
+            
+            // Dispatch custom event for parent components
+            el.dispatchEvent(new CustomEvent('location-selected', { 
+              detail: { lat, lng },
+              bubbles: true
+            }));
+          });
+        }
+
+        // Dynamic marker updater
+        const staticMarkers = [];
+        
+        function renderMarkers(newMarkers) {
+          // Remove old markers
+          staticMarkers.forEach(m => m.remove());
+          staticMarkers.length = 0;
+          
+          newMarkers.forEach(markerData => {
+            const mLat = parseFloat(markerData.latitude || markerData.lat);
+            const mLng = parseFloat(markerData.longitude || markerData.lng);
+            if (!isNaN(mLat) && !isNaN(mLng)) {
+              const color = markerData.verified ? "#10b981" : "#3b82f6";
+              
+              const popupHtml = `
+                <div style="font-family: 'Outfit', sans-serif; padding: 6px; min-width: 160px;">
+                  <h4 style="margin: 0 0 4px 0; color: #064e3b; font-size: 14px;">${markerData.species?.name || markerData.name || "Árbol Registrado"}</h4>
+                  ${markerData.species?.commonName ? `<p style="margin: 2px 0; font-size: 11px;"><b>Común:</b> ${markerData.species.commonName}</p>` : ""}
+                  <p style="margin: 2px 0; font-size: 11px; color: #6b7280;">📍 ${mLat.toFixed(6)}, ${mLng.toFixed(6)}</p>
+                  ${markerData.id ? `<a href="/observaciones/${markerData.id}" style="display:block; margin-top:8px; font-size:12px; color:#0ea5e9; text-decoration:none; font-weight:600;">Ver detalle →</a>` : ""}
+                </div>
+              `;
+
+              const m = new maplibregl.Marker({ color })
+                .setLngLat([mLng, mLat])
+                .setPopup(new maplibregl.Popup({ offset: 25 }).setHTML(popupHtml))
+                .addTo(map);
+                
+              staticMarkers.push(m);
+            }
+          });
+        }
+        
+        // Initial render
+        renderMarkers(markers);
+        
+        // Listen to events from parent to update markers and fly to center
+        el.addEventListener('update-markers', (e) => {
+          const { newMarkers, newCenter } = e.detail;
+          if (newMarkers) renderMarkers(newMarkers);
+          if (newCenter) {
+            map.flyTo({ center: newCenter, duration: 1000 });
+          }
+        });
+        
+        // Interactive marker from props
+        if (interactiveMarkerData && !readOnly) {
+          const lng = interactiveMarkerData.lng || interactiveMarkerData[0];
+          const lat = interactiveMarkerData.lat || interactiveMarkerData[1];
+          
+          if (coordsDisplay) {
+            coordsDisplay.textContent = `📍 Lat: ${lat.toFixed(6)} | Lng: ${lng.toFixed(6)}`;
+            coordsDisplay.style.display = 'block';
+          }
+          
+          activeMarker = new maplibregl.Marker({ color: "#ef4444" })
+            .setLngLat([lng, lat])
+            .addTo(map);
+            
+          map.flyTo({ center: [lng, lat], zoom: 16, duration: 1500 });
+        }
+      }
+    });
+  });
+</script>

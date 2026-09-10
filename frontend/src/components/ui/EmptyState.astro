@@ -1,0 +1,52 @@
+---
+/**
+ * @file EmptyState.astro
+ * @description Estado vacío para listas sin datos.
+ */
+
+interface Props {
+  icon?: string;
+  title: string;
+  description?: string;
+  actionHref?: string;
+  actionText?: string;
+}
+
+const {
+  icon = '📭',
+  title,
+  description,
+  actionHref,
+  actionText
+} = Astro.props;
+---
+
+<div class="empty-state card flex-col flex-center text-center">
+  <div class="empty-icon" aria-hidden="true">{icon}</div>
+  <h3 class="section-title mt-2">{title}</h3>
+  {description && <p class="text-muted mt-1">{description}</p>}
+  {actionHref && actionText && (
+    <a href={actionHref} class="btn btn-primary mt-3">
+      {actionText}
+    </a>
+  )}
+</div>
+
+<style>
+  .empty-state {
+    padding: 3rem 2rem;
+    border-style: dashed;
+    border-color: var(--color-border);
+  }
+  .empty-icon {
+    font-size: 3rem;
+    line-height: 1;
+  }
+  .empty-state h3 {
+    margin-bottom: 0;
+  }
+  .empty-state p {
+    margin-bottom: 0;
+    max-width: 400px;
+  }
+</style>

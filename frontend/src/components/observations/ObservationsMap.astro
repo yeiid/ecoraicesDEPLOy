@@ -1,0 +1,379 @@
+---
+// frontend/src/components/observations/ObservationsMap.astro
+import MapComponent from "./MapComponent.astro";
+
+const { initialFilterCategory = null, showFilters = true } = Astro.props;
+
+// Fetch trees and categories initially
+const treesResponse = await fetch(`${Astro.url.origin}/api/observations`);
+let trees = [];
+if (treesResponse.ok) {
+  trees = await treesResponse.json();
+}
+
+const categoriesResponse = await fetch(`${Astro.url.origin}/api/categories`);
+let categories = [];
+if (categoriesResponse.ok) {
+  categories = await categoriesResponse.json();
+}
+
+// Pass data to client
+---
+
+<div class="observations-map" data-initial-category={initialFilterCategory}>
+  {showFilters && (
+    <div class="filters">
+      <div class="filter-section">
+        <h3>Filtrar árboles por:</h3>
+
+        <div class="filter-category">
+          <h4>Categoría</h4>
+          <div class="categories-grid" id="category-filters">
+            {categories.map((category) => (
+              <div class="category-item">
+                <input
+                  type="checkbox"
+                  id={`category-${category.id}`}
+                  value={category.id}
+                  class="category-checkbox"
+                  checked={initialFilterCategory === category.id}
+                />
+                <label for={`category-${category.id}`}>
+                  {category.name}
+                </label>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div class="filter-verified">
+          <h4>Estado</h4>
+          <div class="verified-checkbox">
+            <input
+              type="checkbox"
+              id="verified-only"
+            />
+            <label for="verified-only">
+              Mostrar solo árboles verificados
+            </label>
+          </div>
+        </div>
+
+        <div class="filter-date">
+          <h4>Fecha de registro</h4>
+          <div class="date-fields">
+            <div class="date-field">
+              <label for="startDate">Desde:</label>
+              <input type="date" id="startDate" />
+            </div>
+            <div class="date-field">
+              <label for="endDate">Hasta:</label>
+              <input type="date" id="endDate" />
+            </div>
+          </div>
+        </div>
+
+        <div class="filter-info">
+          <span class="trees-count" id="trees-count-display">
+            Mostrando {trees.length} árboles
+          </span>
+          <button id="clear-filters-btn" style="background:none; border:none; color:var(--color-primary); text-decoration:underline; cursor:pointer; font-size:0.9rem; display:none;">Limpiar filtros</button>
+        </div>
+      </div>
+    </div>
+  )}
+
+  <div class="map-wrapper">
+    <div id="no-trees-message" class="no-trees-message" style="display: none;">
+      <p>No se encontraron árboles con los filtros seleccionados.</p>
+    </div>
+
+    <!-- Pasa los datos del servidor a JSON en el atributo para uso inicial -->
+    <MapComponent
+      id="main-observations-map"
+      center={[-74.0817, 4.6097]}
+      zoom={6}
+      markers={trees}
+      readOnly={true}
+      height="600px"
+    />
+  </div>
+</div>
+
+<!-- Guardamos los árboles globales en el DOM para el script del lado del cliente -->
+<script type="application/json" id="all-trees-data">
+  {JSON.stringify(trees)}
+</script>
+
+<style>
+  .observations-map {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .filters {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    margin-bottom: 1.5rem;
+  }
+
+  .filter-section {
+    padding: 1.2rem;
+  }
+
+  .filter-section h3 {
+    font-size: 1.2rem;
+    margin: 0 0 1rem;
+    color: var(--color-primary, #2e7d32);
+  }
+
+  .filter-category,
+  .filter-verified,
+  .filter-date {
+    margin-bottom: 1.2rem;
+  }
+
+  .filter-section h4 {
+    font-size: 1rem;
+    margin: 0 0 0.8rem;
+    color: #333;
+  }
+
+  .categories-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 0.5rem;
+  }
+
+  .category-item {
+    display: flex;
+    align-items: center;
+  }
+
+  .category-item label {
+    margin-left: 0.5rem;
+    font-size: 0.9rem;
+  }
+
+  .verified-checkbox {
+    display: flex;
+    align-items: center;
+  }
+
+  .verified-checkbox label {
+    margin-left: 0.5rem;
+  }
+
+  .date-fields {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .date-field {
+    flex: 1;
+    min-width: 150px;
+  }
+
+  .date-field label {
+    display: block;
+    margin-bottom: 0.3rem;
+    font-size: 0.9rem;
+  }
+
+  .date-field input {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+  }
+
+  .filter-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #eee;
+    font-size: 0.9rem;
+  }
+
+  .trees-count {
+    color: #666;
+  }
+
+  .map-wrapper {
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    flex-grow: 1;
+  }
+
+  .no-trees-message {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: white;
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    z-index: 800;
+  }
+
+  @media (min-width: 768px) {
+    .observations-map {
+      flex-direction: row;
+    }
+
+    .filters {
+      width: 300px;
+      margin-right: 1.5rem;
+      margin-bottom: 0;
+    }
+
+    .map-wrapper {
+      flex: 1;
+    }
+  }
+
+  @media (max-width: 767px) {
+    .observations-map {
+      flex-direction: column;
+    }
+
+    .filter-section {
+      padding: 1rem;
+    }
+
+    .categories-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+</style>
+
+<script>
+  document.addEventListener('astro:page-load', () => {
+    const rawDataElement = document.getElementById('all-trees-data');
+    if (!rawDataElement) return;
+
+    const allTrees = JSON.parse(rawDataElement.textContent);
+    const mapElement = document.getElementById('main-observations-map');
+    
+    // UI Elements
+    const categoryCheckboxes = document.querySelectorAll('.category-checkbox');
+    const verifiedCheckbox = document.getElementById('verified-only');
+    const startDateInput = document.getElementById('startDate');
+    const endDateInput = document.getElementById('endDate');
+    const countDisplay = document.getElementById('trees-count-display');
+    const clearBtn = document.getElementById('clear-filters-btn');
+    const noTreesMsg = document.getElementById('no-trees-message');
+
+    function calculateCenter(trees) {
+      if (trees.length === 0) return [11.5448, -72.9068]; // La Guajira
+      
+      const lats = trees.map(t => parseFloat(t.latitude)).filter(n => !isNaN(n));
+      const lngs = trees.map(t => parseFloat(t.longitude)).filter(n => !isNaN(n));
+      
+      if (lats.length === 0 || lngs.length === 0) return [11.5448, -72.9068];
+      
+      const avgLat = lats.reduce((a, b) => a + b, 0) / lats.length;
+      const avgLng = lngs.reduce((a, b) => a + b, 0) / lngs.length;
+      
+      return [avgLng, avgLat]; // maplibre uses [lng, lat] for flyTo center usually
+    }
+
+    function applyFilters() {
+      // Get selected categories
+      const selectedCategories = Array.from(categoryCheckboxes)
+        .filter(cb => cb.checked)
+        .map(cb => cb.value);
+
+      // Get verified
+      const onlyVerified = verifiedCheckbox.checked;
+
+      // Get dates
+      const startDate = startDateInput.value ? new Date(startDateInput.value) : null;
+      let endDate = endDateInput.value ? new Date(endDateInput.value) : null;
+      if (endDate) {
+        endDate.setHours(23, 59, 59, 999);
+      }
+
+      // Filter
+      const filteredTrees = allTrees.filter(tree => {
+        let pass = true;
+
+        if (selectedCategories.length > 0) {
+          if (!tree.species?.categoryId || !selectedCategories.includes(tree.species.categoryId)) {
+            pass = false;
+          }
+        }
+
+        if (pass && onlyVerified) {
+          if (!tree.isVerified) pass = false;
+        }
+
+        if (pass && startDate) {
+          const treeDate = new Date(tree.observationDate);
+          if (treeDate < startDate) pass = false;
+        }
+
+        if (pass && endDate) {
+          const treeDate = new Date(tree.observationDate);
+          if (treeDate > endDate) pass = false;
+        }
+
+        return pass;
+      });
+
+      // Update UI
+      if (filteredTrees.length !== allTrees.length) {
+        countDisplay.textContent = `Mostrando ${filteredTrees.length} de ${allTrees.length} árboles`;
+        clearBtn.style.display = 'inline-block';
+      } else {
+        countDisplay.textContent = `Mostrando ${allTrees.length} árboles`;
+        clearBtn.style.display = 'none';
+      }
+
+      if (filteredTrees.length === 0) {
+        noTreesMsg.style.display = 'block';
+      } else {
+        noTreesMsg.style.display = 'none';
+      }
+
+      // Dispatch to map component
+      const newCenter = calculateCenter(filteredTrees);
+      mapElement.dispatchEvent(new CustomEvent('update-markers', {
+        detail: {
+          newMarkers: filteredTrees,
+          newCenter: newCenter
+        }
+      }));
+    }
+
+    // Attach listeners
+    categoryCheckboxes.forEach(cb => cb.addEventListener('change', applyFilters));
+    if (verifiedCheckbox) verifiedCheckbox.addEventListener('change', applyFilters);
+    if (startDateInput) startDateInput.addEventListener('change', applyFilters);
+    if (endDateInput) endDateInput.addEventListener('change', applyFilters);
+
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        categoryCheckboxes.forEach(cb => cb.checked = false);
+        verifiedCheckbox.checked = false;
+        startDateInput.value = '';
+        endDateInput.value = '';
+        applyFilters();
+      });
+    }
+
+    // Apply initial filters if any were set via props (like initialFilterCategory)
+    const container = document.querySelector('.observations-map');
+    if (container && container.dataset.initialCategory) {
+      // already checked by default in HTML, just run filter
+      applyFilters();
+    }
+  });
+</script>

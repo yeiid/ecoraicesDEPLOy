@@ -24,3 +24,6 @@ class User(Base):
     updatedAt = Column(DateTime, default=func.now(), onupdate=func.now())
 
     observations = relationship("Observation", back_populates="user", foreign_keys="Observation.userId")
+    communityMembers = relationship("CommunityMember", back_populates="user")
+    ownedCommunities = relationship("Community", back_populates="owner", foreign_keys="Community.ownerId")
+    comments = relationship("Comment", back_populates="user")

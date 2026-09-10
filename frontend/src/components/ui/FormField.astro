@@ -1,0 +1,112 @@
+---
+/**
+ * @file FormField.astro
+ * @description Un campo de formulario universal que renderiza input, textarea o select basado en las props.
+ */
+
+interface Props {
+  label: string;
+  name: string;
+  id?: string;
+  type?: 'text' | 'email' | 'password' | 'url' | 'tel' | 'number' | 'date' | 'file';
+  value?: string;
+  placeholder?: string;
+  required?: boolean;
+  disabled?: boolean;
+  autocomplete?: string;
+  hint?: string;
+  minlength?: number;
+  maxlength?: number;
+  error?: string;
+  rows?: number;
+  options?: { value: string; label: string }[];
+}
+
+const {
+  label,
+  name,
+  id = name,
+  type = 'text',
+  value,
+  placeholder,
+  required,
+  disabled,
+  autocomplete,
+  hint,
+  minlength,
+  maxlength,
+  error,
+  rows,
+  options
+} = Astro.props;
+
+const hintId = hint ? `${id}-hint` : undefined;
+const errorId = error ? `${id}-error` : undefined;
+
+const describedBy = [hintId, errorId].filter(Boolean).join(' ') || undefined;
+---
+
+<div class="form-group">
+  <label for={id}>{label}</label>
+  
+  {options ? (
+    <select
+      id={id}
+      name={name}
+      class="select"
+      required={required}
+      disabled={disabled}
+      autocomplete={autocomplete}
+      aria-describedby={describedBy}
+      aria-invalid={error ? 'true' : undefined}
+    >
+      {placeholder && <option value="">{placeholder}</option>}
+      {options.map((opt) => (
+        <option value={opt.value} selected={value === opt.value}>{opt.label}</option>
+      ))}
+    </select>
+  ) : rows ? (
+    <textarea
+      id={id}
+      name={name}
+      class="textarea"
+      rows={rows}
+      placeholder={placeholder}
+      required={required}
+      disabled={disabled}
+      autocomplete={autocomplete}
+      minlength={minlength}
+      maxlength={maxlength}
+      aria-describedby={describedBy}
+      aria-invalid={error ? 'true' : undefined}
+    >{value}</textarea>
+  ) : (
+    <input
+      id={id}
+      type={type}
+      name={name}
+      value={value}
+      class="input"
+      placeholder={placeholder}
+      required={required}
+      disabled={disabled}
+      autocomplete={autocomplete}
+      minlength={minlength}
+      maxlength={maxlength}
+      aria-describedby={describedBy}
+      aria-invalid={error ? 'true' : undefined}
+    />
+  )}
+
+  {hint && <small class="form-hint" id={hintId}>{hint}</small>}
+  {error && <small class="form-error" id={errorId}>{error}</small>}
+</div>
+
+<style>
+  .form-error {
+    display: block;
+    margin-top: 0.35rem;
+    font-size: 0.8rem;
+    color: var(--color-danger);
+  }
+</style>
