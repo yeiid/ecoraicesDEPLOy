@@ -6,6 +6,21 @@
 name: ecoraices
 
 services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-ecoraices}:${POSTGRES_PASSWORD:-ecoraices_dev}@db:5432/${POSTGRES_DB:-ecoraices}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET es obligatoria}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+    volumes:
+      - uploads_data:/app/public/uploads
+
   db:
     image: postgis/postgis:16-3.4
     restart: unless-stopped

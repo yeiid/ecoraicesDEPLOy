@@ -4,22 +4,33 @@ import Layout from "../../layouts/Layout.astro";
 // Obtener el ID de la especie desde los parámetros de la URL
 const { id } = Astro.params;
 
+
 // URL base del backend interno
 const API_URL = "http://backend:8000/api";
 
-// Obtener la especie específica desde la API
-const especieRes = await fetch(`${API_URL}/species/${id}`);
+let especie = null;
+let especiesRelacionadas = [];
+let apiError = false;
 
-// Si la especie no existe, redirigir al catálogo
-if (!especieRes.ok) {
-  return Astro.redirect("/plantas");
+try {
+  // Obtener la especie específica desde la API
+  const especieRes = await fetch(`${API_URL}/species/${id}`);
+
+  // Si la especie no existe, redirigir al catálogo
+  if (!especieRes.ok) {
+    return Astro.redirect("/plantas");
+  }
+
+  especie = await especieRes.json();
+
+  // Obtener especies relacionadas
+  const especiesRelacionadasRes = await fetch(`${API_URL}/species/${id}/related`);
+  especiesRelacionadas = especiesRelacionadasRes.ok ? await especiesRelacionadasRes.json() : [];
+} catch (e) {
+  console.error("Error connecting to backend API:", e);
+  apiError = true;
 }
 
-const especie = await especieRes.json();
-
-// Obtener especies relacionadas
-const especiesRelacionadasRes = await fetch(`${API_URL}/species/${id}/related`);
-const especiesRelacionadas = especiesRelacionadasRes.ok ? await especiesRelacionadasRes.json() : [];
 
 // Función para obtener la etiqueta del estado de conservación
 const getStatusLabel = (status: string): string => {
@@ -235,6 +246,7 @@ const mainImageUrl = mainPhoto?.url || especie.imageUrl || IMAGE_FALLBACK;
       </section>
     )}
   </div>
+  )}
 </Layout>
 
 <style>

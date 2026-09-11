@@ -42,27 +42,39 @@ const params: FilterParams = {
 
 const { categoria, habitat, estado: estadoConservacion, ordenar } = params;
 
+
 // URL base del backend interno (Docker)
 const API_URL = "http://backend:8000/api";
 
-// Obtener todas las categorías para el filtro
-const categoriasRes = await fetch(`${API_URL}/categories`);
-const categorias = categoriasRes.ok ? await categoriasRes.json() : [];
+let categorias = [];
+let habitats = [];
+let especies = [];
+let apiError = false;
 
-// Obtener hábitats únicos para el filtro
-const habitatsRes = await fetch(`${API_URL}/species/habitats`);
-const habitats = habitatsRes.ok ? await habitatsRes.json() : [];
+try {
+  // Obtener todas las categorías para el filtro
+  const categoriasRes = await fetch(`${API_URL}/categories`);
+  categorias = categoriasRes.ok ? await categoriasRes.json() : [];
 
-// Construir la query string para especies
-const queryParams = new URLSearchParams();
-if (categoria) queryParams.append("categoria", categoria);
-if (habitat) queryParams.append("habitat", habitat);
-if (estadoConservacion) queryParams.append("estado", estadoConservacion);
-if (ordenar) queryParams.append("ordenar", ordenar);
+  // Obtener hábitats únicos para el filtro
+  const habitatsRes = await fetch(`${API_URL}/species/habitats`);
+  habitats = habitatsRes.ok ? await habitatsRes.json() : [];
 
-// Obtener especies según los filtros
-const especiesRes = await fetch(`${API_URL}/species?${queryParams.toString()}`);
-const especies: Especie[] = especiesRes.ok ? await especiesRes.json() : [];
+  // Construir la query string para especies
+  const queryParams = new URLSearchParams();
+  if (categoria) queryParams.append("categoria", categoria);
+  if (habitat) queryParams.append("habitat", habitat);
+  if (estadoConservacion) queryParams.append("estado", estadoConservacion);
+  if (ordenar) queryParams.append("ordenar", ordenar);
+
+  // Obtener especies según los filtros
+  const especiesRes = await fetch(`${API_URL}/species?${queryParams.toString()}`);
+  especies = especiesRes.ok ? await especiesRes.json() : [];
+} catch (e) {
+  console.error("Error connecting to backend API:", e);
+  apiError = true;
+}
+
 
 // Función para obtener la etiqueta del estado de conservación
 const getStatusLabel = (status: string): string => {
@@ -88,7 +100,12 @@ const getStatusLabel = (status: string): string => {
       <p>Explora nuestra base de datos de especies nativas y contribuye a su conservación</p>
     </div>
 
-    <div class="plants-container">
+    {apiError && (
+    <div class="empty-state" style="margin-bottom: 2rem; border-color: red;">
+      <p style="color: red;"><strong>Error de conexión:</strong> No se pudo conectar con el servidor backend. Por favor, intenta de nuevo más tarde.</p>
+    </div>
+  )}
+  <div class="plants-container">
       <!-- Filtros Topbar -->
       <div class="filters-topbar">
         <form id="filter-form" method="get" class="filters-form">
