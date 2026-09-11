@@ -78,6 +78,60 @@
   --container-xl: 1280px;
 }
 
+/* ============================================================
+   Dark Mode Variables
+   ============================================================ */
+html[data-theme="dark"] {
+  --color-card: #1f2937;
+  --color-sidebar-bg: #111827;
+  --color-main-bg: #0f172a;
+  --color-border: #334155;
+  --color-text-main: #f1f5f9;
+  --color-text: #e2e8f0;
+  --color-text-muted: #94a3b8;
+  
+  --color-primary: #10b981;
+  --color-primary-dark: #059669;
+  --color-primary-light: #34d399;
+  
+  --color-accent: #0f172a;
+  --color-accent-dark: #1e293b;
+  
+  --color-gray-50: #1f2937;
+  --color-gray-100: #374151;
+  --color-gray-200: #4b5563;
+  --color-gray-300: #6b7280;
+  
+  --color-success-bg: #064e3b;
+  --color-success-dark: #34d399;
+  
+  --color-warning-bg: #451a03;
+  
+  --color-danger: #ef4444;
+  --color-danger-bg: #450a0a;
+  
+  --color-info-bg: #082f49;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-premium: 0 4px 20px -2px rgba(0, 0, 0, 0.4), 0 2px 8px -1px rgba(0, 0, 0, 0.3);
+  --shadow-hover: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
+}
+
+/* Smooth transition for theme change */
+body {
+  transition: background-color 0.3s ease, color 0.3s ease;
+  background-color: var(--color-main-bg);
+  color: var(--color-text-main);
+}
+
+/* ============================================================
+   Language Visibility Rules (ES / Wayuunaiki)
+   ============================================================ */
+.lang-guc { display: none; }
+html[data-lang="guc"] .lang-es { display: none; }
+html[data-lang="guc"] .lang-guc { display: inline; }
+
+
 /* ---------------- Botones ---------------- */
 .btn {
   display: inline-flex;

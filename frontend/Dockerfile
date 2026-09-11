@@ -13,10 +13,10 @@ RUN corepack enable && corepack prepare pnpm@11.20.0 --activate
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
-# Fuentes, generación del cliente Prisma y build SSR standalone
+# Fuentes y build SSR standalone
 COPY . .
-RUN pnpm prisma generate \
-    && pnpm build
+RUN pnpm build
+RUN pnpm prune --prod
 
 ########################
 # STAGE 2 — Runtime (SSR standalone)
@@ -27,11 +27,10 @@ ENV NODE_ENV=production
 
 RUN corepack enable && corepack prepare pnpm@11.20.0 --activate
 
-# Artefactos de build + dependencias + migraciones + scripts
-COPY --from=build /app/package.json /app/pnpm-lock.yaml ./
+# Artefactos de build + dependencias + scripts
+COPY --from=build /app/package.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
-COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/scripts ./scripts
 
 # Utilidades de arranque

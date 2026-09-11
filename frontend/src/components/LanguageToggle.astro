@@ -1,0 +1,50 @@
+---
+---
+
+<button id="lang-toggle" class="lang-toggle" aria-label="Cambiar idioma">
+  <span class="lang-icon lang-es" title="Cambiar a Wayuunaiki">ES</span>
+  <span class="lang-icon lang-guc" title="Cambiar a Español">GUC</span>
+</button>
+
+<style>
+  .lang-toggle {
+    background: transparent;
+    border: 1px solid var(--color-gray-300);
+    color: var(--color-text-main);
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.8rem;
+    transition: background-color 0.2s, color 0.2s;
+    min-width: 44px;
+  }
+  
+  .lang-toggle:hover {
+    background-color: var(--color-gray-100);
+  }
+  
+  /* Logica de visibilidad manejada por global.css basada en html[data-lang] */
+</style>
+
+<script>
+  document.addEventListener('astro:page-load', () => {
+    const toggleBtn = document.getElementById('lang-toggle');
+    if (!toggleBtn) return;
+    
+    toggleBtn.addEventListener('click', () => {
+      const isGuc = document.documentElement.getAttribute('data-lang') === 'guc';
+      
+      if (isGuc) {
+        document.documentElement.removeAttribute('data-lang');
+        localStorage.setItem('lang', 'es');
+      } else {
+        document.documentElement.setAttribute('data-lang', 'guc');
+        localStorage.setItem('lang', 'guc');
+      }
+    });
+  });
+</script>

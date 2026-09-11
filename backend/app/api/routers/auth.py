@@ -5,8 +5,11 @@ from datetime import timedelta
 
 from ...db.database import get_db
 from ...models.user import User
-from ...schemas.auth import LoginRequest, RegisterRequest, AuthResponse
+from ...schemas.auth import LoginRequest, RegisterRequest, AuthResponse, GoogleLoginRequest
 from ...core.security import verify_password, get_password_hash, create_access_token
+import os
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 
 router = APIRouter(
     prefix="/api/auth",
@@ -169,3 +172,89 @@ def get_session(request: Request, db: Session = Depends(get_db)):
         }
     except JWTError:
         return {"user": None}
+
+@router.post("/google", response_model=AuthResponse)
+@router.post("/mobile/google", response_model=AuthResponse)
+def google_login(request: GoogleLoginRequest, response: Response, db: Session = Depends(get_db)):
+    try:
+        # Use a placeholder client ID for now if client_id is not provided
+        # In a real app, you should strictly verify the client ID.
+        client_id = request.client_id or os.getenv("GOOGLE_CLIENT_ID", "YOUR_PLACEHOLDER_CLIENT_ID")
+        
+        idinfo = id_token.verify_oauth2_token(
+            request.credential, 
+            google_requests.Request(), 
+            client_id
+        )
+
+        email = idinfo.get("email")
+        name = idinfo.get("name")
+        picture = idinfo.get("picture")
+
+        if not email:
+            raise HTTPException(status_code=400, detail="El token de Google no contiene email.")
+
+        # Check if user exists
+        user = db.query(User).filter(User.email == email).first()
+
+        if not user:
+            # Register new user
+            new_id = "c" + str(uuid.uuid4()).replace("-", "")[:24]
+            # Generate a random password since they use Google
+            random_pass = str(uuid.uuid4())
+            
+            user = User(
+                id=new_id,
+                username=email.split("@")[0] + str(uuid.uuid4())[:4],
+                email=email,
+                name=name,
+                avatarUrl=picture,
+                passwordHash=get_password_hash(random_pass)
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+
+        # Log them in
+        max_age = MAX_AGE_LONG
+        
+        token_payload = {
+            "userId": user.id,
+            "email": user.email,
+            "role": user.role,
+            "isAdmin": user.isAdmin
+        }
+        
+        token = create_access_token(
+            subject=token_payload, 
+            expires_delta=timedelta(seconds=max_age)
+        )
+        
+        response.set_cookie(
+            key=TOKEN_NAME,
+            value=token,
+            max_age=max_age,
+            httponly=True,
+            samesite="lax",
+            path="/",
+            secure=False
+        )
+        
+        return {
+            "success": True,
+            "token": token,
+            "expiresIn": max_age,
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "name": user.name,
+                "avatarUrl": user.avatarUrl,
+                "role": user.role,
+                "isAdmin": user.isAdmin
+            }
+        }
+
+    except ValueError as e:
+        # Invalid token
+        raise HTTPException(status_code=401, detail=f"Token de Google inválido: {str(e)}")

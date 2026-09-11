@@ -89,118 +89,83 @@ const getStatusLabel = (status: string): string => {
     </div>
 
     <div class="plants-container">
-      <!-- Filtros -->
-      <aside class="filters">
-        <h2>Filtros</h2>
-
-        <form id="filter-form" method="get">
-          <!-- Filtro por categoría -->
-          <div class="filter-group">
-            <fieldset>
-              <legend><h3>Categorías</h3></legend>
-              <div class="categories-list">
-                <div class="category-option">
-                  <input
-                    type="radio"
-                    id="todas"
-                    name="categoria"
-                    value=""
-                    checked={!categoria}
-                  />
-                  <label for="todas">Todas</label>
-                </div>
-
-                {
-                  categorias.map((cat: { id: string; name: string }) => (
-                    <div class="category-option">
-                      <input
-                        type="radio"
-                        id={`cat-${cat.id}`}
-                        name="categoria"
-                        value={cat.id}
-                        checked={categoria === cat.id}
-                      />
-                      <label for={`cat-${cat.id}`}>{cat.name}</label>
-                    </div>
-                  ))
-                }
-              </div>
-            </fieldset>
+      <!-- Filtros Topbar -->
+      <div class="filters-topbar">
+        <form id="filter-form" method="get" class="filters-form">
+          <!-- Filtro por categoría (Chips) -->
+          <div class="filter-group categories-group">
+            <div class="categories-chips">
+              <label class={`chip-label ${!categoria ? 'active' : ''}`}>
+                <input
+                  type="radio"
+                  name="categoria"
+                  value=""
+                  checked={!categoria}
+                  class="sr-only"
+                />
+                Todas
+              </label>
+              {
+                categorias.map((cat: { id: string; name: string }) => (
+                  <label class={`chip-label ${categoria === cat.id ? 'active' : ''}`}>
+                    <input
+                      type="radio"
+                      name="categoria"
+                      value={cat.id}
+                      checked={categoria === cat.id}
+                      class="sr-only"
+                    />
+                    {cat.name}
+                  </label>
+                ))
+              }
+            </div>
           </div>
 
-          <!-- Filtro por hábitat -->
-          <div class="filter-group">
-            <h3>Hábitat</h3>
-            <select name="habitat" id="habitat" class="form-control">
-              <option value="">Todos los hábitats</option>
-              {habitats.map((h: { habitat: string | null }) => (
-                <option value={h.habitat} selected={habitat === h.habitat}>
-                  {h.habitat}
-                </option>
-              ))}
-            </select>
-          </div>
+          <!-- Filtros secundarios horizontales -->
+          <div class="secondary-filters">
+            <div class="filter-group">
+              <select name="habitat" id="habitat" class="form-control" aria-label="Hábitat">
+                <option value="">Todos los hábitats</option>
+                {habitats.map((h: { habitat: string | null }) => (
+                  <option value={h.habitat} selected={habitat === h.habitat}>
+                    {h.habitat}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <!-- Filtro por estado de conservación -->
-          <div class="filter-group">
-            <h3>Estado de conservación</h3>
-            <select name="estado" id="estado" class="form-control">
-              <option value="">Todos los estados</option>
-              <option value="EXTINCT" selected={estadoConservacion === 'EXTINCT'}>
-                🌍 Extinto (EX)
-              </option>
-              <option value="EXTINCT_IN_WILD" selected={estadoConservacion === 'EXTINCT_IN_WILD'}>
-                🌳 Extinto en estado silvestre (EW)
-              </option>
-              <option value="CRITICALLY_ENDANGERED" selected={estadoConservacion === 'CRITICALLY_ENDANGERED'}>
-                🚨 En peligro crítico (CR)
-              </option>
-              <option value="ENDANGERED" selected={estadoConservacion === 'ENDANGERED'}>
-                ⚠️ En peligro (EN)
-              </option>
-              <option value="VULNERABLE" selected={estadoConservacion === 'VULNERABLE'}>
-                ⚠️ Vulnerable (VU)
-              </option>
-              <option value="NEAR_THREATENED" selected={estadoConservacion === 'NEAR_THREATENED'}>
-                ⚠️ Casi amenazado (NT)
-              </option>
-              <option value="LEAST_CONCERN" selected={estadoConservacion === 'LEAST_CONCERN'}>
-                ✅ Preocupación menor (LC)
-              </option>
-              <option value="DATA_DEFICIENT" selected={estadoConservacion === 'DATA_DEFICIENT'}>
-                ❓ Datos insuficientes (DD)
-              </option>
-              <option value="NOT_EVALUATED" selected={estadoConservacion === 'NOT_EVALUATED'}>
-                ➖ No evaluado (NE)
-              </option>
-            </select>
-          </div>
+            <div class="filter-group">
+              <select name="estado" id="estado" class="form-control" aria-label="Estado de conservación">
+                <option value="">Todos los estados</option>
+                <option value="EXTINCT" selected={estadoConservacion === 'EXTINCT'}>🌍 Extinto</option>
+                <option value="EXTINCT_IN_WILD" selected={estadoConservacion === 'EXTINCT_IN_WILD'}>🌳 Extinto en estado silvestre</option>
+                <option value="CRITICALLY_ENDANGERED" selected={estadoConservacion === 'CRITICALLY_ENDANGERED'}>🚨 En peligro crítico</option>
+                <option value="ENDANGERED" selected={estadoConservacion === 'ENDANGERED'}>⚠️ En peligro</option>
+                <option value="VULNERABLE" selected={estadoConservacion === 'VULNERABLE'}>⚠️ Vulnerable</option>
+                <option value="NEAR_THREATENED" selected={estadoConservacion === 'NEAR_THREATENED'}>⚠️ Casi amenazado</option>
+                <option value="LEAST_CONCERN" selected={estadoConservacion === 'LEAST_CONCERN'}>✅ Preocupación menor</option>
+                <option value="DATA_DEFICIENT" selected={estadoConservacion === 'DATA_DEFICIENT'}>❓ Datos insuficientes</option>
+                <option value="NOT_EVALUATED" selected={estadoConservacion === 'NOT_EVALUATED'}>➖ No evaluado</option>
+              </select>
+            </div>
 
-          <!-- Ordenar por -->
-          <div class="filter-group">
-            <label for="ordenar"><h3>Ordenar por</h3></label>
-            <select name="ordenar" id="ordenar">
-              <option value="nombre-asc" selected={ordenar === "nombre-asc"}
-                >Nombre (A-Z)</option
-              >
-              <option value="nombre-desc" selected={ordenar === "nombre-desc"}
-                >Nombre (Z-A)</option
-              >
-              <option value="fecha-reciente" selected={ordenar === "fecha-reciente"}
-                >Fecha (más reciente)</option
-              >
-              <option value="fecha-antigua" selected={ordenar === "fecha-antigua"}
-                >Fecha (más antigua)</option
-              >
-            </select>
-          </div>
+            <div class="filter-group">
+              <select name="ordenar" id="ordenar" aria-label="Ordenar por">
+                <option value="nombre-asc" selected={ordenar === "nombre-asc"}>Nombre (A-Z)</option>
+                <option value="nombre-desc" selected={ordenar === "nombre-desc"}>Nombre (Z-A)</option>
+                <option value="fecha-reciente" selected={ordenar === "fecha-reciente"}>Más recientes</option>
+                <option value="fecha-antigua" selected={ordenar === "fecha-antigua"}>Más antiguos</option>
+              </select>
+            </div>
 
-          <button type="submit" class="btn btn-primary">Aplicar filtros</button>
-          <button type="button" id="reset-filters" class="btn btn-secondary"
-            >Resetear filtros</button
-          >
+            <div class="filter-actions">
+              <button type="submit" class="btn btn-primary btn-sm">Filtrar</button>
+              <button type="button" id="reset-filters" class="btn btn-secondary btn-sm">Reset</button>
+            </div>
+          </div>
         </form>
-      </aside>
+      </div>
 
       <!-- Listado de plantas -->
       <div class="plants-grid">
@@ -275,6 +240,15 @@ const getStatusLabel = (status: string): string => {
       });
     }
 
+    // Agregar evento a los chips (radio buttons) para auto-submit y estilo
+    document.querySelectorAll('.chip-label input[type="radio"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        // Enviar formulario al hacer click
+        const form = document.getElementById('filter-form') as HTMLFormElement;
+        if (form) form.submit();
+      });
+    });
+
     // Redirección para reportar avistamiento pre-seleccionando la especie
     document.querySelectorAll(".report-sighting").forEach((button) => {
       button.addEventListener("click", (e) => {
@@ -305,57 +279,107 @@ const getStatusLabel = (status: string): string => {
   }
 
   .plants-container {
-    display: grid;
-    grid-template-columns: 250px 1fr;
-    gap: 2rem;
-  }
-
-  /* Filtros */
-  .filters {
-    background-color: var(--color-card);
-    border-radius: 8px;
-    padding: 1.5rem;
-    align-self: start;
-    position: sticky;
-    top: 1rem;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-  }
-
-  .filters h2 {
-    margin-bottom: 1.5rem;
-    font-size: 1.3rem;
-    color: var(--color-primary);
-  }
-
-  .filter-group {
-    margin-bottom: 1.5rem;
-  }
-
-  .filter-group h3 {
-    font-size: 1rem;
-    margin-bottom: 0.8rem;
-    color: var(--color-text);
-  }
-
-  .categories-list {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 1.5rem;
   }
 
-  .category-option {
+  /* Filtros Topbar */
+  .filters-topbar {
+    background-color: var(--color-card);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    position: sticky;
+    top: 1rem;
+    z-index: 10;
+    border: 1px solid var(--color-border, #eef2f0);
+  }
+
+  .filters-form {
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .categories-group {
+    border-bottom: 1px solid var(--color-border, #eef2f0);
+    padding-bottom: 1rem;
+  }
+
+  .categories-chips {
+    display: flex;
+    flex-wrap: wrap;
     gap: 0.5rem;
   }
 
-  select {
-    margin-bottom: 0.5rem;
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
   }
 
-  .filters .btn {
+  .chip-label {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.4rem 1rem;
+    border-radius: 9999px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    background-color: var(--color-bg-secondary, #f3f4f6);
+    color: var(--color-text-muted, #4b5563);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+  }
+
+  .chip-label:hover {
+    background-color: var(--color-border, #e5e7eb);
+  }
+
+  .chip-label.active {
+    background-color: var(--color-accent);
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+    font-weight: 600;
+  }
+
+  .secondary-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .secondary-filters .filter-group {
+    flex: 1;
+    min-width: 180px;
+  }
+
+  .secondary-filters select {
     width: 100%;
-    margin-bottom: 0.8rem;
+    padding: 0.5rem;
+    border-radius: 6px;
+    background-color: var(--color-bg-secondary, #f9fafb);
+    border: 1px solid var(--color-border, #e5e7eb);
+    color: var(--color-text, #111827);
+    font-size: 0.9rem;
+  }
+  
+  .filter-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+  
+  .filter-actions .btn-sm {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
   }
 
   /* Listado de plantas */
@@ -381,7 +405,7 @@ const getStatusLabel = (status: string): string => {
   }
 
   .plant-image {
-    height: 200px;
+    aspect-ratio: 16/11;
     overflow: hidden;
   }
 
@@ -448,18 +472,22 @@ const getStatusLabel = (status: string): string => {
   }
 
   /* Responsive */
-  @media (max-width: 900px) {
-    .plants-container {
-      grid-template-columns: 1fr;
-    }
-
-    .filters {
-      position: sticky;
-      top: 20px;
-    }
-  }
-
   @media (max-width: 768px) {
+    .filters-topbar {
+      position: relative;
+      top: 0;
+    }
+    
+    .secondary-filters {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    
+    .filter-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+    
     .plant-actions {
       flex-direction: column;
     }

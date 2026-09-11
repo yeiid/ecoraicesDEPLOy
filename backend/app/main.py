@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.routers import species, auth, stats, admin, users, communities
+from app.api.routers import species, auth, stats, admin, users, communities, observations, plantnet
 import app.models  # Trigger SQLAlchemy registry for all models
 
 app = FastAPI(
@@ -23,6 +23,8 @@ app.include_router(stats.router)
 app.include_router(admin.router)
 app.include_router(users.router)
 app.include_router(communities.router)
+app.include_router(observations.router)
+app.include_router(plantnet.router)
 
 @app.get("/api/health")
 async def health_check():

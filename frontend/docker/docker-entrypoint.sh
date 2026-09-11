@@ -8,8 +8,5 @@ set -e
 echo "⏳ Esperando a PostgreSQL..."
 node /app/docker/wait-for-db.mjs
 
-echo "🔄 Aplicando migraciones de Prisma (migrate deploy)..."
-npx prisma migrate deploy
-
-echo "✅ Migraciones aplicadas. Iniciando EcoRaíces..."
+echo "✅ Iniciando EcoRaíces..."
 exec node /app/dist/server/entry.mjs

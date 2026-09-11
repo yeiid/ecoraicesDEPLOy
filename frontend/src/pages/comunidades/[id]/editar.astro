@@ -1,7 +1,7 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
 import CommunityLocationPicker from '../../../components/observations/CommunityLocationPicker.astro';
-import { prisma } from '../../../lib/prisma.js';
+import { apiGet } from '../../../lib/api/client.js';
 import { getSessionUser } from '../../../lib/middleware/auth.js';
 
 export const prerender = false;
@@ -13,7 +13,14 @@ if (!user) {
   return Astro.redirect(`/auth/login?redirect=${Astro.url.pathname}`);
 }
 
-const community = await prisma.community.findUnique({ where: { id } });
+let community = null;
+
+try {
+  const data = await apiGet(`/communities/${id}`);
+  community = data.community;
+} catch (error) {
+  return Astro.redirect('/comunidades');
+}
 
 if (!community || (community.ownerId !== user.id && !user.isAdmin)) {
   return Astro.redirect('/comunidades');

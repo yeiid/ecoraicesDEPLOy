@@ -2,6 +2,9 @@
 import { getSessionUser } from '../lib/middleware/auth.js';
 import { ViewTransitions } from 'astro:transitions';
 import { pwaInfo } from 'virtual:pwa-info';
+import { Icon } from 'astro-icon/components';
+import ThemeToggle from '../components/ThemeToggle.astro';
+import LanguageToggle from '../components/LanguageToggle.astro';
 import '../styles/global.css';
 
 interface Props {
@@ -43,15 +46,47 @@ const user = await getSessionUser({ cookies: Astro.cookies });
     <meta name="theme-color" content="#1a472a" />
     <link rel="apple-touch-icon" href="/pwa-192x192.png" />
     {pwaInfo && <Fragment set:html={pwaInfo.webManifest.linkTag} />}
+    
+    <!-- Prevents FOUC for dark mode and lang -->
+    <script is:inline>
+      if (typeof window.initThemeAndLang === 'undefined') {
+        window.initThemeAndLang = function() {
+          // Theme
+          const theme = (() => {
+            if (typeof localStorage !== 'undefined' && localStorage.getItem('theme')) {
+              return localStorage.getItem('theme');
+            }
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+              return 'dark';
+            }
+            return 'light';
+          })();
+          if (theme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+          } else {
+            document.documentElement.removeAttribute('data-theme');
+          }
+
+          // Language
+          const lang = typeof localStorage !== 'undefined' ? localStorage.getItem('lang') : 'es';
+          if (lang === 'guc') {
+            document.documentElement.setAttribute('data-lang', 'guc');
+          } else {
+            document.documentElement.removeAttribute('data-lang');
+          }
+        };
+        document.addEventListener('astro:after-swap', window.initThemeAndLang);
+      }
+      // Run on initial load
+      window.initThemeAndLang();
+    </script>
   </head>
   <body>
     <div class="app-layout">
       <!-- Header Móvil Premium -->
       <header class="mobile-header">
         <button class="mobile-toggle" id="sidebar-toggle" aria-label="Toggle Sidebar">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-          </svg>
+          <Icon name="lucide:menu" class="w-6 h-6" />
         </button>
         <div class="mobile-brand">
           <img src="/eco.png" alt="EcoRaíces Logo" class="mobile-brand-logo" />
@@ -65,7 +100,6 @@ const user = await getSessionUser({ cookies: Astro.cookies });
 
       <!-- Sidebar Izquierdo -->
       <aside class="sidebar" id="sidebar">
-        <!-- Logo de EcoRaices -->
         <div class="logo-container">
           <a href="/">
             <img src="/eco.png" alt="ECORAICES" class="logo-img" />
@@ -77,67 +111,65 @@ const user = await getSessionUser({ cookies: Astro.cookies });
           <ul>
             <li>
               <a href="/" class={`nav-item ${isActive("/") ? "active" : ""}`}>
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="nav-icon">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
-                </svg>
-                <span>Inicio</span>
+                <Icon name="lucide:home" class="nav-icon" />
+                <span class="lang-es">Inicio</span>
+                <span class="lang-guc">Antüshi</span>
               </a>
             </li>
             <li>
               <a href="/observaciones" class={`nav-item ${isActive("/observaciones") ? "active" : ""}`}>
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="nav-icon">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498l4.89-1.63c.27-.09.47-.323.51-.605l1.6-11.2c.05-.333-.14-.658-.46-.75L15.5 1.75c-.3-.1-.63.03-.76.32L9 15.5m-.503 3.498l-4.89-1.63c-.27-.09-.47-.323-.51-.605l-1.6-11.2c-.05-.333.14-.658.46-.75L7.5 1.75c.3-.1.63.03.76.32L15 15.5M9 6.75L15 9.75" />
-                </svg>
-                <span>Mapa de Especies</span>
+                <Icon name="lucide:map" class="nav-icon" />
+                <span class="lang-es">Mapa de Especies</span>
+                <span class="lang-guc">Mma</span>
               </a>
             </li>
             <li>
               <a href="/plantas" class={`nav-item ${isActive("/plantas") ? "active" : ""}`}>
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="nav-icon">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75" />
-                </svg>
-                <span>Catálogo</span>
+                <Icon name="lucide:book-open" class="nav-icon" />
+                <span class="lang-es">Catálogo</span>
+                <span class="lang-guc">Wunu'u</span>
               </a>
             </li>
             <li>
               <a href="/comunidades" class={`nav-item ${isActive("/comunidades") ? "active" : ""}`}>
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="nav-icon">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.109A11.386 11.386 0 0110.089 18a11.374 11.374 0 01-5.176-1.127 4.125 4.125 0 00-7.533 2.493 9.337 9.337 0 004.121.952 9.38 9.38 0 002.625-.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M4.5 19.128v-.003c0-1.113.285-2.16.786-3.07M15 7.5a3 3 0 11-6 0 3 3 0 016 0zm6 2.25a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
-                </svg>
-                <span>Comunidades</span>
+                <Icon name="lucide:users" class="nav-icon" />
+                <span class="lang-es">Comunidades</span>
+                <span class="lang-guc">Apüshi</span>
               </a>
             </li>
             {user?.isAdmin && (
               <li>
                 <a href="/admin" class={`nav-item ${isActive("/admin") ? "active" : ""}`}>
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="nav-icon">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 1 1 0-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 0 1-1.44-4.282m3.102.069a18.03 18.03 0 0 1-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 0 1 8.835 2.535M10.34 6.66a23.847 23.847 0 0 0 8.835-2.535m0 0A23.74 23.74 0 0 0 18.795 3m.38 1.125a23.91 23.91 0 0 1 1.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 0 0 1.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 0 1 0 3.46" />
-                  </svg>
-                  <span>Panel Admin</span>
+                  <Icon name="lucide:settings" class="nav-icon" />
+                  <span class="lang-es">Panel Admin</span>
+                  <span class="lang-guc">Anaa Panel</span>
                 </a>
               </li>
             )}
             <li>
               <a href="/nosotros" class={`nav-item ${isActive("/nosotros") ? "active" : ""}`}>
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="nav-icon">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 111.083.984l-.04.02v3.75a.75.75 0 01-1.5 0v-4.73zm1.125-3a1.125 1.125 0 100-2.25 1.125 1.125 0 000 2.25zM21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>Acerca de</span>
+                <Icon name="lucide:info" class="nav-icon" />
+                <span class="lang-es">Acerca de</span>
+                <span class="lang-guc">Atüja</span>
               </a>
             </li>
             <li>
               <a href="/contacto" class={`nav-item ${isActive("/contacto") ? "active" : ""}`}>
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="nav-icon">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
-                </svg>
-                <span>Ayuda</span>
+                <Icon name="lucide:help-circle" class="nav-icon" />
+                <span class="lang-es">Ayuda</span>
+                <span class="lang-guc">Akaaliijaa</span>
               </a>
             </li>
           </ul>
         </nav>
 
-        <!-- Botón Iniciar Sesión o Widget de Usuario -->
+        <!-- Controles, Botón Iniciar Sesión o Widget de Usuario -->
         <div class="sidebar-footer">
+          <div class="header-controls" style="display: flex; gap: 0.5rem; justify-content: center; margin-bottom: 1rem;">
+            <LanguageToggle />
+            <ThemeToggle />
+          </div>
+
           {user ? (
             <div class="user-profile-widget">
               <div class="user-info-row">
@@ -155,25 +187,22 @@ const user = await getSessionUser({ cookies: Astro.cookies });
               </div>
               <div class="user-actions">
                 <a href="/perfil" class="btn-profile">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="profile-icon">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0 0 12 15.75a7.488 7.488 0 0 0-5.982 2.975m11.963 0a9 9 0 1 0-11.963 0m11.963 0A8.966 8.966 0 0 1 12 21a8.966 8.966 0 0 1-5.982-2.275M15 9.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                  </svg>
-                  <span>Mi Perfil</span>
+                  <Icon name="lucide:user" class="profile-icon" />
+                  <span class="lang-es">Mi Perfil</span>
+                  <span class="lang-guc">Taya</span>
                 </a>
                 <a href="/auth/logout" class="btn-logout" title="Cerrar Sesión">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="logout-icon">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" />
-                  </svg>
-                  <span>Cerrar Sesión</span>
+                  <Icon name="lucide:log-out" class="logout-icon" />
+                  <span class="lang-es">Cerrar Sesión</span>
+                  <span class="lang-guc">Ajuittüin</span>
                 </a>
               </div>
             </div>
           ) : (
             <a href="/auth/login" class="btn-login">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="btn-icon">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-              </svg>
-              <span>Iniciar Sesión</span>
+              <Icon name="lucide:log-in" class="btn-icon" />
+              <span class="lang-es">Iniciar Sesión</span>
+              <span class="lang-guc">Anta</span>
             </a>
           )}
         </div>
@@ -301,7 +330,7 @@ const user = await getSessionUser({ cookies: Astro.cookies });
     flex-direction: column;
     padding: 1.5rem 1.25rem;
     transition: var(--transition-smooth);
-    overflow-y: auto;
+    overflow: hidden;
   }
 
   .logo-container {
@@ -310,6 +339,7 @@ const user = await getSessionUser({ cookies: Astro.cookies });
     align-items: center;
     margin-bottom: 1.5rem;
     padding-bottom: 0.5rem;
+    flex-shrink: 0;
   }
 
   .logo-img {
@@ -326,6 +356,18 @@ const user = await getSessionUser({ cookies: Astro.cookies });
 
   .sidebar-nav {
     flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    padding-right: 0.5rem;
+  }
+
+  /* Personalizar scrollbar del nav */
+  .sidebar-nav::-webkit-scrollbar {
+    width: 4px;
+  }
+  .sidebar-nav::-webkit-scrollbar-thumb {
+    background-color: rgba(156, 163, 175, 0.3);
+    border-radius: 4px;
   }
 
   .sidebar-nav ul {
@@ -376,6 +418,8 @@ const user = await getSessionUser({ cookies: Astro.cookies });
   .sidebar-footer {
     padding-top: 1rem;
     border-top: 1px solid var(--color-border);
+    flex-shrink: 0;
+    margin-top: 0.5rem;
   }
 
   .btn-login {
@@ -385,7 +429,7 @@ const user = await getSessionUser({ cookies: Astro.cookies });
     gap: 0.75rem;
     width: 100%;
     padding: 0.7rem;
-    background-color: #10b981; /* Color exacto del botón verde */
+    background-color: var(--color-success);
     color: white;
     border-radius: 25px; /* Súper redondeado tipo pastilla */
     font-weight: 600;
@@ -475,20 +519,19 @@ const user = await getSessionUser({ cookies: Astro.cookies });
     gap: 0.5rem;
     width: 100%;
     padding: 0.65rem;
-    background-color: #fee2e2;
-    color: #ef4444;
+    background-color: var(--color-danger-bg);
+    color: var(--color-danger);
     border-radius: 12px;
     font-size: 0.85rem;
     font-weight: 600;
     transition: var(--transition-smooth);
-    border: 1px solid #fecaca;
+    border: 1px solid var(--color-danger);
     cursor: pointer;
   }
 
   .btn-logout:hover {
-    background-color: #fca5a5;
-    color: #b91c1c;
-    border-color: #f87171;
+    background-color: var(--color-danger);
+    color: white;
   }
 
   .logout-icon {
@@ -516,14 +559,13 @@ const user = await getSessionUser({ cookies: Astro.cookies });
     font-size: 0.85rem;
     font-weight: 600;
     text-decoration: none;
-    border: 1px solid #d1fae5;
+    border: 1px solid var(--color-success);
     transition: var(--transition-smooth);
   }
 
   .btn-profile:hover {
-    background-color: #d1fae5;
-    color: #065f46;
-    border-color: #6ee7b7;
+    background-color: var(--color-success);
+    color: white;
   }
 
   .profile-icon {
@@ -574,7 +616,8 @@ const user = await getSessionUser({ cookies: Astro.cookies });
       left: 0;
       right: 0;
       height: 64px;
-      background: rgba(255, 255, 255, 0.85);
+      background: var(--color-sidebar-bg);
+      opacity: 0.95;
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--color-border);
@@ -631,11 +674,16 @@ const user = await getSessionUser({ cookies: Astro.cookies });
     .sidebar {
       transform: translateX(-100%);
       box-shadow: none;
+      padding-top: 5rem;
     }
 
     .sidebar.open {
       transform: translateX(0);
       box-shadow: 10px 0 30px rgba(15, 23, 42, 0.15);
+    }
+
+    .logo-container {
+      display: none;
     }
 
     .main-container {
@@ -654,7 +702,7 @@ const user = await getSessionUser({ cookies: Astro.cookies });
     margin-top: 3rem;
     padding: 2rem 1rem 1.25rem;
     border-top: 1px solid var(--color-border);
-    background: #ffffff;
+    background: var(--color-sidebar-bg);
   }
 
   .footer-inner {
@@ -707,7 +755,7 @@ const user = await getSessionUser({ cookies: Astro.cookies });
     max-width: 1100px;
     margin: 1.5rem auto 0;
     padding-top: 1rem;
-    border-top: 1px solid #f1f5f4;
+    border-top: 1px solid var(--color-border);
     font-size: 0.8rem;
     color: #9ca3af;
     text-align: center;

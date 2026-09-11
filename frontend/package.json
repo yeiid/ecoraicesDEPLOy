@@ -16,7 +16,6 @@
   "dependencies": {
     "@astrojs/node": "^8.3.4",
     "@paralleldrive/cuid2": "^2.2.2",
-    "@prisma/client": "^6.5.0",
     "astro": "^4.5.6",
     "bcryptjs": "^3.0.2",
     "jsonwebtoken": "^9.0.2",
@@ -27,9 +26,10 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@iconify-json/lucide": "^1.2.130",
     "@types/bcryptjs": "^3.0.0",
     "@vite-pwa/astro": "^1.2.0",
-    "prisma": "^6.5.0",
+    "astro-icon": "^1.2.0",
     "ts-node": "^10.9.2",
     "workbox-window": "^7.4.1"
   },

@@ -26,8 +26,15 @@ export async function ALL({ request, params }) {
     });
 
     const responseHeaders = new Headers(response.headers);
+    // Eliminar headers problemáticos de proxy
+    responseHeaders.delete('content-encoding');
+    responseHeaders.delete('content-length');
+    responseHeaders.delete('transfer-encoding');
     
-    return new Response(response.body, {
+    // Leer el buffer completo para evitar problemas con body stream
+    const buffer = await response.arrayBuffer();
+    
+    return new Response(buffer, {
       status: response.status,
       statusText: response.statusText,
       headers: responseHeaders,

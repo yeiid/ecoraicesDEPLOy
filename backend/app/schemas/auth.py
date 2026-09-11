@@ -12,6 +12,10 @@ class RegisterRequest(BaseModel):
     password: str
     name: Optional[str] = None
 
+class GoogleLoginRequest(BaseModel):
+    credential: str
+    client_id: Optional[str] = None
+
 class AuthResponse(BaseModel):
     success: bool
     user: dict

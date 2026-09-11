@@ -208,19 +208,18 @@ import AuthForm from './AuthForm.astro';
                 'Content-Type': 'application/json'
               },
               body: JSON.stringify({
-                fullName,
-                email,
-                password,
-                userType,
-                communityName,
-                communityDescription
+                name: fullName,
+                email: email,
+                password: password,
+                username: email.split('@')[0] + Math.floor(Math.random() * 1000)
               })
             });
 
             const data = await response.json();
 
             if (!response.ok) {
-              throw new Error(data.message || 'Error al registrar el usuario.');
+              const errorMessage = data.detail || data.message || 'Error al registrar el usuario.';
+              throw new Error(Array.isArray(errorMessage) ? errorMessage[0].msg : errorMessage);
             }
 
             registerSuccess.textContent = '¡Cuenta creada con éxito! Redirigiendo a inicio de sesión...';

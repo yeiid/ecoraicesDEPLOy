@@ -2,10 +2,12 @@
 import { defineConfig } from "astro/config";
 import node from "@astrojs/node";
 import AstroPWA from "@vite-pwa/astro";
+import icon from "astro-icon";
 
 // https://astro.build/config
 export default defineConfig({
   integrations: [
+    icon(),
     AstroPWA({
       registerType: 'autoUpdate',
       injectRegister: 'script',

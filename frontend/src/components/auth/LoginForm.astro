@@ -130,7 +130,8 @@ import AuthForm from './AuthForm.astro';
             const data = await response.json();
 
             if (!response.ok) {
-              throw new Error(data.message || 'Error en las credenciales.');
+              const errorMessage = data.detail || data.message || 'Error en las credenciales.';
+              throw new Error(Array.isArray(errorMessage) ? errorMessage[0].msg : errorMessage);
             }
 
             // Exito: Redirigir al destino original (o inicio)
