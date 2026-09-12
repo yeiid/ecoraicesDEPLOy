@@ -20,6 +20,14 @@ services:
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
     volumes:
       - uploads_data:/app/public/uploads
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    networks:
+      - econet
 
   db:
     image: postgis/postgis:16-3.4
@@ -36,6 +44,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
+    networks:
+      - econet
 
   app:
     build:
@@ -45,19 +55,17 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      backend:
+        condition: service_healthy
     environment:
       NODE_ENV: production
+      NODE_OPTIONS: "--dns-result-order=ipv4first"
       HOST: 0.0.0.0
       PORT: 8080
-      # Base de datos compartida: el mapa (map.neuraljira.tech) sirve la capa geo2
-      # desde el MISMO PostGIS. En producción, apuntar a este servicio o a la BD
-      # compartida si el mapa la lee directamente.
-      BACKEND_URL: ${BACKEND_URL:-http://backend:8000}
+      BACKEND_URL: http://backend:8000
       DATABASE_URL: postgresql://${POSTGRES_USER:-ecoraices}:${POSTGRES_PASSWORD:-ecoraices_dev}@db:5432/${POSTGRES_DB:-ecoraices}
       POSTGIS_URL: postgresql://${POSTGRES_USER:-ecoraices}:${POSTGRES_PASSWORD:-ecoraices_dev}@db:5432/${POSTGRES_DB:-ecoraices}
-      # Dominio de producción (obligatorio: define el origen de cookies y links de correo)
       APP_URL: ${APP_URL:-https://ecoraices.neuraljira.tech}
-      # API del mapa NeuralJIRA. Se inlinea en el bundle al BUILD: si la cambias, recompila.
       PUBLIC_MAP_API_URL: ${PUBLIC_MAP_API_URL:-https://map.neuraljira.tech}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET es obligatoria}
       PLANTNET_API_KEY: ${PLANTNET_API_KEY:-}
@@ -74,6 +82,12 @@ services:
       FACEBOOK_CLIENT_SECRET: ${FACEBOOK_CLIENT_SECRET:-}
     volumes:
       - uploads_data:/data/uploads
+    networks:
+      - econet
+
+networks:
+  econet:
+    driver: bridge
 
 volumes:
   pgdata:
@@ -82,3 +96,4 @@ volumes:
 # En Dokploy (modo Compose), el dominio HTTPS (https://ecoraices.neuraljira.tech)
 # se configura en el panel por servicio ("app") — Dokploy añade las etiquetas
 # de Traefik y el certificado Let's Encrypt automáticamente.
+

@@ -24,6 +24,7 @@ RUN pnpm prune --prod
 FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+ENV NODE_OPTIONS="--dns-result-order=ipv4first"
 
 RUN corepack enable && corepack prepare pnpm@11.20.0 --activate
 
