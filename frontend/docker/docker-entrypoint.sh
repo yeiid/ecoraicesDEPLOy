@@ -9,4 +9,4 @@ echo "⏳ Esperando a PostgreSQL..."
 node /app/docker/wait-for-db.mjs
 
 echo "✅ Iniciando EcoRaíces..."
-exec node /app/dist/server/entry.mjs
+exec node --dns-result-order=ipv4first /app/dist/server/entry.mjs

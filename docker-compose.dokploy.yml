@@ -52,6 +52,7 @@ services:
       # Base de datos compartida: el mapa (map.neuraljira.tech) sirve la capa geo2
       # desde el MISMO PostGIS. En producción, apuntar a este servicio o a la BD
       # compartida si el mapa la lee directamente.
+      BACKEND_URL: ${BACKEND_URL:-http://backend:8000}
       DATABASE_URL: postgresql://${POSTGRES_USER:-ecoraices}:${POSTGRES_PASSWORD:-ecoraices_dev}@db:5432/${POSTGRES_DB:-ecoraices}
       POSTGIS_URL: postgresql://${POSTGRES_USER:-ecoraices}:${POSTGRES_PASSWORD:-ecoraices_dev}@db:5432/${POSTGRES_DB:-ecoraices}
       # Dominio de producción (obligatorio: define el origen de cookies y links de correo)

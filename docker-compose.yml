@@ -30,6 +30,7 @@ services:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 8080
+      BACKEND_URL: ${BACKEND_URL:-http://backend:8000}
       DATABASE_URL: postgresql://${POSTGRES_USER:-ecoraices}:${POSTGRES_PASSWORD:-ecoraices_dev}@db:5432/${POSTGRES_DB:-ecoraices}
       POSTGIS_URL: postgresql://${POSTGRES_USER:-ecoraices}:${POSTGRES_PASSWORD:-ecoraices_dev}@db:5432/${POSTGRES_DB:-ecoraices}
       APP_URL: ${APP_URL:-http://localhost:3000}
