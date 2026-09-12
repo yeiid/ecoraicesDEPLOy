@@ -1,9 +1,6 @@
 # Despliegue en Dokploy — EcoRaíces
 # Uso: en tu proyecto Dokploy, crea un despliegue tipo "Compose" y pega este archivo.
 # Define las variables de entorno en la pestaña "Environment" de Dokploy.
-# El DNS `ecoraices.neuraljira.tech` debe apuntar (A record) a la IP del servidor Dokploy.
-
-name: ecoraices
 
 services:
   backend:
@@ -26,8 +23,6 @@ services:
       timeout: 5s
       retries: 12
       start_period: 15s
-    networks:
-      - econet
 
   db:
     image: postgis/postgis:16-3.4
@@ -44,8 +39,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
-    networks:
-      - econet
 
   app:
     build:
@@ -82,18 +75,7 @@ services:
       FACEBOOK_CLIENT_SECRET: ${FACEBOOK_CLIENT_SECRET:-}
     volumes:
       - uploads_data:/data/uploads
-    networks:
-      - econet
-
-networks:
-  econet:
-    driver: bridge
 
 volumes:
   pgdata:
   uploads_data:
-
-# En Dokploy (modo Compose), el dominio HTTPS (https://ecoraices.neuraljira.tech)
-# se configura en el panel por servicio ("app") — Dokploy añade las etiquetas
-# de Traefik y el certificado Let's Encrypt automáticamente.
-
