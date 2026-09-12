@@ -17,14 +17,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(species.router)
-app.include_router(auth.router)
-app.include_router(stats.router)
-app.include_router(admin.router)
-app.include_router(users.router)
-app.include_router(communities.router)
-app.include_router(observations.router)
-app.include_router(plantnet.router)
+app.include_router(species.router, prefix="/api")
+app.include_router(auth.router, prefix="/api")
+app.include_router(stats.router, prefix="/api")
+app.include_router(admin.router, prefix="/api")
+app.include_router(users.router, prefix="/api")
+app.include_router(communities.router, prefix="/api")
+app.include_router(observations.router, prefix="/api")
+app.include_router(plantnet.router, prefix="/api")
 
 @app.get("/api/health")
 async def health_check():

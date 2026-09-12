@@ -12,7 +12,7 @@ from ...schemas.species import SpeciesResponse, SpeciesDetailResponse, SpeciesCr
 from ...schemas.category import CategoryResponse
 
 router = APIRouter(
-    prefix="/api",
+    prefix="",
     tags=["species", "categories"]
 )
 

@@ -39,7 +39,7 @@ services:
 
   app:
     build:
-      context: .
+      context: ./frontend
       dockerfile: Dockerfile
     restart: unless-stopped
     depends_on:
