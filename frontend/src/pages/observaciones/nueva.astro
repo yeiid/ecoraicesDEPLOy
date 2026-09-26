@@ -1,7 +1,8 @@
 ---
-import Layout from "../../layouts/Layout.astro"; // Correcto: 2 niveles hacia arriba
+import Layout from "../../layouts/Layout.astro";
 import NewObservationForm from "../../components/observations/NewObservationForm.astro";
 import { getSessionUser } from '../../lib/middleware/auth.js';
+import { apiGet } from '../../lib/api/client.js';
 
 // 🔐 Verificar estado de sesión y token
 const user = await getSessionUser({ cookies: Astro.cookies, request: Astro.request });
@@ -12,11 +13,19 @@ if (!user) {
 }
 
 // Obtener las categorías y especies para el formulario
-const categoriesResponse = await fetch(`${Astro.url.origin}/api/categories`);
-const categories = await categoriesResponse.json();
+let categories = [];
+let species = [];
+try {
+  categories = await apiGet('/categories') || [];
+} catch (e) {
+  console.error('Error fetching categories:', e);
+}
 
-const speciesResponse = await fetch(`${Astro.url.origin}/api/species`);
-const species = await speciesResponse.json();
+try {
+  species = await apiGet('/species') || [];
+} catch (e) {
+  console.error('Error fetching species:', e);
+}
 
 // Título de la página
 const title = "Registrar Nuevo Árbol - EcoRaices";

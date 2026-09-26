@@ -1,6 +1,7 @@
 ---
-import Layout from "../../layouts/Layout.astro"; // Correcto: 2 niveles hacia arriba
+import Layout from "../../layouts/Layout.astro";
 import MapComponent from "../../components/observations/MapComponent.astro";
+import { apiGet } from "../../lib/api/client.js";
 
 export const prerender = false;
 
@@ -12,17 +13,10 @@ let observation = null;
 let error = null;
 
 try {
-  // Fetch a la API para obtener los datos de la observación
-  const response = await fetch(`${Astro.url.origin}/api/observations/${id}`);
-
-  if (!response.ok) {
-    error = "Observación no encontrada";
-  } else {
-    observation = await response.json();
-  }
+  observation = await apiGet(`/observations/${id}`);
 } catch (e) {
   console.error("Error al cargar la observación:", e);
-  error = "Error al cargar los datos de la observación";
+  error = e.status === 404 ? "Observación no encontrada" : "Error al cargar los datos de la observación";
 }
 
 // Título para SEO

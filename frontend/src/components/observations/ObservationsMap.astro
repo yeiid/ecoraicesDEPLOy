@@ -1,28 +1,20 @@
 ---
 // frontend/src/components/observations/ObservationsMap.astro
 import MapComponent from "./MapComponent.astro";
+import { apiGet } from "../../lib/api/client.js";
 
 const { initialFilterCategory = null, showFilters = true } = Astro.props;
 
-// Use internal localhost for SSR fetch when in production docker to avoid ECONNREFUSED
-const internalOrigin = import.meta.env.PROD ? `http://127.0.0.1:${process.env.PORT || 8080}` : Astro.url.origin;
-
 let trees = [];
 try {
-  const treesResponse = await fetch(`${internalOrigin}/api/observations`);
-  if (treesResponse.ok) {
-    trees = await treesResponse.json();
-  }
+  trees = (await apiGet('/observations')) || [];
 } catch (error) {
   console.error("Error fetching observations:", error);
 }
 
 let categories = [];
 try {
-  const categoriesResponse = await fetch(`${internalOrigin}/api/categories`);
-  if (categoriesResponse.ok) {
-    categories = await categoriesResponse.json();
-  }
+  categories = (await apiGet('/categories')) || [];
 } catch (error) {
   console.error("Error fetching categories:", error);
 }

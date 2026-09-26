@@ -35,6 +35,7 @@ try:
     application.include_router(stats.router, prefix="/api")
     application.include_router(admin.router, prefix="/api")
     application.include_router(users.router, prefix="/api")
+    application.include_router(users.perfil_router, prefix="/api")
     application.include_router(communities.router, prefix="/api")
     application.include_router(observations.router, prefix="/api")
     application.include_router(plantnet.router, prefix="/api")

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
 from app.db.database import get_db
-from app.models import Observation, Species, User, Category
+from app.models import Observation, Species, User, Category, Comment
 from .users import get_current_user_id
 
 router = APIRouter(
@@ -217,3 +217,91 @@ async def create_observation(
         "imageUrl": observation.imageUrl,
         "status": observation.status,
     }
+
+@router.get("/{id}")
+def get_observation_detail(id: str, db: Session = Depends(get_db)):
+    obs = db.query(Observation).filter(Observation.id == id).first()
+    if not obs:
+        raise HTTPException(status_code=404, detail="Observación no encontrada")
+        
+    species_obj = db.query(Species).filter(Species.id == obs.speciesId).first() if obs.speciesId else None
+    category_obj = None
+    if species_obj and getattr(species_obj, 'categoryId', None):
+        category_obj = db.query(Category).filter(Category.id == species_obj.categoryId).first()
+        
+    user_obj = db.query(User).filter(User.id == obs.userId).first() if obs.userId else None
+    
+    comments = db.query(Comment).filter(Comment.observationId == id).order_by(Comment.createdAt.asc()).all()
+    comments_list = []
+    for c in comments:
+        c_user = db.query(User).filter(User.id == c.userId).first() if c.userId else None
+        comments_list.append({
+            "id": c.id,
+            "content": c.content,
+            "createdAt": c.createdAt.isoformat() if c.createdAt else None,
+            "user": {
+                "id": c_user.id if c_user else c.userId,
+                "username": c_user.username if c_user else "Usuario",
+                "name": c_user.name if c_user else None,
+                "avatarUrl": c_user.avatarUrl if c_user else None,
+            }
+        })
+        
+    return {
+        "id": obs.id,
+        "speciesId": obs.speciesId,
+        "userId": obs.userId,
+        "communityId": obs.communityId,
+        "observationDate": obs.observationDate.isoformat() if obs.observationDate else None,
+        "latitude": obs.latitude,
+        "longitude": obs.longitude,
+        "altitude": obs.altitude,
+        "municipio": obs.municipio,
+        "estadoConservacion": obs.estadoConservacion,
+        "notes": obs.notes,
+        "imageUrl": obs.imageUrl,
+        "status": obs.status,
+        "verified": obs.status == "APPROVED",
+        "isVerified": obs.status == "APPROVED",
+        "createdAt": obs.createdAt.isoformat() if obs.createdAt else None,
+        "species": {
+            "id": species_obj.id,
+            "name": species_obj.name,
+            "scientificName": getattr(species_obj, 'scientificName', None),
+            "description": getattr(species_obj, 'description', None),
+            "imageUrl": getattr(species_obj, 'imageUrl', None),
+            "commonName": getattr(species_obj, 'name', None),
+            "category": {
+                "id": category_obj.id,
+                "name": category_obj.name
+            } if category_obj else None
+        } if species_obj else None,
+        "category": {
+            "id": category_obj.id,
+            "name": category_obj.name
+        } if category_obj else None,
+        "user": {
+            "id": user_obj.id if user_obj else obs.userId,
+            "username": user_obj.username if user_obj else "Anónimo",
+            "name": user_obj.name if user_obj else None,
+            "avatarUrl": user_obj.avatarUrl if user_obj else None,
+        } if user_obj else None,
+        "comments": comments_list
+    }
+
+@router.delete("/{id}")
+def delete_observation(id: str, request: Request, db: Session = Depends(get_db)):
+    user_id = get_current_user_id(request)
+    user = db.query(User).filter(User.id == user_id).first()
+    
+    obs = db.query(Observation).filter(Observation.id == id).first()
+    if not obs:
+        raise HTTPException(status_code=404, detail="Observación no encontrada")
+        
+    if obs.userId != user_id and not getattr(user, 'isAdmin', False):
+        raise HTTPException(status_code=403, detail="No tienes permisos para eliminar esta observación")
+        
+    db.delete(obs)
+    db.commit()
+    return {"message": "Observación eliminada exitosamente"}
+
