@@ -5,13 +5,36 @@ export const MAX_AGE_LONG = 60 * 60 * 24 * 30; // 30 días (recordar mi cuenta)
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' };
 
-// Obtener el token desde el contexto de Astro (cookies)
+// Obtener el token desde el contexto de Astro (cookies o headers)
 export function getToken(context) {
-  return (
-    context.cookies?.get?.(TOKEN_NAME)?.value ??
-    context.cookies?.[TOKEN_NAME] ??
-    null
-  );
+  if (!context) return null;
+
+  // 1. Desde el objeto Astro.cookies
+  if (context.cookies?.get) {
+    const val = context.cookies.get(TOKEN_NAME)?.value;
+    if (val) return val;
+  }
+  if (context.cookies?.[TOKEN_NAME]) {
+    return context.cookies[TOKEN_NAME];
+  }
+
+  // 2. Desde el header Cookie del Request
+  const cookieHeader = context.request?.headers?.get?.('cookie') ||
+                       context.headers?.get?.('cookie') ||
+                       (typeof context.headers === 'string' ? context.headers : null);
+  if (cookieHeader) {
+    const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${TOKEN_NAME}=([^;]+)`));
+    if (match) return decodeURIComponent(match[1]);
+  }
+
+  // 3. Desde el header Authorization: Bearer <token>
+  const authHeader = context.request?.headers?.get?.('authorization') ||
+                     context.headers?.get?.('authorization');
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.substring(7).trim();
+  }
+
+  return null;
 }
 
 import { apiGet } from '../api/client.js';
@@ -26,7 +49,8 @@ export async function authenticateToken(context) {
   try {
     const data = await apiGet('/auth/session', {
       headers: {
-        'Cookie': `${TOKEN_NAME}=${token}`
+        'Cookie': `${TOKEN_NAME}=${token}`,
+        'Authorization': `Bearer ${token}`
       }
     });
 

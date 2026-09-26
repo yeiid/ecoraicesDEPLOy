@@ -134,7 +134,19 @@ import AuthForm from './AuthForm.astro';
               throw new Error(Array.isArray(errorMessage) ? errorMessage[0].msg : errorMessage);
             }
 
-            // Exito: Redirigir al destino original (o inicio)
+            // Exito: Guardar token de respaldo y cookie cliente si es necesario
+            if (data.token) {
+              try {
+                localStorage.setItem('ecoraices_token', data.token);
+                if (data.user) {
+                  localStorage.setItem('user', JSON.stringify(data.user));
+                }
+                const maxAgeSec = remember ? 60 * 60 * 24 * 30 : 60 * 60 * 24 * 7;
+                document.cookie = `ecoraices_token=${data.token}; path=/; max-age=${maxAgeSec}; SameSite=Lax`;
+              } catch (_) {}
+            }
+
+            // Redirigir al destino original (o inicio)
             window.location.href = getSafeRedirect();
           } catch (err) {
             console.error('Login submit error:', err);

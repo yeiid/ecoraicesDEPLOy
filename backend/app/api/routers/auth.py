@@ -143,6 +143,10 @@ def logout(response: Response):
 def get_session(request: Request, db: Session = Depends(get_db)):
     from jose import jwt, JWTError
     token = request.cookies.get(TOKEN_NAME)
+    if not token:
+        auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
     
     if not token:
         return {"user": None}
