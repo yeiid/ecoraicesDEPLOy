@@ -5,8 +5,9 @@ import Layout from "../../layouts/Layout.astro";
 const { id } = Astro.params;
 
 
-// URL base del backend interno
-const API_URL = "http://backend:8000/api";
+// URL base del backend interno (Docker o entorno)
+const BACKEND_URL = process.env.BACKEND_URL || "http://backend:8000";
+const API_URL = `${BACKEND_URL}/api`;
 
 let especie = null;
 let especiesRelacionadas = [];

@@ -19,7 +19,7 @@ router = APIRouter(
     tags=["observations"]
 )
 
-UPLOADS_DIR = Path("/home/yeiid/Escritorio/marcaneuraljira/EcoRaicesastro/ecoraices/frontend/public/uploads/observations")
+UPLOADS_DIR = Path(os.getenv("UPLOADS_DIR", "/app/public/uploads/observations"))
 
 async def sync_observation_to_postgis(species, observation):
     postgis_url = os.getenv("POSTGIS_URL")
@@ -70,6 +70,7 @@ async def sync_observation_to_postgis(species, observation):
         print(f"[PostGIS Sync] Error al sincronizar con PostGIS: {e}")
         return None
 
+@router.get("")
 @router.get("/")
 def get_observations(
     categoryId: Optional[str] = None,
@@ -141,6 +142,7 @@ def get_observations(
         
     return formatted
 
+@router.post("")
 @router.post("/")
 async def create_observation(
     request: Request,

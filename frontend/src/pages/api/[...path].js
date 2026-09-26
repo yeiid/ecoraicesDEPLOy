@@ -24,7 +24,7 @@ export async function ALL({ request, params }) {
       method: request.method,
       headers: headers,
       body: request.method !== 'GET' && request.method !== 'HEAD' ? await request.arrayBuffer() : undefined,
-      redirect: 'manual'
+      redirect: 'follow'
     });
 
     console.log(`[Proxy] Response: ${response.status} from ${targetUrl}`);

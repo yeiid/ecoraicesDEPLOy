@@ -8,6 +8,7 @@ router = APIRouter(
     tags=["communities"]
 )
 
+@router.get("")
 @router.get("/")
 def get_communities(db: Session = Depends(get_db)):
     communities = db.query(Community).order_by(Community.name.asc()).all()

@@ -43,8 +43,9 @@ const params: FilterParams = {
 const { categoria, habitat, estado: estadoConservacion, ordenar } = params;
 
 
-// URL base del backend interno (Docker)
-const API_URL = "http://backend:8000/api";
+// URL base del backend interno (Docker o entorno)
+const BACKEND_URL = process.env.BACKEND_URL || "http://backend:8000";
+const API_URL = `${BACKEND_URL}/api`;
 
 let categorias = [];
 let habitats = [];

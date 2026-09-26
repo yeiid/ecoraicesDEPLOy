@@ -79,3 +79,7 @@ services:
 volumes:
   pgdata:
   uploads_data:
+
+networks:
+  default:
+    name: ecoraices-net
