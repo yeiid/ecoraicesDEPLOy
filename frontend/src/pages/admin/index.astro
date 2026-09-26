@@ -15,6 +15,7 @@ if (!user.isAdmin) {
 let obsCount, obsPending, obsApproved, obsRejected, communityCount, speciesCount, userCount;
 let communities = [];
 let observations = [];
+let users = [];
 
 try {
   const data = await apiGet("/admin/dashboard");
@@ -27,8 +28,9 @@ try {
   speciesCount = data.stats.speciesCount;
   userCount = data.stats.userCount;
   
-  communities = data.communities;
-  observations = data.observations;
+  communities = data.communities || [];
+  observations = data.observations || [];
+  users = data.users || [];
 } catch (error) {
   console.error("Error fetching admin dashboard:", error);
 }
@@ -192,6 +194,94 @@ const statusClass = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejec
       )}
     </section>
 
+    <!-- Usuarios Registrados -->
+    <section class="panel-section card">
+      <div class="section-head">
+        <h2>Usuarios Registrados</h2>
+        <span class="muted">{users.length} total</span>
+      </div>
+      {users.length === 0 ? (
+        <p class="empty-state">No hay usuarios registrados.</p>
+      ) : (
+        <div class="table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th scope="col">Usuario</th>
+                <th scope="col">Email</th>
+                <th scope="col">Rol</th>
+                <th scope="col">Admin</th>
+                <th scope="col">Observaciones</th>
+                <th scope="col">Registrado</th>
+                <th scope="col" class="col-actions">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u) => (
+                <tr>
+                  <td>
+                    <div class="user-cell">
+                      {u.avatarUrl ? (
+                        <img src={u.avatarUrl} alt={u.name || u.username} class="user-cell-avatar" />
+                      ) : (
+                        <div class="user-cell-initial">{(u.name || u.username || 'U')[0].toUpperCase()}</div>
+                      )}
+                      <div>
+                        <span class="cell-link">{u.name || u.username}</span>
+                        <div class="cell-sub">@{u.username}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>{u.email}</td>
+                  <td>
+                    <span class="badge badge-neutral">
+                      {u.role === "COMMUNITY" ? "Comunidad" : "Guardabosques"}
+                    </span>
+                  </td>
+                  <td>
+                    {u.isAdmin ? (
+                      <span class="badge badge-success">Sí (Admin)</span>
+                    ) : (
+                      <span class="badge badge-neutral">No</span>
+                    )}
+                  </td>
+                  <td>{u.observationsCount}</td>
+                  <td>{u.createdAt ? new Date(u.createdAt).toLocaleDateString("es-CO") : "—"}</td>
+                  <td class="col-actions">
+                    {u.id !== user.id ? (
+                      <div class="actions-group">
+                        <button
+                          class={`btn btn-sm ${u.isAdmin ? 'btn-secondary' : 'btn-outline'}`}
+                          data-action="toggle-admin"
+                          data-id={u.id}
+                          data-admin={u.isAdmin ? "true" : "false"}
+                          data-name={u.name || u.username}
+                          aria-label={`${u.isAdmin ? 'Quitar rol admin a' : 'Hacer admin a'} ${u.username}`}
+                        >
+                          {u.isAdmin ? "Quitar Admin" : "Hacer Admin"}
+                        </button>
+                        <button
+                          class="btn btn-danger btn-sm"
+                          data-action="delete-user"
+                          data-id={u.id}
+                          data-name={u.name || u.username}
+                          aria-label={`Eliminar usuario ${u.username}`}
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    ) : (
+                      <span class="badge badge-info">Tú</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+
     <div id="admin-alert" class="alert-box error" role="alert" aria-live="polite" style="display: none;"></div>
   </div>
 </Layout>
@@ -332,6 +422,40 @@ const statusClass = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejec
   .col-actions .btn + .btn {
     margin-left: 0.4rem;
   }
+
+  .actions-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .user-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .user-cell-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+
+  .user-cell-initial {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--color-success-bg, #e8f5e9);
+    color: var(--color-primary-dark, #1b5e20);
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+  }
 </style>
 
 <script>
@@ -349,7 +473,7 @@ const statusClass = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejec
     const run = async (path, options) => {
       const res = await fetch(path, options);
       const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.message || `Error (${res.status})`);
+      if (!res.ok) throw new Error(body.message || body.detail || `Error (${res.status})`);
       return body;
     };
 
@@ -398,6 +522,47 @@ const statusClass = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejec
           hideAlert();
           btn.disabled = true;
           await run(`/api/admin/observations/${btn.dataset.id}`, { method: "DELETE" });
+          window.location.reload();
+        } catch (err) {
+          btn.disabled = false;
+          showAlert(err.message);
+        }
+      });
+    });
+
+    document.querySelectorAll("[data-action='toggle-admin']").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const isCurrentAdmin = btn.dataset.admin === "true";
+        const newIsAdmin = !isCurrentAdmin;
+        const name = btn.dataset.name;
+        const msg = newIsAdmin
+          ? `¿Promover a "${name}" como Administrador?`
+          : `¿Revocar privilegios de Administrador a "${name}"?`;
+        if (!confirm(msg)) return;
+        try {
+          hideAlert();
+          btn.disabled = true;
+          await run(`/api/admin/users/${btn.dataset.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ isAdmin: newIsAdmin }),
+          });
+          window.location.reload();
+        } catch (err) {
+          btn.disabled = false;
+          showAlert(err.message);
+        }
+      });
+    });
+
+    document.querySelectorAll("[data-action='delete-user']").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const name = btn.dataset.name;
+        if (!confirm(`¿Eliminar al usuario "${name}"? Esta acción no se puede deshacer.`)) return;
+        try {
+          hideAlert();
+          btn.disabled = true;
+          await run(`/api/admin/users/${btn.dataset.id}`, { method: "DELETE" });
           window.location.reload();
         } catch (err) {
           btn.disabled = false;
