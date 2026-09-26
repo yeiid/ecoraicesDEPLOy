@@ -161,6 +161,65 @@ def update_user_status(id: str, data: UserUpdateSchema, admin: User = Depends(ge
         }
     }
 
+class UserCreateAdminSchema(BaseModel):
+    username: str
+    email: str
+    password: str
+    name: Optional[str] = None
+    role: Optional[str] = "COLLECTOR"
+    isAdmin: Optional[bool] = False
+
+@router.post("/users")
+def create_user_admin(
+    data: UserCreateAdminSchema,
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    import uuid
+    from app.core.security import get_password_hash
+
+    # Verificar username existente
+    existing_user = db.query(User).filter(User.username == data.username.strip()).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="El nombre de usuario ya está registrado")
+        
+    # Verificar email existente
+    existing_email = db.query(User).filter(User.email == data.email.strip().lower()).first()
+    if existing_email:
+        raise HTTPException(status_code=400, detail="El correo electrónico ya está registrado")
+        
+    if len(data.password) < 6:
+        raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 6 caracteres")
+        
+    new_id = "c" + str(uuid.uuid4()).replace("-", "")[:24]
+    new_user = User(
+        id=new_id,
+        username=data.username.strip(),
+        email=data.email.strip().lower(),
+        passwordHash=get_password_hash(data.password),
+        name=data.name.strip() if data.name else None,
+        role=data.role.upper() if data.role and data.role.upper() in ["COLLECTOR", "COMMUNITY"] else "COLLECTOR",
+        isAdmin=bool(data.isAdmin),
+        provider="local"
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    
+    return {
+        "message": "Usuario creado exitosamente",
+        "user": {
+            "id": new_user.id,
+            "username": new_user.username,
+            "email": new_user.email,
+            "name": new_user.name,
+            "role": new_user.role,
+            "isAdmin": new_user.isAdmin,
+            "createdAt": new_user.createdAt.isoformat() if new_user.createdAt else None,
+            "observationsCount": 0
+        }
+    }
+
 @router.delete("/users/{id}")
 def delete_user(id: str, admin: User = Depends(get_current_admin), db: Session = Depends(get_db)):
     if id == admin.id:
@@ -170,10 +229,31 @@ def delete_user(id: str, admin: User = Depends(get_current_admin), db: Session =
     if not target:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
         
+    from app.models import Comment
+    
+    # 1. Eliminar comentarios hechos por el usuario
+    db.query(Comment).filter(Comment.userId == id).delete(synchronize_session=False)
+    
+    # 2. Desasociar verificaciones de observaciones realizadas por el usuario
+    db.query(Observation).filter(Observation.verifiedById == id).update({"verifiedById": None}, synchronize_session=False)
+    
+    # 3. Eliminar observaciones del usuario junto con sus comentarios asociados
+    user_obs = db.query(Observation).filter(Observation.userId == id).all()
+    for o in user_obs:
+        db.query(Comment).filter(Comment.observationId == o.id).delete(synchronize_session=False)
+        db.delete(o)
+        
+    # 4. Eliminar membresías a comunidades
+    db.query(CommunityMember).filter(CommunityMember.userId == id).delete(synchronize_session=False)
+    
+    # 5. Reasignar la propiedad de comunidades al administrador actual para evitar dejar comunidades huérfanas
+    db.query(Community).filter(Community.ownerId == id).update({"ownerId": admin.id}, synchronize_session=False)
+    
+    # 6. Eliminar el usuario finalmente
     db.delete(target)
     db.commit()
     
-    return {"message": "Usuario eliminado exitosamente"}
+    return {"message": "Usuario y todos sus registros de prueba eliminados exitosamente"}
 
 @router.patch("/observations/{id}")
 def update_observation_status(

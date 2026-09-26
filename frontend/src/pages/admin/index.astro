@@ -197,8 +197,17 @@ const statusClass = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejec
     <!-- Usuarios Registrados -->
     <section class="panel-section card">
       <div class="section-head">
-        <h2>Usuarios Registrados</h2>
-        <span class="muted">{users.length} total</span>
+        <div>
+          <h2>Usuarios Registrados</h2>
+          <span class="muted">{users.length} total</span>
+        </div>
+        <button type="button" id="btn-open-create-user" class="btn btn-primary btn-sm">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          Nuevo Usuario
+        </button>
       </div>
       {users.length === 0 ? (
         <p class="empty-state">No hay usuarios registrados.</p>
@@ -281,6 +290,63 @@ const statusClass = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejec
         </div>
       )}
     </section>
+
+    <!-- Modal Crear Usuario -->
+    <div id="create-user-modal" class="modal-backdrop" style="display: none;">
+      <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-header">
+          <h3 id="modal-title">Registrar Nuevo Usuario</h3>
+          <button type="button" id="btn-close-modal" class="modal-close" aria-label="Cerrar modal">✕</button>
+        </div>
+        <form id="create-user-form" class="modal-form">
+          <div id="modal-alert" class="alert-box error" style="display: none;"></div>
+
+          <div class="form-group">
+            <label for="new-name" class="modal-label">Nombre completo</label>
+            <input type="text" id="new-name" class="input" placeholder="Ej. Juan Pérez" />
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="new-username" class="modal-label">Usuario <span class="required">*</span></label>
+              <input type="text" id="new-username" class="input" placeholder="juanperez" required autocomplete="off" />
+            </div>
+
+            <div class="form-group">
+              <label for="new-email" class="modal-label">Correo <span class="required">*</span></label>
+              <input type="email" id="new-email" class="input" placeholder="juan@ejemplo.com" required autocomplete="off" />
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="new-password" class="modal-label">Contraseña <span class="required">*</span></label>
+              <input type="password" id="new-password" class="input" placeholder="Mínimo 6 carácteres" required minlength="6" />
+            </div>
+
+            <div class="form-group">
+              <label for="new-role" class="modal-label">Rol inicial</label>
+              <select id="new-role" class="select">
+                <option value="COLLECTOR">Guardabosques</option>
+                <option value="COMMUNITY">Comunidad</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group-checkbox">
+            <label class="checkbox-label">
+              <input type="checkbox" id="new-is-admin" />
+              <span>Conceder rol de Administrador</span>
+            </label>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" id="btn-cancel-modal" class="btn btn-secondary">Cancelar</button>
+            <button type="submit" id="btn-submit-modal" class="btn btn-primary">Guardar Usuario</button>
+          </div>
+        </form>
+      </div>
+    </div>
 
     <div id="admin-alert" class="alert-box error" role="alert" aria-live="polite" style="display: none;"></div>
   </div>
@@ -529,6 +595,125 @@ const statusClass = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejec
     font-size: 0.85rem;
     flex-shrink: 0;
   }
+  /* Modal de Crear Usuario */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.5);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 1rem;
+  }
+
+  .modal-dialog {
+    background: #ffffff;
+    border-radius: var(--radius-lg, 16px);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 520px;
+    overflow: hidden;
+    animation: modalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes modalPop {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .modal-header h3 {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--color-primary-dark);
+  }
+
+  .modal-close {
+    background: none;
+    border: none;
+    font-size: 1.25rem;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--radius-sm);
+  }
+
+  .modal-close:hover {
+    color: var(--color-text-main);
+    background: #f1f5f9;
+  }
+
+  .modal-form {
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .form-row-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  @media (max-width: 520px) {
+    .form-row-2 {
+      grid-template-columns: 1fr;
+      gap: 0.75rem;
+    }
+  }
+
+  .modal-label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-text-main);
+    margin-bottom: 0.35rem;
+  }
+
+  .required {
+    color: var(--color-danger);
+    font-weight: 700;
+  }
+
+  .form-group-checkbox {
+    margin-top: 0.25rem;
+  }
+
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    color: var(--color-text-main);
+    cursor: pointer;
+  }
+
+  .checkbox-label input[type="checkbox"] {
+    width: 1.1rem;
+    height: 1.1rem;
+    accent-color: var(--color-success);
+    cursor: pointer;
+  }
+
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--color-border);
+  }
 </style>
 
 <script>
@@ -549,6 +734,78 @@ const statusClass = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejec
       if (!res.ok) throw new Error(body.message || body.detail || `Error (${res.status})`);
       return body;
     };
+
+    // Modal Crear Usuario
+    const modal = document.getElementById("create-user-modal");
+    const openModalBtn = document.getElementById("btn-open-create-user");
+    const closeModalBtn = document.getElementById("btn-close-modal");
+    const cancelModalBtn = document.getElementById("btn-cancel-modal");
+    const createUserForm = document.getElementById("create-user-form");
+    const modalAlert = document.getElementById("modal-alert");
+
+    const openModal = () => {
+      if (modal) {
+        modal.style.display = "flex";
+        createUserForm?.reset();
+        if (modalAlert) modalAlert.style.display = "none";
+        document.getElementById("new-username")?.focus();
+      }
+    };
+
+    const closeModal = () => {
+      if (modal) modal.style.display = "none";
+    };
+
+    openModalBtn?.addEventListener("click", openModal);
+    closeModalBtn?.addEventListener("click", closeModal);
+    cancelModalBtn?.addEventListener("click", closeModal);
+
+    modal?.addEventListener("click", (e) => {
+      if (e.target === modal) closeModal();
+    });
+
+    createUserForm?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const submitBtn = document.getElementById("btn-submit-modal");
+      try {
+        if (modalAlert) modalAlert.style.display = "none";
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = "Guardando...";
+        }
+
+        const username = document.getElementById("new-username")?.value.trim();
+        const email = document.getElementById("new-email")?.value.trim();
+        const password = document.getElementById("new-password")?.value;
+        const name = document.getElementById("new-name")?.value.trim();
+        const role = document.getElementById("new-role")?.value;
+        const isAdmin = document.getElementById("new-is-admin")?.checked;
+
+        await run("/api/admin/users", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username,
+            email,
+            password,
+            name: name || null,
+            role,
+            isAdmin
+          })
+        });
+
+        window.location.reload();
+      } catch (err) {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Guardar Usuario";
+        }
+        if (modalAlert) {
+          modalAlert.textContent = err.message;
+          modalAlert.style.display = "block";
+        }
+      }
+    });
 
     document.querySelectorAll("[data-action='delete-community']").forEach((btn) => {
       btn.addEventListener("click", async () => {
@@ -631,7 +888,7 @@ const statusClass = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejec
     document.querySelectorAll("[data-action='delete-user']").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const name = btn.dataset.name;
-        if (!confirm(`¿Eliminar al usuario "${name}"? Esta acción no se puede deshacer.`)) return;
+        if (!confirm(`¿Eliminar al usuario "${name}" y todos sus datos asociados? Esta acción no se puede deshacer.`)) return;
         try {
           hideAlert();
           btn.disabled = true;
