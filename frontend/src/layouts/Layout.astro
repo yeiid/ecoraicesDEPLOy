@@ -89,7 +89,7 @@ const user = await getSessionUser({ cookies: Astro.cookies, request: Astro.reque
           <Icon name="lucide:menu" class="w-6 h-6" />
         </button>
         <div class="mobile-brand">
-          <img src="/eco.png" alt="EcoRaíces Logo" class="mobile-brand-logo" />
+          <img src="/eco.png" alt="EcoRaíces Logo" class="mobile-brand-logo" width="34" height="34" decoding="async" />
           <span class="mobile-brand-name">ECORAÍCES</span>
         </div>
         <div class="mobile-header-spacer"></div>
@@ -102,7 +102,7 @@ const user = await getSessionUser({ cookies: Astro.cookies, request: Astro.reque
       <aside class="sidebar" id="sidebar">
         <div class="logo-container">
           <a href="/">
-            <img src="/eco.png" alt="ECORAICES" class="logo-img" />
+            <img src="/eco.png" alt="ECORAICES" class="logo-img" width="120" height="120" decoding="async" />
           </a>
         </div>
 
@@ -216,7 +216,7 @@ const user = await getSessionUser({ cookies: Astro.cookies, request: Astro.reque
         <footer class="site-footer">
           <div class="footer-inner">
             <div class="footer-brand">
-              <img src="/eco.png" alt="EcoRaíces" class="footer-logo" />
+              <img src="/eco.png" alt="EcoRaíces" class="footer-logo" width="34" height="34" loading="lazy" decoding="async" />
               <span>EcoRaíces</span>
             </div>
             <div class="footer-contact">
@@ -294,7 +294,9 @@ const user = await getSessionUser({ cookies: Astro.cookies, request: Astro.reque
   .app-layout {
     display: flex;
     min-height: 100vh;
-    width: 100vw;
+    width: 100%;
+    max-width: 100%;
+    position: relative;
   }
 
   /* Header Móvil Base */
@@ -597,14 +599,23 @@ const user = await getSessionUser({ cookies: Astro.cookies, request: Astro.reque
 
   /* Main Container */
   .main-container {
-    flex-grow: 1;
+    flex: 1 1 auto;
+    width: calc(100% - var(--sidebar-width));
+    max-width: calc(100% - var(--sidebar-width));
     margin-left: var(--sidebar-width);
-    padding: 2.5rem 3rem;
+    padding: 2.25rem 2.5rem;
     min-height: 100vh;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     transition: var(--transition-smooth);
     background-color: var(--color-main-bg);
+  }
+
+  @media (max-width: 1280px) and (min-width: 1025px) {
+    .main-container {
+      padding: 1.75rem 1.5rem;
+    }
   }
 
   /* Responsivo para móviles y tabletas */
@@ -688,7 +699,15 @@ const user = await getSessionUser({ cookies: Astro.cookies, request: Astro.reque
 
     .main-container {
       margin-left: 0;
-      padding: 5.5rem 1.5rem 2rem 1.5rem;
+      width: 100%;
+      max-width: 100%;
+      padding: 5.25rem 1.25rem 2rem 1.25rem;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .main-container {
+      padding: 4.75rem 0.85rem 1.5rem 0.85rem;
     }
   }
 
@@ -699,10 +718,11 @@ const user = await getSessionUser({ cookies: Astro.cookies, request: Astro.reque
 
   /* Footer Global */
   .site-footer {
-    margin-top: 3rem;
+    margin-top: auto;
     padding: 2rem 1rem 1.25rem;
     border-top: 1px solid var(--color-border);
     background: var(--color-sidebar-bg);
+    width: 100%;
   }
 
   .footer-inner {

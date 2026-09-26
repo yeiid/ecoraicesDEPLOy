@@ -51,12 +51,6 @@ let especies = [];
 let apiError = false;
 
 try {
-  // Obtener todas las categorías para el filtro
-  categorias = (await apiGet("/categories")) || [];
-
-  // Obtener hábitats únicos para el filtro
-  habitats = (await apiGet("/species/habitats")) || [];
-
   // Construir la query string para especies
   const queryParams = new URLSearchParams();
   if (categoria) queryParams.append("categoria", categoria);
@@ -65,7 +59,15 @@ try {
   if (ordenar) queryParams.append("ordenar", ordenar);
 
   const qs = queryParams.toString();
-  especies = (await apiGet(`/species${qs ? `?${qs}` : ''}`)) || [];
+  // Fase 2 velocidad: 3 fetches independientes en paralelo (ahorra ~2 RTT)
+  const [catRes, habRes, espRes] = await Promise.all([
+    apiGet("/categories"),
+    apiGet("/species/habitats"),
+    apiGet(`/species${qs ? `?${qs}` : ''}`),
+  ]);
+  categorias = catRes || [];
+  habitats = habRes || [];
+  especies = espRes || [];
 } catch (e) {
   console.error("Error connecting to backend API:", e);
   apiError = true;
@@ -189,7 +191,11 @@ const getStatusLabel = (status: string): string => {
                 <div class="plant-image">
                   <img src={especie.imageUrl || 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=600&q=80'} 
                         onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=600&q=80';" 
-                        alt={especie.name} />
+                        alt={especie.name}
+                        loading="lazy"
+                        decoding="async"
+                        width="600"
+                        height="410" />
                 </div>
                 <div class="plant-content">
                   <span class="plant-category">{especie.category.name}</span>

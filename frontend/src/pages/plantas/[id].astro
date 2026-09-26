@@ -12,19 +12,18 @@ let especiesRelacionadas = [];
 let apiError = false;
 
 try {
-  // Obtener la especie específica desde la API
-  especie = await apiGet(`/species/${id}`);
+  // Fase 2 velocidad: especie + relacionadas en paralelo (solo dependen de `id`)
+  const [espRes, relRes] = await Promise.allSettled([
+    apiGet(`/species/${id}`),
+    apiGet(`/species/${id}/related`),
+  ]);
+  especie = espRes.status === 'fulfilled' ? espRes.value : null;
 
   if (!especie) {
     return Astro.redirect("/plantas");
   }
 
-  // Obtener especies relacionadas
-  try {
-    especiesRelacionadas = (await apiGet(`/species/${id}/related`)) || [];
-  } catch {
-    especiesRelacionadas = [];
-  }
+  especiesRelacionadas = relRes.status === 'fulfilled' ? (relRes.value || []) : [];
 } catch (e) {
   if (e?.status === 404) {
     return Astro.redirect("/plantas");
@@ -92,6 +91,10 @@ const mainImageUrl = mainPhoto?.url || especie.imageUrl || IMAGE_FALLBACK;
             class="main-image"
             id="gallery-main"
             data-original={mainImageUrl}
+            fetchpriority="high"
+            decoding="async"
+            width="800"
+            height="600"
           />
           {mainPhoto?.attribution && (
             <p class="photo-credit">
@@ -110,7 +113,7 @@ const mainImageUrl = mainPhoto?.url || especie.imageUrl || IMAGE_FALLBACK;
                 data-credit={foto.attribution ? `Foto: ${foto.attribution} · ${licenseLabel(foto.license)}` : ''}
                 aria-label={`Ver foto de ${especie.name}`}
               >
-                <img src={foto.thumbnailUrl || foto.url} alt="" loading="lazy" />
+                <img src={foto.thumbnailUrl || foto.url} alt="" loading="lazy" decoding="async" width="160" height="120" />
               </button>
             ))}
           </div>

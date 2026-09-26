@@ -12,19 +12,22 @@ if (!user) {
   return Astro.redirect(`/auth/login?redirect=${Astro.url.pathname}`);
 }
 
-// Obtener las categorías y especies para el formulario
+// Obtener las categorías y especies para el formulario (en paralelo)
 let categories = [];
 let species = [];
-try {
-  categories = await apiGet('/categories') || [];
-} catch (e) {
-  console.error('Error fetching categories:', e);
-}
-
-try {
-  species = await apiGet('/species') || [];
-} catch (e) {
-  console.error('Error fetching species:', e);
+{
+  const [catsRes, speciesRes] = await Promise.all([
+    apiGet('/categories').catch((e) => {
+      console.error('Error fetching categories:', e);
+      return [];
+    }),
+    apiGet('/species').catch((e) => {
+      console.error('Error fetching species:', e);
+      return [];
+    }),
+  ]);
+  categories = catsRes || [];
+  species = speciesRes || [];
 }
 
 // Título de la página
