@@ -3,54 +3,87 @@
  * Esto atrapa todas las llamadas al cliente a /api/* que no tengan 
  * un archivo físico correspondiente en src/pages/api/
  */
+// Cache for the working backend URL to avoid probing on every request
+let cachedWorkingBackendUrl = null;
+
+function getCandidateBackendUrls() {
+  const list = [];
+  if (typeof process !== 'undefined' && process.env.BACKEND_URL) {
+    list.push(process.env.BACKEND_URL);
+  }
+  list.push('http://backend:8000');
+  list.push('http://host.docker.internal:48000');
+  list.push('http://172.17.0.1:48000');
+  list.push('http://187.124.64.184:48000');
+  list.push('http://localhost:48000');
+  list.push('http://127.0.0.1:48000');
+  return [...new Set(list)];
+}
+
 export async function ALL({ request, params }) {
   const path = params.path;
-  
-  // URL base del backend en Docker
-  const backendUrl = process.env.BACKEND_URL || "http://backend:8000";
-  
-  // Extraer query params de la petición original
   const url = new URL(request.url);
-  const targetUrl = `${backendUrl}/api/${path}${url.search}`;
+  const search = url.search;
 
-  console.log(`[Proxy] ${request.method} ${targetUrl}`);
-
-  // Clonar headers evitando algunos problemáticos para proxy
+  // Clone headers avoiding problematic proxy headers
   const headers = new Headers(request.headers);
   headers.delete("host");
 
-  try {
-    const response = await fetch(targetUrl, {
-      method: request.method,
-      headers: headers,
-      body: request.method !== 'GET' && request.method !== 'HEAD' ? await request.arrayBuffer() : undefined,
-      redirect: 'follow'
-    });
+  const bodyBuffer = request.method !== 'GET' && request.method !== 'HEAD' 
+    ? await request.arrayBuffer() 
+    : undefined;
 
-    console.log(`[Proxy] Response: ${response.status} from ${targetUrl}`);
+  const candidates = cachedWorkingBackendUrl
+    ? [cachedWorkingBackendUrl, ...getCandidateBackendUrls().filter(u => u !== cachedWorkingBackendUrl)]
+    : getCandidateBackendUrls();
 
-    const responseHeaders = new Headers(response.headers);
-    // Eliminar headers problemáticos de proxy
-    responseHeaders.delete('content-encoding');
-    responseHeaders.delete('content-length');
-    responseHeaders.delete('transfer-encoding');
-    
-    // Leer el buffer completo para evitar problemas con body stream
-    const buffer = await response.arrayBuffer();
-    
-    return new Response(buffer, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: responseHeaders,
-    });
-  } catch (error) {
-    console.error(`[Proxy] FAILED ${request.method} ${targetUrl}:`, error.message, error.cause || '');
-    return new Response(JSON.stringify({ 
-      error: "Backend proxy error", 
-      detail: `No se pudo conectar al backend en ${targetUrl}` 
-    }), {
-      status: 502,
-      headers: { "Content-Type": "application/json" }
-    });
+  let lastError = null;
+  let lastTargetUrl = '';
+
+  for (const baseUrl of candidates) {
+    const targetUrl = `${baseUrl}/api/${path}${search}`;
+    lastTargetUrl = targetUrl;
+
+    try {
+      console.log(`[Proxy] ${request.method} ${targetUrl}`);
+
+      const response = await fetch(targetUrl, {
+        method: request.method,
+        headers: headers,
+        body: bodyBuffer,
+        redirect: 'follow'
+      });
+
+      console.log(`[Proxy] Response: ${response.status} from ${targetUrl}`);
+      cachedWorkingBackendUrl = baseUrl;
+
+      const responseHeaders = new Headers(response.headers);
+      responseHeaders.delete('content-encoding');
+      responseHeaders.delete('content-length');
+      responseHeaders.delete('transfer-encoding');
+
+      const buffer = await response.arrayBuffer();
+
+      return new Response(buffer, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: responseHeaders,
+      });
+    } catch (error) {
+      console.warn(`[Proxy] Failed ${request.method} ${targetUrl}: ${error.message}. Trying next candidate...`);
+      lastError = error;
+      if (cachedWorkingBackendUrl === baseUrl) {
+        cachedWorkingBackendUrl = null;
+      }
+    }
   }
+
+  console.error(`[Proxy] ALL CANDIDATES FAILED for ${request.method} /api/${path}:`, lastError?.message);
+  return new Response(JSON.stringify({
+    error: "Backend proxy error",
+    detail: `No se pudo conectar al backend en ninguna dirección candidata (última intentada: ${lastTargetUrl})`
+  }), {
+    status: 502,
+    headers: { "Content-Type": "application/json" }
+  });
 }

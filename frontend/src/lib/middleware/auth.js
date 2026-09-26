@@ -14,6 +14,8 @@ export function getToken(context) {
   );
 }
 
+import { apiGet } from '../api/client.js';
+
 export async function authenticateToken(context) {
   const token = getToken(context);
 
@@ -22,25 +24,19 @@ export async function authenticateToken(context) {
   }
 
   try {
-    const backendUrl = process.env.BACKEND_URL || "http://backend:8000";
-    const res = await fetch(`${backendUrl}/api/auth/session`, {
+    const data = await apiGet('/auth/session', {
       headers: {
         'Cookie': `${TOKEN_NAME}=${token}`
       }
     });
 
-    if (!res.ok) {
-      return { user: null, error: 'User not found or invalid token' };
-    }
-
-    const data = await res.json();
-    if (!data.user) {
+    if (!data || !data.user) {
       return { user: null, error: 'User not found' };
     }
 
     return { user: data.user, error: null };
   } catch (error) {
-    console.error('Token verification error:', error);
+    console.error('Token verification error:', error.message || error);
     return { user: null, error: 'Invalid token' };
   }
 }

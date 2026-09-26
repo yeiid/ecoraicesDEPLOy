@@ -43,9 +43,7 @@ const params: FilterParams = {
 const { categoria, habitat, estado: estadoConservacion, ordenar } = params;
 
 
-// URL base del backend interno (Docker o entorno)
-const BACKEND_URL = process.env.BACKEND_URL || "http://backend:8000";
-const API_URL = `${BACKEND_URL}/api`;
+import { apiGet } from "../../lib/api/client.js";
 
 let categorias = [];
 let habitats = [];
@@ -54,12 +52,10 @@ let apiError = false;
 
 try {
   // Obtener todas las categorías para el filtro
-  const categoriasRes = await fetch(`${API_URL}/categories`);
-  categorias = categoriasRes.ok ? await categoriasRes.json() : [];
+  categorias = (await apiGet("/categories")) || [];
 
   // Obtener hábitats únicos para el filtro
-  const habitatsRes = await fetch(`${API_URL}/species/habitats`);
-  habitats = habitatsRes.ok ? await habitatsRes.json() : [];
+  habitats = (await apiGet("/species/habitats")) || [];
 
   // Construir la query string para especies
   const queryParams = new URLSearchParams();
@@ -68,9 +64,8 @@ try {
   if (estadoConservacion) queryParams.append("estado", estadoConservacion);
   if (ordenar) queryParams.append("ordenar", ordenar);
 
-  // Obtener especies según los filtros
-  const especiesRes = await fetch(`${API_URL}/species?${queryParams.toString()}`);
-  especies = especiesRes.ok ? await especiesRes.json() : [];
+  const qs = queryParams.toString();
+  especies = (await apiGet(`/species${qs ? `?${qs}` : ''}`)) || [];
 } catch (e) {
   console.error("Error connecting to backend API:", e);
   apiError = true;

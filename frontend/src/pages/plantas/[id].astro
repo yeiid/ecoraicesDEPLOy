@@ -5,9 +5,7 @@ import Layout from "../../layouts/Layout.astro";
 const { id } = Astro.params;
 
 
-// URL base del backend interno (Docker o entorno)
-const BACKEND_URL = process.env.BACKEND_URL || "http://backend:8000";
-const API_URL = `${BACKEND_URL}/api`;
+import { apiGet } from "../../lib/api/client.js";
 
 let especie = null;
 let especiesRelacionadas = [];
@@ -15,19 +13,22 @@ let apiError = false;
 
 try {
   // Obtener la especie específica desde la API
-  const especieRes = await fetch(`${API_URL}/species/${id}`);
+  especie = await apiGet(`/species/${id}`);
 
-  // Si la especie no existe, redirigir al catálogo
-  if (!especieRes.ok) {
+  if (!especie) {
     return Astro.redirect("/plantas");
   }
 
-  especie = await especieRes.json();
-
   // Obtener especies relacionadas
-  const especiesRelacionadasRes = await fetch(`${API_URL}/species/${id}/related`);
-  especiesRelacionadas = especiesRelacionadasRes.ok ? await especiesRelacionadasRes.json() : [];
+  try {
+    especiesRelacionadas = (await apiGet(`/species/${id}/related`)) || [];
+  } catch {
+    especiesRelacionadas = [];
+  }
 } catch (e) {
+  if (e?.status === 404) {
+    return Astro.redirect("/plantas");
+  }
   console.error("Error connecting to backend API:", e);
   apiError = true;
 }
