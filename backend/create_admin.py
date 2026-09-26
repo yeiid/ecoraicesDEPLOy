@@ -22,7 +22,7 @@ def create_or_update_admin(email: str, password: str, username: str = None, name
         if user:
             print(f"[*] Usuario existente encontrado: {user.email} (ID: {user.id})")
             user.isAdmin = True
-            user.role = "ADMIN"
+            user.role = "COMMUNITY"
             if password:
                 user.passwordHash = get_password_hash(password)
                 print(f"[+] Contraseña actualizada exitosamente.")
@@ -32,7 +32,7 @@ def create_or_update_admin(email: str, password: str, username: str = None, name
                 user.username = username
             db.commit()
             db.refresh(user)
-            print(f"✅ Usuario {user.email} actualizado como Administrador (isAdmin=True, role=ADMIN).")
+            print(f"✅ Usuario {user.email} actualizado como Administrador (isAdmin=True).")
         else:
             if not username:
                 username = email.split("@")[0]
@@ -51,7 +51,7 @@ def create_or_update_admin(email: str, password: str, username: str = None, name
                 email=email,
                 passwordHash=get_password_hash(password),
                 name=name,
-                role="ADMIN",
+                role="COMMUNITY",
                 isAdmin=True,
                 provider="local"
             )

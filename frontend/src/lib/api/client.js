@@ -87,31 +87,34 @@ export async function api(path, options = {}) {
   throw lastError || new Error(`No backend host could be reached for path ${path}`);
 }
 
-export function apiGet(path) {
-  return api(path, { method: 'GET' });
+export function apiGet(path, options = {}) {
+  return api(path, { ...options, method: 'GET' });
 }
 
-export function apiPost(path, body) {
+export function apiPost(path, body, options = {}) {
   return api(path, {
+    ...options,
     method: 'POST',
     body: body instanceof FormData ? body : JSON.stringify(body),
   });
 }
 
-export function apiPatch(path, body) {
+export function apiPatch(path, body, options = {}) {
   return api(path, {
+    ...options,
     method: 'PATCH',
     body: JSON.stringify(body),
   });
 }
 
-export function apiPut(path, body) {
+export function apiPut(path, body, options = {}) {
   return api(path, {
+    ...options,
     method: 'PUT',
     body: JSON.stringify(body),
   });
 }
 
-export function apiDelete(path) {
-  return api(path, { method: 'DELETE' });
+export function apiDelete(path, options = {}) {
+  return api(path, { ...options, method: 'DELETE' });
 }

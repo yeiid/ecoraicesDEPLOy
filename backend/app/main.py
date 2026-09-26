@@ -64,9 +64,9 @@ def bootstrap_admin_user():
         try:
             user = db.query(User).filter(User.email == admin_email).first()
             if user:
-                if not user.isAdmin or user.role != "ADMIN":
+                if not user.isAdmin:
                     user.isAdmin = True
-                    user.role = "ADMIN"
+                    user.role = "COMMUNITY"
                     db.commit()
                     logger.info(f"👑 Usuario {admin_email} promovido a Administrador exitosamente")
                 else:
@@ -83,7 +83,7 @@ def bootstrap_admin_user():
                     email=admin_email,
                     passwordHash=get_password_hash(admin_password),
                     name="Administrador EcoRaíces",
-                    role="ADMIN",
+                    role="COMMUNITY",
                     isAdmin=True,
                     provider="local"
                 )
