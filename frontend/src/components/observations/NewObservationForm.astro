@@ -3,388 +3,1036 @@
 const { categories = [], speciesList = [], userId } = Astro.props;
 ---
 
-<div class="registration-wrapper">
-  <div class="form-card-column">
-    <h1 class="form-title">Registro de Especies</h1>
+<div class="observation-form-container">
+  <div id="alert-success" class="alert-box success" role="alert" style="display: none;"></div>
+  <div id="alert-error" class="alert-box error" role="alert" style="display: none;"></div>
 
-    <div id="alert-success" class="alert-box success" style="display: none;"></div>
-    <div id="alert-error" class="alert-box error" style="display: none;"></div>
+  <form id="observation-form" class="modern-form" novalidate>
+    <!-- Datos ocultos para estado -->
+    <input type="hidden" id="userId" name="userId" value={userId} />
+    <input type="hidden" id="speciesId" name="speciesId" />
+    <input type="hidden" id="latitude" name="latitude" />
+    <input type="hidden" id="longitude" name="longitude" />
+    <input type="hidden" id="newSpeciesName" name="newSpeciesName" />
+    <input type="hidden" id="newSpeciesScientificName" name="newSpeciesScientificName" />
 
-    <form id="observation-form" class="premium-form">
-      <!-- Datos ocultos para estado -->
-      <input type="hidden" id="userId" name="userId" value={userId} />
-      <input type="hidden" id="speciesId" name="speciesId" />
-      <input type="hidden" id="latitude" name="latitude" />
-      <input type="hidden" id="longitude" name="longitude" />
-      <input type="hidden" id="newSpeciesName" name="newSpeciesName" />
-      <input type="hidden" id="newSpeciesScientificName" name="newSpeciesScientificName" />
+    <!-- ========================================== -->
+    <!-- BLOQUE 1: DATOS DEL ÁRBOL (FORMULARIO PRIMERO) -->
+    <!-- ========================================== -->
+    <section class="form-section">
+      <div class="section-title-wrap">
+        <div class="step-badge">1</div>
+        <div>
+          <h2 class="section-title">Datos del Ejemplar</h2>
+          <p class="section-desc">Identifica la especie o ingresa un nuevo ejemplar nativo.</p>
+        </div>
+      </div>
 
-      <!-- Map Component / Location Picker -->
-      <div class="location-picker-wrapper form-field-card">
-        <label>Ubicación del Árbol</label>
-        <p class="text-sm text-muted mb-2">Haz clic en el mapa para registrar las coordenadas.</p>
-        <div id="map-container" style="height: 300px; width: 100%; border-radius: 8px; overflow: hidden; border: 1px solid var(--color-border); position: relative;">
-          <!-- Maplibre se inyectará aquí -->
-          <div id="location-display" style="display:none; position:absolute; bottom:10px; left:10px; background:rgba(0,0,0,0.7); color:white; padding:4px 8px; border-radius:4px; font-size:12px; z-index:10;">
-            Seleccionando...
+      <!-- Buscador de Especies con Autocomplete -->
+      <div class="form-group species-group">
+        <label for="speciesSearch" class="form-label">
+          Nombre de la Especie <span class="required">*</span>
+        </label>
+        
+        <div class="search-input-wrapper">
+          <span class="input-icon">🌿</span>
+          <input 
+            type="text" 
+            id="speciesSearch" 
+            class="input search-input" 
+            placeholder="Escribe el nombre común o científico (ej. Guayacán, Ceiba...)"
+            autocomplete="off"
+            required
+          />
+          <button type="button" id="clear-species-btn" class="clear-btn" style="display: none;" title="Limpiar búsqueda">✕</button>
+        </div>
+
+        <ul id="species-suggestions" class="species-dropdown" style="display: none;"></ul>
+
+        <!-- Tarjeta de especie seleccionada -->
+        <div id="selected-species-card" class="selected-badge-card" style="display: none;">
+          <div class="selected-icon">🌱</div>
+          <div class="selected-details">
+            <span class="selected-tag">Especie seleccionada</span>
+            <div id="selected-species-name" class="selected-name"></div>
+            <div id="selected-species-scientific" class="selected-scientific"></div>
+          </div>
+          <button type="button" id="change-species-btn" class="btn-change-species">Cambiar</button>
+        </div>
+      </div>
+
+      <!-- Grid de Municipio y Estado de Conservación -->
+      <div class="form-row-grid">
+        <div class="form-group">
+          <label for="municipio" class="form-label">
+            Municipio o Territorio <span class="required">*</span>
+          </label>
+          <div class="input-with-icon">
+            <span class="input-icon">📍</span>
+            <input 
+              type="text"
+              id="municipio"
+              name="municipio"
+              class="input pl-icon"
+              placeholder="Ej. Riohacha, Manaure, Dibulla"
+              required
+            />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="estadoConservacion" class="form-label">
+            Estado de Conservación
+          </label>
+          <div class="input-with-icon">
+            <span class="input-icon">🛡️</span>
+            <select 
+              id="estadoConservacion"
+              name="estadoConservacion"
+              class="select pl-icon"
+            >
+              <option value="">Seleccione estado (opcional)</option>
+              <option value="Preocupación menor (LC)">Preocupación menor (LC)</option>
+              <option value="Casi amenazado (NT)">Casi amenazado (NT)</option>
+              <option value="Vulnerable (VU)">Vulnerable (VU)</option>
+              <option value="En peligro (EN)">En peligro (EN)</option>
+              <option value="En peligro crítico (CR)">En peligro crítico (CR)</option>
+              <option value="Datos insuficientes (DD)">Datos insuficientes (DD)</option>
+            </select>
           </div>
         </div>
       </div>
 
-      <!-- Species Autocomplete -->
-      <div class="form-field-card">
-        <label for="speciesSearch">Nombre de la Especie</label>
-        <div class="species-autocomplete" style="position: relative;">
-          <input 
-            type="text" 
-            id="speciesSearch" 
-            class="input-text" 
-            placeholder="Buscar especie..."
-            autocomplete="off"
-          />
-          <ul id="species-suggestions" class="suggestions-list" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid var(--color-border); z-index: 50; max-height: 200px; overflow-y: auto;">
-          </ul>
-        </div>
-        <div id="selected-species-info" style="display: none; margin-top: 0.5rem; padding: 0.5rem; background: var(--color-bg-light); border-radius: 4px;">
-          <strong id="selected-species-name"></strong>
-          <div id="selected-species-scientific" class="text-muted text-sm"></div>
-        </div>
-      </div>
-
-      <div class="form-field-card">
-        <label for="municipio">Municipio</label>
-        <input 
-          type="text"
-          id="municipio"
-          name="municipio"
-          class="input-text"
-          placeholder="Ej. Riohacha"
-        />
-      </div>
-
-      <div class="form-field-card">
-        <label for="estadoConservacion">Estado de Conservación</label>
-        <select 
-          id="estadoConservacion"
-          name="estadoConservacion"
-          class="input-select"
-        >
-          <option value="">Seleccione un estado</option>
-          <option value="Preocupación menor (LC)">Preocupación menor (LC)</option>
-          <option value="Casi amenazado (NT)">Casi amenazado (NT)</option>
-          <option value="Vulnerable (VU)">Vulnerable (VU)</option>
-          <option value="En peligro (EN)">En peligro (EN)</option>
-          <option value="En peligro crítico (CR)">En peligro crítico (CR)</option>
-        </select>
-      </div>
-
-      <div class="form-field-card">
-        <label for="notes">Descripción</label>
+      <!-- Descripción / Notas de campo -->
+      <div class="form-group">
+        <label for="notes" class="form-label">Notas y Observaciones de Campo</label>
         <textarea 
           id="notes"
           name="notes"
-          class="input-textarea"
-          rows="4"
-          placeholder="Describa brevemente la especie y su entorno..."
+          class="textarea"
+          rows="3"
+          placeholder="Describe el estado de la planta, altura aproximada, corteza, si tiene flores o frutos, o detalles del entorno..."
         ></textarea>
       </div>
 
-      <div class="form-field-card">
-        <label for="image">Fotografía del Árbol (Opcional)</label>
-        <input 
-          type="file"
-          id="image"
-          name="image"
-          accept="image/*"
-          class="input-file"
-        />
-        <div id="image-preview" style="display: none; margin-top: 1rem;">
-          <img id="preview-img" src="" alt="Vista previa" style="max-width: 100%; max-height: 200px; border-radius: 8px;" />
+      <!-- Carga de Fotografía con Drag & Drop / Preview -->
+      <div class="form-group">
+        <label class="form-label">Fotografía del Árbol (Recomendado)</label>
+        
+        <div class="upload-dropzone" id="dropzone">
+          <input 
+            type="file"
+            id="image"
+            name="image"
+            accept="image/*"
+            class="file-input-hidden"
+          />
+          <div class="dropzone-content" id="dropzone-content">
+            <div class="upload-icon-circle">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
+                <circle cx="9" cy="9" r="2"/>
+                <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
+              </svg>
+            </div>
+            <div class="dropzone-text">
+              <span class="dropzone-highlight">Haz clic para subir una foto</span> o arrastra el archivo aquí
+            </div>
+            <span class="dropzone-sub">Formatos soportados: JPG, PNG, WebP (máx. 10 MB)</span>
+          </div>
+
+          <div id="image-preview" class="image-preview-box" style="display: none;">
+            <img id="preview-img" src="" alt="Vista previa del árbol" class="preview-img-el" />
+            <div class="preview-overlay">
+              <span id="preview-filename" class="preview-filename"></span>
+              <button type="button" id="remove-image-btn" class="btn-remove-image">
+                ✕ Quitar foto
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- BLOQUE 2: UBICACIÓN EN EL MAPA (ABAJO)     -->
+    <!-- ========================================== -->
+    <section class="form-section map-section">
+      <div class="section-title-wrap">
+        <div class="step-badge">2</div>
+        <div class="map-title-flex">
+          <div>
+            <h2 class="section-title">Ubicación en el Mapa</h2>
+            <p class="section-desc">Haz clic en el mapa para marcar el punto exacto de la observación.</p>
+          </div>
         </div>
       </div>
 
-      <div class="form-actions-row" style="margin-top: 1.5rem;">
-        <button 
-          type="submit" 
-          id="submit-btn"
-          class="btn btn-primary"
-        >
-          Registrar Árbol
+      <div class="map-toolbar">
+        <button type="button" id="btn-geolocate" class="btn btn-outline btn-sm btn-geo">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+          </svg>
+          Usar mi ubicación GPS actual
         </button>
-      </div>
-    </form>
-  </div>
-</div>
 
-<style>
-  .form-field-card {
-    background: white;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    padding: 1.25rem;
-    margin-bottom: 1rem;
-    box-shadow: var(--shadow-sm);
-  }
-  .form-field-card label {
-    display: block;
-    font-weight: 600;
-    margin-bottom: 0.5rem;
-    color: var(--color-primary-dark);
-  }
-  .suggestions-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    border-radius: 4px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-  }
-  .suggestions-list li {
-    padding: 0.5rem 1rem;
-    cursor: pointer;
-    border-bottom: 1px solid var(--color-border);
-  }
-  .suggestions-list li:hover {
-    background: var(--color-bg-light);
-  }
-</style>
+        <div id="coords-status" class="coords-chip empty">
+          <span class="coords-dot"></span>
+          <span id="coords-text">Ningún punto fijado en el mapa</span>
+        </div>
+      </div>
+
+      <div class="map-frame">
+        <div id="map-container" class="interactive-map"></div>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- BOTONES DE ACCIÓN                          -->
+    <!-- ========================================== -->
+    <div class="form-actions-bar">
+      <a href="/observaciones" class="btn btn-secondary btn-cancel">
+        Cancelar
+      </a>
+      <button 
+        type="submit" 
+        id="submit-btn"
+        class="btn btn-primary btn-submit"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        Registrar Árbol
+      </button>
+    </div>
+  </form>
+</div>
 
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" />
 
+<style>
+  .observation-form-container {
+    width: 100%;
+  }
+
+  .modern-form {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+  }
+
+  /* Secciones del formulario */
+  .form-section {
+    background: #ffffff;
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: var(--radius-lg, 16px);
+    padding: 1.75rem;
+    box-shadow: 0 2px 8px -2px rgba(15, 23, 42, 0.05);
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .section-title-wrap {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--color-border, #f1f5f9);
+  }
+
+  .step-badge {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--color-primary, #1b5e20);
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .section-title {
+    font-family: var(--font-heading, sans-serif);
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--color-primary-dark, #14532d);
+    margin: 0;
+    line-height: 1.3;
+  }
+
+  .section-desc {
+    font-size: 0.88rem;
+    color: var(--color-text-muted, #64748b);
+    margin: 0.25rem 0 0 0;
+  }
+
+  /* Grupos y labels */
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+
+  .form-label {
+    font-weight: 600;
+    font-size: 0.92rem;
+    color: var(--color-text-main, #1e293b);
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .required {
+    color: var(--color-danger, #ef4444);
+    font-weight: 700;
+  }
+
+  /* Grid 2 columnas */
+  .form-row-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+  }
+
+  /* Inputs con iconos */
+  .input-with-icon,
+  .search-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .input-icon {
+    position: absolute;
+    left: 0.9rem;
+    pointer-events: none;
+    font-size: 1rem;
+    z-index: 2;
+  }
+
+  .pl-icon {
+    padding-left: 2.75rem !important;
+  }
+
+  .search-input {
+    padding-left: 2.75rem !important;
+    padding-right: 2.5rem !important;
+  }
+
+  .clear-btn {
+    position: absolute;
+    right: 0.75rem;
+    background: none;
+    border: none;
+    color: var(--color-gray-400);
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0.25rem;
+    border-radius: 50%;
+  }
+
+  .clear-btn:hover {
+    color: var(--color-text-main);
+  }
+
+  /* Dropdown de Autocomplete */
+  .species-group {
+    position: relative;
+  }
+
+  .species-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: #ffffff;
+    border: 1px solid var(--color-border, #cbd5e1);
+    border-radius: var(--radius-md, 12px);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
+    list-style: none;
+    margin: 0.4rem 0 0 0;
+    padding: 0.4rem;
+    max-height: 240px;
+    overflow-y: auto;
+    z-index: 100;
+  }
+
+  .species-item {
+    padding: 0.65rem 0.9rem;
+    border-radius: var(--radius-sm, 8px);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    transition: background-color 0.15s ease;
+  }
+
+  .species-item:hover,
+  .species-item.active {
+    background-color: var(--color-accent, #e8f5e9);
+  }
+
+  .species-item-name {
+    font-weight: 600;
+    color: var(--color-primary-dark, #14532d);
+    font-size: 0.95rem;
+  }
+
+  .species-item-scientific {
+    font-style: italic;
+    font-size: 0.82rem;
+    color: var(--color-text-muted, #64748b);
+  }
+
+  .species-item-new {
+    background-color: #ecfdf5;
+    border: 1px dashed var(--color-success, #10b981);
+    color: var(--color-success-dark, #059669);
+    font-weight: 600;
+  }
+
+  /* Tarjeta de confirmación de especie */
+  .selected-badge-card {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    background: var(--color-success-bg, #ecfdf5);
+    border: 1px solid #a7f3d0;
+    border-radius: var(--radius-md, 12px);
+    padding: 0.75rem 1rem;
+    margin-top: 0.6rem;
+  }
+
+  .selected-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+  }
+
+  .selected-details {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .selected-tag {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+    color: var(--color-success-dark, #059669);
+  }
+
+  .selected-name {
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: var(--color-primary-dark, #14532d);
+  }
+
+  .selected-scientific {
+    font-style: italic;
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+  }
+
+  .btn-change-species {
+    background: none;
+    border: 1px solid var(--color-success);
+    color: var(--color-success-dark);
+    font-weight: 600;
+    font-size: 0.82rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: var(--radius-pill, 999px);
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+
+  .btn-change-species:hover {
+    background: #d1fae5;
+  }
+
+  /* Dropzone de imagen */
+  .upload-dropzone {
+    border: 2px dashed #cbd5e1;
+    border-radius: var(--radius-md, 12px);
+    background: var(--color-gray-50, #f8fafc);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .upload-dropzone:hover,
+  .upload-dropzone.dragover {
+    border-color: var(--color-success, #10b981);
+    background: var(--color-success-bg, #ecfdf5);
+  }
+
+  .file-input-hidden {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    opacity: 0;
+    cursor: pointer;
+    z-index: 5;
+  }
+
+  .dropzone-content {
+    padding: 2rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.5rem;
+  }
+
+  .upload-icon-circle {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-primary, #1b5e20);
+    margin-bottom: 0.25rem;
+  }
+
+  .dropzone-text {
+    font-size: 0.95rem;
+    color: var(--color-text-main, #334155);
+  }
+
+  .dropzone-highlight {
+    font-weight: 600;
+    color: var(--color-primary, #1b5e20);
+    text-decoration: underline;
+  }
+
+  .dropzone-sub {
+    font-size: 0.8rem;
+    color: var(--color-text-muted, #94a3b8);
+  }
+
+  .image-preview-box {
+    position: relative;
+    width: 100%;
+    max-height: 280px;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .preview-img-el {
+    max-width: 100%;
+    max-height: 280px;
+    object-fit: contain;
+    display: block;
+  }
+
+  .preview-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.75));
+    padding: 0.75rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 10;
+  }
+
+  .preview-filename {
+    color: #ffffff;
+    font-size: 0.82rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 60%;
+  }
+
+  .btn-remove-image {
+    background: rgba(239, 68, 68, 0.9);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 0.35rem 0.7rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+    z-index: 15;
+  }
+
+  .btn-remove-image:hover {
+    background: #dc2626;
+  }
+
+  /* Sección del Mapa (Abajo) */
+  .map-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.75rem;
+  }
+
+  .btn-geo {
+    font-size: 0.88rem;
+    padding: 0.45rem 0.9rem;
+  }
+
+  .coords-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.85rem;
+    border-radius: var(--radius-pill, 999px);
+    font-family: monospace;
+    font-size: 0.84rem;
+    font-weight: 600;
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+  }
+
+  .coords-chip.selected {
+    background: #ecfdf5;
+    color: #065f46;
+    border-color: #a7f3d0;
+  }
+
+  .coords-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #94a3b8;
+  }
+
+  .coords-chip.selected .coords-dot {
+    background: #10b981;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25);
+  }
+
+  .map-frame {
+    width: 100%;
+    height: 380px;
+    border-radius: var(--radius-md, 12px);
+    overflow: hidden;
+    border: 1.5px solid var(--color-border, #cbd5e1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  }
+
+  .interactive-map {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Barra de acciones */
+  .form-actions-bar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 1rem;
+    padding: 1.25rem 0 0 0;
+  }
+
+  .btn-submit {
+    min-width: 200px;
+  }
+
+  .btn-cancel {
+    padding: 0.8rem 1.6rem;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .form-row-grid {
+      grid-template-columns: 1fr;
+    }
+    .form-section {
+      padding: 1.25rem;
+    }
+    .map-toolbar {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .form-actions-bar {
+      flex-direction: column-reverse;
+      gap: 0.75rem;
+    }
+    .btn-submit,
+    .btn-cancel {
+      width: 100%;
+    }
+    .map-frame {
+      height: 300px;
+    }
+  }
+</style>
+
 <script define:vars={{ speciesList, categories }}>
-  // Scripts de inicialización
-  const form = document.getElementById('observation-form');
-  const alertSuccess = document.getElementById('alert-success');
-  const alertError = document.getElementById('alert-error');
-  const submitBtn = document.getElementById('submit-btn');
+  document.addEventListener("DOMContentLoaded", () => {
+    initNewObservationForm();
+  });
+  document.addEventListener("astro:page-load", () => {
+    initNewObservationForm();
+  });
 
-  // Funciones de alerta
-  const showSuccess = (msg) => { alertSuccess.textContent = msg; alertSuccess.style.display = 'block'; alertError.style.display = 'none'; };
-  const showError = (msg) => { alertError.textContent = msg; alertError.style.display = 'block'; alertSuccess.style.display = 'none'; };
-  const hideAlerts = () => { alertSuccess.style.display = 'none'; alertError.style.display = 'none'; };
+  function initNewObservationForm() {
+    const form = document.getElementById('observation-form');
+    if (!form || form.dataset.initialized) return;
+    form.dataset.initialized = "true";
 
-  // 1. Imagen preview
-  const imageInput = document.getElementById('image');
-  const imagePreview = document.getElementById('image-preview');
-  const previewImg = document.getElementById('preview-img');
-  
-  imageInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        previewImg.src = e.target.result;
-        imagePreview.style.display = 'block';
-      };
-      reader.readAsDataURL(file);
-    } else {
+    const alertSuccess = document.getElementById('alert-success');
+    const alertError = document.getElementById('alert-error');
+    const submitBtn = document.getElementById('submit-btn');
+
+    const showSuccess = (msg) => {
+      alertSuccess.textContent = msg;
+      alertSuccess.style.display = 'block';
+      alertError.style.display = 'none';
+      alertSuccess.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    };
+    const showError = (msg) => {
+      alertError.textContent = msg;
+      alertError.style.display = 'block';
+      alertSuccess.style.display = 'none';
+      alertError.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    };
+    const hideAlerts = () => {
+      alertSuccess.style.display = 'none';
+      alertError.style.display = 'none';
+    };
+
+    // 1. Imagen Dropzone y Preview
+    const imageInput = document.getElementById('image');
+    const dropzone = document.getElementById('dropzone');
+    const dropzoneContent = document.getElementById('dropzone-content');
+    const imagePreview = document.getElementById('image-preview');
+    const previewImg = document.getElementById('preview-img');
+    const previewFilename = document.getElementById('preview-filename');
+    const removeImageBtn = document.getElementById('remove-image-btn');
+
+    const handleFile = (file) => {
+      if (file && file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          previewImg.src = e.target.result;
+          previewFilename.textContent = file.name;
+          imagePreview.style.display = 'flex';
+          dropzoneContent.style.display = 'none';
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+
+    imageInput?.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (file) handleFile(file);
+    });
+
+    removeImageBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      imageInput.value = '';
+      previewImg.src = '';
+      previewFilename.textContent = '';
       imagePreview.style.display = 'none';
-    }
-  });
+      dropzoneContent.style.display = 'flex';
+    });
 
-  // 2. Autocomplete de especies
-  const searchInput = document.getElementById('speciesSearch');
-  const suggestionsList = document.getElementById('species-suggestions');
-  const speciesIdInput = document.getElementById('speciesId');
-  const newSpeciesNameInput = document.getElementById('newSpeciesName');
-  const newSpeciesScientificNameInput = document.getElementById('newSpeciesScientificName');
-  const selectedInfo = document.getElementById('selected-species-info');
-  const selectedName = document.getElementById('selected-species-name');
-  const selectedScientific = document.getElementById('selected-species-scientific');
+    // 2. Buscador y Autocomplete de Especies
+    const searchInput = document.getElementById('speciesSearch');
+    const suggestionsList = document.getElementById('species-suggestions');
+    const speciesIdInput = document.getElementById('speciesId');
+    const newSpeciesNameInput = document.getElementById('newSpeciesName');
+    const newSpeciesScientificNameInput = document.getElementById('newSpeciesScientificName');
+    const clearBtn = document.getElementById('clear-species-btn');
 
-  // Chequear parámetro URL (si venimos de una especie preseleccionada)
-  const urlParams = new URLSearchParams(window.location.search);
-  const querySpeciesId = urlParams.get("especieId");
-  if (querySpeciesId) {
-    const match = speciesList.find(s => s.id === querySpeciesId);
-    if (match) {
-      selectSpecies(match);
-    }
-  }
+    const selectedBadgeCard = document.getElementById('selected-species-card');
+    const selectedName = document.getElementById('selected-species-name');
+    const selectedScientific = document.getElementById('selected-species-scientific');
+    const changeSpeciesBtn = document.getElementById('change-species-btn');
 
-  function selectSpecies(species) {
-    speciesIdInput.value = species.id;
-    newSpeciesNameInput.value = "";
-    newSpeciesScientificNameInput.value = "";
-    searchInput.value = species.name;
-    selectedName.textContent = species.name;
-    selectedScientific.textContent = species.scientificName || "";
-    selectedInfo.style.display = 'block';
-    suggestionsList.style.display = 'none';
-  }
+    function selectSpecies(species, isNew = false) {
+      if (isNew) {
+        speciesIdInput.value = "";
+        newSpeciesNameInput.value = species.name;
+        newSpeciesScientificNameInput.value = "Especie por identificar";
+        selectedName.textContent = species.name;
+        selectedScientific.textContent = "(Nueva especie a registrar)";
+      } else {
+        speciesIdInput.value = species.id;
+        newSpeciesNameInput.value = "";
+        newSpeciesScientificNameInput.value = "";
+        selectedName.textContent = species.name;
+        selectedScientific.textContent = species.scientificName || "Nombre científico no registrado";
+      }
 
-  searchInput.addEventListener('input', (e) => {
-    const val = e.target.value.toLowerCase();
-    suggestionsList.innerHTML = '';
-    speciesIdInput.value = '';
-    selectedInfo.style.display = 'none';
-
-    if (!val) {
+      searchInput.value = species.name;
+      selectedBadgeCard.style.display = 'flex';
       suggestionsList.style.display = 'none';
-      return;
+      clearBtn.style.display = 'none';
     }
 
-    const matches = speciesList.filter(s => 
-      s.name.toLowerCase().includes(val) || 
-      (s.scientificName && s.scientificName.toLowerCase().includes(val))
-    );
+    function resetSpeciesSelection() {
+      speciesIdInput.value = '';
+      newSpeciesNameInput.value = '';
+      newSpeciesScientificNameInput.value = '';
+      searchInput.value = '';
+      selectedBadgeCard.style.display = 'none';
+      clearBtn.style.display = 'none';
+      searchInput.focus();
+    }
 
-    if (matches.length > 0) {
-      matches.forEach(m => {
-        const li = document.createElement('li');
-        li.innerHTML = `<strong>${m.name}</strong> <span style="color:#666; font-size:0.85em;">${m.scientificName || ''}</span>`;
-        li.addEventListener('click', () => selectSpecies(m));
-        suggestionsList.appendChild(li);
-      });
-      suggestionsList.style.display = 'block';
-    } else {
-      const li = document.createElement('li');
-      li.innerHTML = `<em>Crear nueva especie: "${e.target.value}"</em>`;
-      li.addEventListener('click', () => {
-        speciesIdInput.value = '';
-        newSpeciesNameInput.value = e.target.value;
-        newSpeciesScientificNameInput.value = 'Especie por identificar'; // Default
-        selectedName.textContent = e.target.value;
-        selectedScientific.textContent = '(Nueva Especie)';
-        selectedInfo.style.display = 'block';
+    changeSpeciesBtn?.addEventListener('click', resetSpeciesSelection);
+    clearBtn?.addEventListener('click', resetSpeciesSelection);
+
+    // Revisar si venimos con un parámetro en la URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const querySpeciesId = urlParams.get("especieId");
+    if (querySpeciesId && Array.isArray(speciesList)) {
+      const match = speciesList.find(s => s.id === querySpeciesId);
+      if (match) selectSpecies(match);
+    }
+
+    searchInput?.addEventListener('input', (e) => {
+      const val = e.target.value.trim().toLowerCase();
+      suggestionsList.innerHTML = '';
+      speciesIdInput.value = '';
+      selectedBadgeCard.style.display = 'none';
+
+      if (!val) {
         suggestionsList.style.display = 'none';
-        searchInput.value = e.target.value;
-      });
-      suggestionsList.appendChild(li);
-      suggestionsList.style.display = 'block';
+        clearBtn.style.display = 'none';
+        return;
+      }
+      clearBtn.style.display = 'block';
+
+      const matches = Array.isArray(speciesList) ? speciesList.filter(s => 
+        (s.name && s.name.toLowerCase().includes(val)) || 
+        (s.scientificName && s.scientificName.toLowerCase().includes(val))
+      ) : [];
+
+      if (matches.length > 0) {
+        matches.slice(0, 8).forEach(m => {
+          const li = document.createElement('li');
+          li.className = 'species-item';
+          li.innerHTML = `
+            <span class="species-item-name">${m.name}</span>
+            <span class="species-item-scientific">${m.scientificName || ''}</span>
+          `;
+          li.addEventListener('click', () => selectSpecies(m));
+          suggestionsList.appendChild(li);
+        });
+        suggestionsList.style.display = 'block';
+      } else {
+        const li = document.createElement('li');
+        li.className = 'species-item species-item-new';
+        li.innerHTML = `<span>➕ Registrar nueva especie: "<strong>${e.target.value}</strong>"</span>`;
+        li.addEventListener('click', () => selectSpecies({ name: e.target.value }, true));
+        suggestionsList.appendChild(li);
+        suggestionsList.style.display = 'block';
+      }
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.species-group')) {
+        suggestionsList.style.display = 'none';
+      }
+    });
+
+    // 3. Mapa Interactivo (MapLibre GL)
+    let map = null;
+    let marker = null;
+    const latInput = document.getElementById('latitude');
+    const lngInput = document.getElementById('longitude');
+    const coordsStatus = document.getElementById('coords-status');
+    const coordsText = document.getElementById('coords-text');
+    const btnGeolocate = document.getElementById('btn-geolocate');
+
+    function updateCoordsUI(lat, lng) {
+      latInput.value = lat;
+      lngInput.value = lng;
+      coordsText.textContent = `Lat: ${Number(lat).toFixed(6)} | Lng: ${Number(lng).toFixed(6)}`;
+      coordsStatus.className = 'coords-chip selected';
     }
-  });
 
-  // Cerrar sugerencias al hacer clic fuera
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest('.species-autocomplete')) {
-      suggestionsList.style.display = 'none';
-    }
-  });
-
-  // 3. Mapa (Maplibre GL)
-  let map;
-  let marker;
-  const latInput = document.getElementById('latitude');
-  const lngInput = document.getElementById('longitude');
-  const locDisplay = document.getElementById('location-display');
-
-  // Inicializar mapa dinámicamente para asegurar que se carga en cliente
-  setTimeout(() => {
     import('https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js').then((maplibreglModule) => {
       const maplibregl = maplibreglModule.default || window.maplibregl;
       
+      const container = document.getElementById('map-container');
+      if (!container) return;
+
       map = new maplibregl.Map({
         container: 'map-container',
         style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
-        center: [-74.0817, 4.6097], // Bogotá
-        zoom: 5
+        center: [-72.9068, 11.5448], // La Guajira por defecto
+        zoom: 7
       });
-      
-      map.addControl(new maplibregl.NavigationControl());
 
-      map.on('click', (e) => {
-        const lat = e.lngLat.lat;
-        const lng = e.lngLat.lng;
-        
-        latInput.value = lat;
-        lngInput.value = lng;
-        
-        locDisplay.textContent = `Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}`;
-        locDisplay.style.display = 'block';
+      map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
+      function placeMarker(lng, lat, fly = false) {
         if (marker) {
           marker.setLngLat([lng, lat]);
         } else {
-          marker = new maplibregl.Marker({ color: "#ef4444" })
+          marker = new maplibregl.Marker({ color: "#10b981" })
             .setLngLat([lng, lat])
             .addTo(map);
         }
+        updateCoordsUI(lat, lng);
+        if (fly) {
+          map.flyTo({ center: [lng, lat], zoom: 14, speed: 1.5 });
+        }
+      }
+
+      map.on('click', (e) => {
+        placeMarker(e.lngLat.lng, e.lngLat.lat, false);
       });
-    }).catch(err => console.error("Error loading maplibre", err));
-  }, 100);
 
-  // 4. Submit logic
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    hideAlerts();
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Registrando...';
+      // Botón de Geolocalización
+      btnGeolocate?.addEventListener('click', () => {
+        if (!navigator.geolocation) {
+          alert('Tu navegador no soporta geolocalización.');
+          return;
+        }
 
-    const userId = document.getElementById('userId').value;
-    if (!userId) {
-      showError("Por favor, inicia sesión para registrar.");
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Registrar Árbol';
-      return;
-    }
+        btnGeolocate.disabled = true;
+        btnGeolocate.textContent = 'Obteniendo GPS...';
 
-    if (!latInput.value || !lngInput.value) {
-      showError("Por favor, selecciona una ubicación en el mapa.");
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Registrar Árbol';
-      return;
-    }
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const { latitude, longitude } = pos.coords;
+            placeMarker(longitude, latitude, true);
+            btnGeolocate.disabled = false;
+            btnGeolocate.innerHTML = `✓ Ubicación detectada`;
+            setTimeout(() => {
+              btnGeolocate.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg> Usar mi ubicación GPS actual`;
+            }, 3000);
+          },
+          (err) => {
+            btnGeolocate.disabled = false;
+            btnGeolocate.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg> Usar mi ubicación GPS actual`;
+            alert('No se pudo acceder a tu ubicación GPS. Por favor, haz clic directamente en el mapa.');
+          },
+          { enableHighAccuracy: true, timeout: 10000 }
+        );
+      });
+    }).catch(err => console.error("Error al cargar maplibre:", err));
 
-    let currentSpeciesId = speciesIdInput.value;
-    const isNewSpecies = !currentSpeciesId && newSpeciesNameInput.value;
-    
-    if (!currentSpeciesId && !isNewSpecies) {
-      showError("Por favor, selecciona o ingresa una especie.");
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Registrar Árbol';
-      return;
-    }
+    // 4. Envío del Formulario
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideAlerts();
 
-    try {
-      // 1. Crear especie nueva si es necesario
-      if (isNewSpecies) {
-        const spBody = {
-          name: newSpeciesNameInput.value,
-          scientificName: newSpeciesScientificNameInput.value,
-          categoryId: categories.length > 0 ? categories[0].id : null
-        };
-        const spRes = await fetch('/api/species', {
+      const userId = document.getElementById('userId').value;
+      if (!userId) {
+        showError("Por favor, inicia sesión para registrar un ejemplar.");
+        return;
+      }
+
+      if (!latInput.value || !lngInput.value) {
+        showError("Por favor, marca en el mapa la ubicación geográfica del árbol.");
+        document.querySelector('.map-section')?.scrollIntoView({ behavior: 'smooth' });
+        return;
+      }
+
+      let currentSpeciesId = speciesIdInput.value;
+      const isNewSpecies = !currentSpeciesId && newSpeciesNameInput.value;
+
+      if (!currentSpeciesId && !isNewSpecies) {
+        showError("Por favor, selecciona o ingresa el nombre de la especie.");
+        searchInput?.focus();
+        return;
+      }
+
+      const municipioVal = document.getElementById('municipio')?.value.trim();
+      if (!municipioVal) {
+        showError("Por favor, indica el municipio o territorio.");
+        document.getElementById('municipio')?.focus();
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = `
+        <svg class="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
+          <path d="M12 2a10 10 0 0 1 10 10"/>
+        </svg>
+        Registrando ejemplar...
+      `;
+
+      try {
+        // Crear especie si es nueva
+        if (isNewSpecies) {
+          const spBody = {
+            name: newSpeciesNameInput.value,
+            scientificName: newSpeciesScientificNameInput.value || "Especie por identificar",
+            categoryId: Array.isArray(categories) && categories.length > 0 ? categories[0].id : null
+          };
+          const spRes = await fetch('/api/species', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(spBody)
+          });
+          if (!spRes.ok) throw new Error("No se pudo registrar la nueva especie.");
+          const spData = await spRes.json();
+          currentSpeciesId = spData.id;
+        }
+
+        // Crear observación
+        const formData = new FormData();
+        formData.append("speciesId", currentSpeciesId);
+        formData.append("userId", userId);
+        formData.append("latitude", latInput.value);
+        formData.append("longitude", lngInput.value);
+        formData.append("municipio", municipioVal);
+        formData.append("estadoConservacion", document.getElementById('estadoConservacion')?.value || "");
+        formData.append("notes", document.getElementById('notes')?.value || "");
+        formData.append("observationDate", new Date().toISOString().split("T")[0]);
+
+        if (imageInput.files && imageInput.files[0]) {
+          formData.append("image", imageInput.files[0]);
+        }
+
+        const res = await fetch('/api/observations', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(spBody)
+          body: formData
         });
-        if (!spRes.ok) throw new Error("Error al crear la especie nueva.");
-        const spData = await spRes.json();
-        currentSpeciesId = spData.id;
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || errData.message || "Error al guardar la observación.");
+        }
+
+        const newObs = await res.json();
+        showSuccess("¡Árbol registrado con éxito! Redirigiendo...");
+        setTimeout(() => {
+          window.location.href = `/observaciones/${newObs.id || ''}`;
+        }, 1200);
+
+      } catch (err) {
+        showError(err.message);
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = `
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+          Registrar Árbol
+        `;
       }
-
-      // 2. Crear observación
-      const formToSubmit = new FormData();
-      formToSubmit.append("speciesId", currentSpeciesId);
-      formToSubmit.append("userId", userId);
-      formToSubmit.append("latitude", latInput.value);
-      formToSubmit.append("longitude", lngInput.value);
-      formToSubmit.append("municipio", document.getElementById('municipio').value);
-      formToSubmit.append("estadoConservacion", document.getElementById('estadoConservacion').value);
-      formToSubmit.append("notes", document.getElementById('notes').value);
-      formToSubmit.append("observationDate", new Date().toISOString().split("T")[0]);
-
-      if (imageInput.files[0]) {
-        formToSubmit.append("image", imageInput.files[0]);
-      }
-
-      const res = await fetch('/api/observations', {
-        method: 'POST',
-        body: formToSubmit
-      });
-
-      if (!res.ok) throw new Error("Error al registrar la observación.");
-
-      showSuccess("¡Árbol registrado con éxito!");
-      setTimeout(() => {
-        window.location.href = '/observaciones';
-      }, 1500);
-
-    } catch (err) {
-      showError(err.message);
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Registrar Árbol';
-    }
-  });
-
+    });
+  }
 </script>
+
