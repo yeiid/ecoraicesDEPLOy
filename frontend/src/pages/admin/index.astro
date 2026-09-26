@@ -2,6 +2,7 @@
 import Layout from "../../layouts/Layout.astro";
 import { apiGet } from "../../lib/api/client.js";
 import { getSessionUser } from "../../lib/middleware/auth.js";
+import ConfirmDialog from "../../components/ui/ConfirmDialog.astro";
 
 const user = await getSessionUser({ cookies: Astro.cookies, request: Astro.request });
 
@@ -86,46 +87,57 @@ const statusClass = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejec
     <!-- Comunidades -->
     <section class="panel-section card">
       <div class="section-head">
-        <h2>Comunidades</h2>
-        <span class="muted">{communities.length} total</span>
+        <div>
+          <h2>Comunidades</h2>
+          <span class="muted">{communities.length} registradas</span>
+        </div>
       </div>
       {communities.length === 0 ? (
         <p class="empty-state">No hay comunidades registradas.</p>
       ) : (
-        <div class="table-wrap">
-          <table class="admin-table">
-            <thead>
-              <tr>
-                <th scope="col">Nombre</th>
-                <th scope="col">Propietario</th>
-                <th scope="col">Miembros</th>
-                <th scope="col">Creada</th>
-                <th scope="col" class="col-actions">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {communities.map((c) => (
-                <tr>
-                  <td>
-                    <a href={`/comunidades/${c.id}`} class="cell-link">{c.name}</a>
-                    {c.location ? <div class="cell-sub">{c.location}</div> : null}
-                  </td>
-                  <td>{c.owner?.username || "—"}</td>
-                  <td>{c._count.members}</td>
-                  <td>{new Date(c.createdAt).toLocaleDateString("es-CO")}</td>
-                  <td class="col-actions">
-                    <button
-                      class="btn btn-danger btn-sm"
-                      data-action="delete-community"
-                      data-id={c.id}
-                      data-name={c.name}
-                      aria-label={`Eliminar comunidad ${c.name}`}
-                    >Eliminar</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div class="cards-grid">
+          {communities.map((c) => (
+            <div class="entity-card">
+              <div class="entity-card-header">
+                <div class="entity-icon community-icon">👥</div>
+                <div class="entity-title-wrap">
+                  <a href={`/comunidades/${c.id}`} class="entity-title">{c.name}</a>
+                  {c.location && <div class="entity-subtitle">📍 {c.location}</div>}
+                </div>
+              </div>
+
+              <div class="entity-details-grid">
+                <div class="detail-item">
+                  <span class="detail-label">Propietario</span>
+                  <span class="detail-value">@{c.owner?.username || "—"}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">Miembros</span>
+                  <span class="badge badge-neutral badge-mini">👥 {c._count.members}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">Creada</span>
+                  <span class="detail-value">{new Date(c.createdAt).toLocaleDateString("es-CO")}</span>
+                </div>
+              </div>
+
+              <div class="entity-card-actions">
+                <button
+                  class="btn btn-danger-outline btn-sm btn-full"
+                  data-action="delete-community"
+                  data-id={c.id}
+                  data-name={c.name}
+                  aria-label={`Eliminar comunidad ${c.name}`}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </section>
@@ -133,63 +145,77 @@ const statusClass = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejec
     <!-- Observaciones -->
     <section class="panel-section card">
       <div class="section-head">
-        <h2>Observaciones</h2>
-        <span class="muted">Últimas {observations.length}</span>
+        <div>
+          <h2>Observaciones</h2>
+          <span class="muted">Últimas {observations.length} registradas</span>
+        </div>
       </div>
       {observations.length === 0 ? (
         <p class="empty-state">No hay observaciones registradas.</p>
       ) : (
-        <div class="table-wrap">
-          <table class="admin-table">
-            <thead>
-              <tr>
-                <th scope="col">Especie</th>
-                <th scope="col">Autor</th>
-                <th scope="col">Fecha</th>
-                <th scope="col">Estado</th>
-                <th scope="col" class="col-actions">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {observations.map((o) => (
-                <tr class={statusClass[o.status]}>
-                  <td>
-                    <a href={`/observaciones/${o.id}`} class="cell-link">{o.species?.name || "—"}</a>
-                    {o.species?.scientificName ? <div class="cell-sub">{o.species.scientificName}</div> : null}
-                  </td>
-                  <td>{o.user?.username || "—"}</td>
-                  <td>{new Date(o.createdAt).toLocaleDateString("es-CO")}</td>
-                  <td><span class={`badge ${statusBadge[o.status]}`}>{statusLabel[o.status]}</span></td>
-                  <td class="col-actions">
-                    {o.status !== "APPROVED" && (
-                      <button
-                        class="btn btn-primary btn-sm"
-                        data-action="verify-observation"
-                        data-id={o.id}
-                        data-status="APPROVED"
-                        aria-label={`Aprobar observación de ${o.species?.name || "especie desconocida"}`}
-                      >Aprobar</button>
-                    )}
-                    {o.status !== "REJECTED" && (
-                      <button
-                        class="btn btn-secondary btn-sm"
-                        data-action="verify-observation"
-                        data-id={o.id}
-                        data-status="REJECTED"
-                        aria-label={`Rechazar observación de ${o.species?.name || "especie desconocida"}`}
-                      >Rechazar</button>
-                    )}
-                    <button
-                      class="btn btn-danger btn-sm"
-                      data-action="delete-observation"
-                      data-id={o.id}
-                      aria-label={`Eliminar observación de ${o.species?.name || "especie desconocida"}`}
-                    >Eliminar</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div class="cards-grid">
+          {observations.map((o) => (
+            <div class={`entity-card obs-card ${statusClass[o.status]}`}>
+              <div class="entity-card-header">
+                <div class="entity-icon obs-icon">🌳</div>
+                <div class="entity-title-wrap">
+                  <a href={`/observaciones/${o.id}`} class="entity-title">{o.species?.name || "Especie no identificada"}</a>
+                  {o.species?.scientificName && (
+                    <div class="entity-subtitle italic">{o.species.scientificName}</div>
+                  )}
+                </div>
+                <span class={`badge ${statusBadge[o.status]}`}>{statusLabel[o.status]}</span>
+              </div>
+
+              <div class="entity-details-grid">
+                <div class="detail-item">
+                  <span class="detail-label">Registrado por</span>
+                  <span class="detail-value">@{o.user?.username || "—"}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">Fecha</span>
+                  <span class="detail-value">{new Date(o.createdAt).toLocaleDateString("es-CO")}</span>
+                </div>
+              </div>
+
+              <div class="entity-card-actions">
+                {o.status !== "APPROVED" && (
+                  <button
+                    class="btn btn-primary btn-sm flex-1"
+                    data-action="verify-observation"
+                    data-id={o.id}
+                    data-status="APPROVED"
+                    aria-label={`Aprobar observación de ${o.species?.name || "especie"}`}
+                  >
+                    ✓ Aprobar
+                  </button>
+                )}
+                {o.status !== "REJECTED" && (
+                  <button
+                    class="btn btn-secondary btn-sm flex-1"
+                    data-action="verify-observation"
+                    data-id={o.id}
+                    data-status="REJECTED"
+                    aria-label={`Rechazar observación de ${o.species?.name || "especie"}`}
+                  >
+                    ✕ Rechazar
+                  </button>
+                )}
+                <button
+                  class="btn btn-danger-outline btn-sm"
+                  data-action="delete-observation"
+                  data-id={o.id}
+                  aria-label={`Eliminar observación`}
+                  title="Eliminar observación"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </section>
@@ -212,81 +238,85 @@ const statusClass = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejec
       {users.length === 0 ? (
         <p class="empty-state">No hay usuarios registrados.</p>
       ) : (
-        <div class="table-wrap">
-          <table class="admin-table">
-            <thead>
-              <tr>
-                <th scope="col">Usuario</th>
-                <th scope="col">Email</th>
-                <th scope="col">Rol</th>
-                <th scope="col">Admin</th>
-                <th scope="col">Observaciones</th>
-                <th scope="col">Registrado</th>
-                <th scope="col" class="col-actions">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => (
-                <tr>
-                  <td>
-                    <div class="user-cell">
-                      {u.avatarUrl ? (
-                        <img src={u.avatarUrl} alt={u.name || u.username} class="user-cell-avatar" />
-                      ) : (
-                        <div class="user-cell-initial">{(u.name || u.username || 'U')[0].toUpperCase()}</div>
-                      )}
-                      <div>
-                        <span class="cell-link">{u.name || u.username}</span>
-                        <div class="cell-sub">@{u.username}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td>{u.email}</td>
-                  <td>
-                    <span class="badge badge-neutral">
-                      {u.role === "COMMUNITY" ? "Comunidad" : "Guardabosques"}
-                    </span>
-                  </td>
-                  <td>
-                    {u.isAdmin ? (
-                      <span class="badge badge-success">Sí (Admin)</span>
-                    ) : (
-                      <span class="badge badge-neutral">No</span>
-                    )}
-                  </td>
-                  <td>{u.observationsCount}</td>
-                  <td>{u.createdAt ? new Date(u.createdAt).toLocaleDateString("es-CO") : "—"}</td>
-                  <td class="col-actions">
-                    {u.id !== user.id ? (
-                      <div class="actions-group">
-                        <button
-                          class={`btn btn-sm ${u.isAdmin ? 'btn-secondary' : 'btn-outline'}`}
-                          data-action="toggle-admin"
-                          data-id={u.id}
-                          data-admin={u.isAdmin ? "true" : "false"}
-                          data-name={u.name || u.username}
-                          aria-label={`${u.isAdmin ? 'Quitar rol admin a' : 'Hacer admin a'} ${u.username}`}
-                        >
-                          {u.isAdmin ? "Quitar Admin" : "Hacer Admin"}
-                        </button>
-                        <button
-                          class="btn btn-danger btn-sm"
-                          data-action="delete-user"
-                          data-id={u.id}
-                          data-name={u.name || u.username}
-                          aria-label={`Eliminar usuario ${u.username}`}
-                        >
-                          Eliminar
-                        </button>
-                      </div>
-                    ) : (
-                      <span class="badge badge-info">Tú</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div class="cards-grid">
+          {users.map((u) => (
+            <div class="entity-card user-card">
+              <div class="entity-card-header">
+                {u.avatarUrl ? (
+                  <img src={u.avatarUrl} alt={u.name || u.username} class="user-cell-avatar" />
+                ) : (
+                  <div class="user-cell-initial">{(u.name || u.username || 'U')[0].toUpperCase()}</div>
+                )}
+                <div class="entity-title-wrap">
+                  <div class="entity-title user-name-wrap">
+                    <span>{u.name || u.username}</span>
+                    {u.id === user.id && <span class="badge badge-info badge-mini">Tú</span>}
+                  </div>
+                  <div class="entity-subtitle">@{u.username}</div>
+                </div>
+                {u.isAdmin ? (
+                  <span class="badge badge-success">Admin</span>
+                ) : (
+                  <span class="badge badge-neutral">Usuario</span>
+                )}
+              </div>
+
+              <div class="user-email-row">
+                <span class="email-icon">✉</span>
+                <span class="email-text" title={u.email}>{u.email}</span>
+              </div>
+
+              <div class="entity-details-grid">
+                <div class="detail-item">
+                  <span class="detail-label">Rol</span>
+                  <span class="detail-value font-medium">
+                    {u.role === "COMMUNITY" ? "Comunidad" : "Guardabosques"}
+                  </span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">Observaciones</span>
+                  <span class="badge badge-accent badge-mini">🌳 {u.observationsCount}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">Registro</span>
+                  <span class="detail-value">{u.createdAt ? new Date(u.createdAt).toLocaleDateString("es-CO") : "—"}</span>
+                </div>
+              </div>
+
+              {u.id !== user.id ? (
+                <div class="entity-card-actions">
+                  <button
+                    class={`btn btn-sm flex-1 ${u.isAdmin ? 'btn-secondary' : 'btn-outline'}`}
+                    data-action="toggle-admin"
+                    data-id={u.id}
+                    data-admin={u.isAdmin ? "true" : "false"}
+                    data-name={u.name || u.username}
+                    aria-label={`${u.isAdmin ? 'Quitar rol admin a' : 'Hacer admin a'} ${u.username}`}
+                  >
+                    {u.isAdmin ? "Quitar Admin" : "Hacer Admin"}
+                  </button>
+                  <button
+                    class="btn btn-danger-outline btn-sm"
+                    data-action="delete-user"
+                    data-id={u.id}
+                    data-name={u.name || u.username}
+                    aria-label={`Eliminar usuario ${u.username}`}
+                    title={`Eliminar usuario ${u.username}`}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="3 6 5 6 21 6"></polyline>
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                    Eliminar
+                  </button>
+                </div>
+              ) : (
+                <div class="current-user-notice">
+                  <span>Tu cuenta activa</span>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </section>
@@ -350,6 +380,8 @@ const statusClass = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejec
 
     <div id="admin-alert" class="alert-box error" role="alert" aria-live="polite" style="display: none;"></div>
   </div>
+  <ConfirmDialog id="admin-confirm" title="Confirmar" message="¿Seguro?" confirmText="Confirmar" cancelText="Cancelar" variant="danger" />
+  <ConfirmDialog id="admin-prompt" title="Motivo del rechazo" message="Indica el motivo (opcional):" confirmText="Confirmar" cancelText="Cancelar" variant="primary" showInput={true} inputLabel="Motivo" inputPlaceholder="Motivo del rechazo (opcional)" />
 </Layout>
 
 <style>
@@ -481,110 +513,219 @@ const statusClass = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejec
     font-size: 0.95rem;
   }
 
-  .table-wrap {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    border-radius: var(--radius-md, 10px);
+  /* Cards Grid Layout (Sin Scroll Horizontal) */
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.15rem;
+    width: 100%;
+  }
+
+  @media (max-width: 640px) {
+    .cards-grid {
+      grid-template-columns: 1fr;
+      gap: 0.85rem;
+    }
+  }
+
+  .entity-card {
+    background: #ffffff;
     border: 1px solid var(--color-border);
-    width: 100%;
+    border-radius: var(--radius-md, 12px);
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   }
 
-  .table-wrap::-webkit-scrollbar {
-    height: 6px;
-  }
-  .table-wrap::-webkit-scrollbar-track {
-    background: #f8fafc;
-  }
-  .table-wrap::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 999px;
-  }
-  .table-wrap::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
+  .entity-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+    border-color: #cbd5e1;
   }
 
-  .admin-table {
-    width: 100%;
-    min-width: 680px;
-    border-collapse: collapse;
-    font-size: 0.88rem;
+  .entity-card.rejected {
+    background: #fff8f8;
+    border-color: #fecaca;
   }
 
-  .admin-table th {
-    background: var(--color-gray-50, #f8fafc);
-    text-align: left;
-    padding: 0.75rem 0.85rem;
-    color: var(--color-text-muted);
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    border-bottom: 2px solid var(--color-border);
-    white-space: nowrap;
+  .entity-card.approved {
+    border-left: 4px solid var(--color-success);
   }
 
-  .admin-table td {
-    padding: 0.75rem 0.85rem;
-    border-bottom: 1px solid var(--color-border);
-    vertical-align: middle;
+  .entity-card.pending {
+    border-left: 4px solid var(--color-warning);
   }
 
-  .admin-table tbody tr:hover {
-    background-color: #f8fafc;
-  }
-
-  .admin-table tr.rejected { background: rgba(239, 68, 68, 0.04); }
-
-  .cell-link {
-    color: var(--color-primary-dark);
-    font-weight: 600;
-    text-decoration: none;
-  }
-
-  .cell-link:hover {
-    color: var(--color-success);
-    text-decoration: underline;
-  }
-
-  .cell-sub {
-    font-size: 0.78rem;
-    color: var(--color-text-muted);
-    margin-top: 0.15rem;
-  }
-
-  .col-actions {
-    white-space: nowrap;
-    text-align: right;
-  }
-
-  .col-actions .btn + .btn {
-    margin-left: 0.4rem;
-  }
-
-  .actions-group {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    white-space: nowrap;
-  }
-
-  .user-cell {
+  .entity-card-header {
     display: flex;
     align-items: center;
     gap: 0.75rem;
   }
 
+  .entity-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    flex-shrink: 0;
+  }
+
+  .community-icon {
+    background: #eff6ff;
+  }
+
+  .obs-icon {
+    background: #ecfdf5;
+  }
+
+  .entity-title-wrap {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .entity-title {
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--color-primary-dark);
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-decoration: none;
+  }
+
+  .entity-title:hover {
+    color: var(--color-success);
+    text-decoration: underline;
+  }
+
+  .user-name-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .entity-subtitle {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 0.15rem;
+  }
+
+  .italic {
+    font-style: italic;
+  }
+
+  .user-email-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.82rem;
+    color: var(--color-text-muted);
+    background: #f8fafc;
+    padding: 0.4rem 0.65rem;
+    border-radius: var(--radius-sm, 8px);
+    overflow: hidden;
+  }
+
+  .email-icon {
+    font-size: 0.9rem;
+  }
+
+  .email-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .entity-details-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 0.5rem;
+    background: #f8fafc;
+    padding: 0.65rem 0.75rem;
+    border-radius: var(--radius-sm, 8px);
+    border: 1px solid #f1f5f9;
+  }
+
+  .detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .detail-label {
+    font-size: 0.7rem;
+    color: var(--color-text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 600;
+  }
+
+  .detail-value {
+    font-size: 0.83rem;
+    color: var(--color-text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .font-medium {
+    font-weight: 600;
+  }
+
+  .entity-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: auto;
+    padding-top: 0.5rem;
+    border-top: 1px dashed var(--color-border);
+  }
+
+  .flex-1 {
+    flex: 1;
+  }
+
+  .btn-full {
+    width: 100%;
+  }
+
+  .badge-mini {
+    padding: 0.15rem 0.5rem;
+    font-size: 0.7rem;
+  }
+
+  .current-user-notice {
+    margin-top: auto;
+    padding: 0.45rem 0.75rem;
+    background: #eff6ff;
+    color: #1e40af;
+    border-radius: var(--radius-sm, 8px);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-align: center;
+  }
+
   .user-cell-avatar {
-    width: 34px;
-    height: 34px;
+    width: 38px;
+    height: 38px;
     border-radius: 50%;
     object-fit: cover;
     flex-shrink: 0;
   }
 
   .user-cell-initial {
-    width: 34px;
-    height: 34px;
+    width: 38px;
+    height: 38px;
     border-radius: 50%;
     background: var(--color-success-bg, #e8f5e9);
     color: var(--color-primary-dark, #1b5e20);
@@ -592,7 +733,7 @@ const statusClass = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejec
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.85rem;
+    font-size: 0.95rem;
     flex-shrink: 0;
   }
   /* Modal de Crear Usuario */
@@ -720,12 +861,48 @@ const statusClass = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejec
   document.addEventListener("astro:page-load", () => {
     const alertBox = document.getElementById("admin-alert");
     const showAlert = (message) => {
+      console.error('[admin]', message);
       alertBox.textContent = message;
       alertBox.style.display = "block";
       alertBox.scrollIntoView({ behavior: "smooth", block: "nearest" });
     };
     const hideAlert = () => {
       alertBox.style.display = "none";
+    };
+
+    // Fase 3: diálogos accesibles con fallback nativo
+    const askConfirm = (title, message) => {
+      const dialog = document.getElementById('admin-confirm');
+      if (dialog && typeof dialog.showModal === 'function') {
+        dialog.querySelector('h2').textContent = title;
+        dialog.querySelector('p').textContent = message;
+        return new Promise((resolve) => {
+          const onConfirm = (e) => {
+            dialog.removeEventListener('confirm', onConfirm);
+            resolve(!!e.detail?.confirmed);
+          };
+          dialog.addEventListener('confirm', onConfirm, { once: true });
+          dialog.showModal();
+        });
+      }
+      return Promise.resolve(window.confirm(`${title}\n${message}`));
+    };
+    const askNotes = () => {
+      const dialog = document.getElementById('admin-prompt');
+      if (dialog && typeof dialog.showModal === 'function') {
+        const input = dialog.querySelector('input[name="dialogInput"]');
+        if (input) input.value = '';
+        return new Promise((resolve) => {
+          const onConfirm = (e) => {
+            dialog.removeEventListener('confirm', onConfirm);
+            resolve(e.detail?.confirmed ? (e.detail?.value ?? '') : null);
+          };
+          dialog.addEventListener('confirm', onConfirm, { once: true });
+          dialog.showModal();
+        });
+      }
+      const v = window.prompt('Motivo del rechazo (opcional):');
+      return Promise.resolve(v === null ? null : (v ?? ''));
     };
 
     const run = async (path, options) => {
@@ -775,11 +952,29 @@ const statusClass = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejec
         }
 
         const username = document.getElementById("new-username")?.value.trim();
-        const email = document.getElementById("new-email")?.value.trim();
+        const email = document.getElementById("new-email")?.value.trim().toLowerCase();
         const password = document.getElementById("new-password")?.value;
         const name = document.getElementById("new-name")?.value.trim();
         const role = document.getElementById("new-role")?.value;
         const isAdmin = document.getElementById("new-is-admin")?.checked;
+
+        // Fase 3: validación cliente antes del POST
+        const failModal = (msg) => {
+          if (modalAlert) {
+            modalAlert.textContent = msg;
+            modalAlert.style.display = "block";
+          }
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Guardar Usuario";
+          }
+        };
+        if (!username || username.length < 3) { failModal('Usuario mínimo 3 caracteres.'); return; }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email || '')) { failModal('Email inválido.'); return; }
+        if (!password || password.length < 8 || !/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+          failModal('Contraseña: mínimo 8 caracteres, letra y número.');
+          return;
+        }
 
         await run("/api/admin/users", {
           method: "POST",
@@ -810,7 +1005,8 @@ const statusClass = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejec
     document.querySelectorAll("[data-action='delete-community']").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const name = btn.dataset.name;
-        if (!confirm(`¿Eliminar la comunidad "${name}" y todos sus miembros?`)) return;
+        const ok = await askConfirm('Eliminar comunidad', `¿Eliminar la comunidad "${name}" y todos sus miembros?`);
+        if (!ok) return;
         try {
           hideAlert();
           btn.disabled = true;
@@ -826,9 +1022,11 @@ const statusClass = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejec
     document.querySelectorAll("[data-action='verify-observation']").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const status = btn.dataset.status;
-        const notes = status === "REJECTED"
-          ? prompt("Motivo del rechazo (opcional):") ?? ""
-          : null;
+        let notes = null;
+        if (status === "REJECTED") {
+          notes = await askNotes();
+          if (notes === null) return; // cancelado
+        }
         try {
           hideAlert();
           btn.disabled = true;
@@ -847,7 +1045,8 @@ const statusClass = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejec
 
     document.querySelectorAll("[data-action='delete-observation']").forEach((btn) => {
       btn.addEventListener("click", async () => {
-        if (!confirm("¿Eliminar esta observación? Esta acción no se puede deshacer.")) return;
+        const ok = await askConfirm('Eliminar observación', '¿Eliminar esta observación? Esta acción no se puede deshacer.');
+        if (!ok) return;
         try {
           hideAlert();
           btn.disabled = true;
@@ -868,7 +1067,8 @@ const statusClass = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejec
         const msg = newIsAdmin
           ? `¿Promover a "${name}" como Administrador?`
           : `¿Revocar privilegios de Administrador a "${name}"?`;
-        if (!confirm(msg)) return;
+        const okToggle = await askConfirm('Cambiar rol', msg);
+        if (!okToggle) return;
         try {
           hideAlert();
           btn.disabled = true;
@@ -888,7 +1088,8 @@ const statusClass = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejec
     document.querySelectorAll("[data-action='delete-user']").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const name = btn.dataset.name;
-        if (!confirm(`¿Eliminar al usuario "${name}" y todos sus datos asociados? Esta acción no se puede deshacer.`)) return;
+        const ok = await askConfirm('Eliminar usuario', `¿Eliminar al usuario "${name}" y todos sus datos asociados? Esta acción no se puede deshacer.`);
+        if (!ok) return;
         try {
           hideAlert();
           btn.disabled = true;
