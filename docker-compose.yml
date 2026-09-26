@@ -1,9 +1,7 @@
-name: ecoraices
 
 services:
   db:
     image: postgis/postgis:16-3.4
-    container_name: ecoraices-db
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-ecoraices}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ecoraices_dev}
@@ -20,7 +18,6 @@ services:
 
   frontend:
     build: ./frontend
-    container_name: ecoraices-frontend
     depends_on:
       db:
         condition: service_healthy
@@ -58,7 +55,6 @@ services:
 
   backend:
     build: ./backend
-    container_name: ecoraices-backend
     depends_on:
       db:
         condition: service_healthy
@@ -75,6 +71,3 @@ volumes:
   pgdata:
   uploads_data:
 
-networks:
-  default:
-    name: ecoraices-net
