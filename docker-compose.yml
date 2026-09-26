@@ -22,7 +22,7 @@ services:
       db:
         condition: service_healthy
       backend:
-        condition: service_started
+        condition: service_healthy
     environment:
       NODE_ENV: production
       NODE_OPTIONS: "--dns-result-order=ipv4first"
@@ -60,11 +60,18 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-ecoraices}:${POSTGRES_PASSWORD:-ecoraices_dev}@db:5432/${POSTGRES_DB:-ecoraices}
+      JWT_SECRET: ${JWT_SECRET:-default_dev_secret}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
     ports:
       - "${BACKEND_PORT:-48000}:8000"
     volumes:
-      - ./backend:/app
-      - uploads_data:/data/uploads
+      - uploads_data:/app/public/uploads
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
     restart: unless-stopped
 
 volumes:
