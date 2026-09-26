@@ -64,6 +64,8 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-ecoraices}:${POSTGRES_PASSWORD:-ecoraices_dev}@db:5432/${POSTGRES_DB:-ecoraices}
       JWT_SECRET: ${JWT_SECRET:-default_dev_secret}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-yeifran67@gmail.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
     ports:
       - "${BACKEND_PORT:-48000}:8000"
     volumes:

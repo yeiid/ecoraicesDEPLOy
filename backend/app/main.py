@@ -44,6 +44,57 @@ except Exception as e:
     import traceback
     traceback.print_exc()
 
+@application.on_event("startup")
+def bootstrap_admin_user():
+    """Auto-promote or create admin user on startup if ADMIN_EMAIL is set."""
+    import os
+    import uuid
+    admin_email = os.getenv("ADMIN_EMAIL", "yeifran67@gmail.com")
+    admin_password = os.getenv("ADMIN_PASSWORD")
+    
+    if not admin_email:
+        return
+        
+    try:
+        from app.db.database import SessionLocal
+        from app.models.user import User
+        from app.core.security import get_password_hash
+        
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.email == admin_email).first()
+            if user:
+                if not user.isAdmin or user.role != "ADMIN":
+                    user.isAdmin = True
+                    user.role = "ADMIN"
+                    db.commit()
+                    logger.info(f"👑 Usuario {admin_email} promovido a Administrador exitosamente")
+                else:
+                    logger.info(f"👑 Administrador {admin_email} ya activo")
+                if admin_password:
+                    user.passwordHash = get_password_hash(admin_password)
+                    db.commit()
+                    logger.info(f"🔑 Contraseña de administrador actualizada")
+            elif admin_password:
+                new_id = "c" + str(uuid.uuid4()).replace("-", "")[:24]
+                new_user = User(
+                    id=new_id,
+                    username=admin_email.split("@")[0],
+                    email=admin_email,
+                    passwordHash=get_password_hash(admin_password),
+                    name="Administrador EcoRaíces",
+                    role="ADMIN",
+                    isAdmin=True,
+                    provider="local"
+                )
+                db.add(new_user)
+                db.commit()
+                logger.info(f"👑 Nuevo usuario Administrador creado: {admin_email}")
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning(f"⚠️ No se pudo inicializar usuario admin en startup: {e}")
+
 # Uvicorn looks for this name
 app = application
 
