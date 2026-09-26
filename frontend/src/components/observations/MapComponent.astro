@@ -1,5 +1,6 @@
 ---
 // frontend/src/components/observations/MapComponent.astro
+import { MAP_API_URL, MAPLIBRE_CSS, MAPLIBRE_JS } from "../../lib/constants.js";
 const {
   id = "map-container",
   center = [-74.0817, 4.6097],
@@ -31,12 +32,23 @@ const {
   </div>
 </div>
 
-<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" />
+<link rel="stylesheet" href={MAPLIBRE_CSS} />
 
-<script>
-  const MAP_API_URL = "https://map.neuraljira.tech";
+<script define:vars={{ mapApiUrl: MAP_API_URL, maplibreJs: MAPLIBRE_JS }}>
+  const MAP_API_URL = mapApiUrl;
+  const MAPLIBRE_JS_URL = maplibreJs;
+  // Fase 2: caché en memoria + sessionStorage para style.json (1 fetch por sesión)
+  let cachedStyle = null;
 
   async function buildStyle() {
+    if (cachedStyle) return cachedStyle;
+    try {
+      const ss = sessionStorage.getItem('ecoraices-map-style');
+      if (ss) {
+        cachedStyle = JSON.parse(ss);
+        return cachedStyle;
+      }
+    } catch { /* noop */ }
     try {
       const res = await fetch(`${MAP_API_URL}/api/v1/style.json`);
       if (!res.ok) throw new Error(`Style HTTP ${res.status}`);
@@ -61,6 +73,8 @@ const {
           },
         },
       ];
+      cachedStyle = style;
+      try { sessionStorage.setItem('ecoraices-map-style', JSON.stringify(style)); } catch { /* noop */ }
       return style;
     } catch (error) {
       console.warn("[Mapa] No se pudo cargar style.json, usando estilo de respaldo:", error);
@@ -91,8 +105,20 @@ const {
     }
   }
 
+  // Fase 2: registro de instancias para cleanup en ViewTransitions
+  const activeMaps = [];
+
+  document.addEventListener("astro:before-swap", () => {
+    while (activeMaps.length) {
+      try { activeMaps.pop().remove(); } catch { /* noop */ }
+    }
+    document.querySelectorAll('.astro-map').forEach((el) => {
+      delete el.dataset.mapInitialized;
+    });
+  });
+
   document.addEventListener("astro:page-load", () => {
-    import('https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js').then(async (maplibreglModule) => {
+    import(MAPLIBRE_JS_URL).then(async (maplibreglModule) => {
       const maplibregl = maplibreglModule.default || window.maplibregl;
       
       const mapElements = document.querySelectorAll('.astro-map');
@@ -123,9 +149,10 @@ const {
           style: style,
           center: center,
           zoom: zoom,
-          pitch: 45,
-          antialias: true
+          pitch: 0,
+          antialias: false
         });
+        activeMaps.push(map);
 
         map.addControl(new maplibregl.NavigationControl(), "top-right");
         

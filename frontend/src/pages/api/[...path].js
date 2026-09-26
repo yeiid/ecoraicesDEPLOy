@@ -6,19 +6,7 @@
 // Cache for the working backend URL to avoid probing on every request
 let cachedWorkingBackendUrl = null;
 
-function getCandidateBackendUrls() {
-  const list = [];
-  if (typeof process !== 'undefined' && process.env.BACKEND_URL) {
-    list.push(process.env.BACKEND_URL);
-  }
-  list.push('http://backend:8000');
-  list.push('http://host.docker.internal:48000');
-  list.push('http://172.17.0.1:48000');
-  list.push('http://187.124.64.184:48000');
-  list.push('http://localhost:48000');
-  list.push('http://127.0.0.1:48000');
-  return [...new Set(list)];
-}
+import { getCandidateBackendUrls } from '../../lib/backendHosts.js';
 
 export async function ALL({ request, params }) {
   const path = params.path;

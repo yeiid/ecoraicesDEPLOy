@@ -71,24 +71,46 @@ const title = 'Crear Comunidad - EcoRaíces';
         alertBox.className = `alert-box ${type}`;
         alertBox.style.display = 'block';
       };
+      const fail = (message) => {
+        showAlert(message, 'error');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Crear comunidad';
+      };
 
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
         alertBox.style.display = 'none';
 
         const fd = new FormData(form);
-        const payload = {
-          name: fd.get('name'),
-          description: fd.get('description') || null,
-          location: fd.get('location') || null,
-          latitude: fd.get('latitude') || null,
-          longitude: fd.get('longitude') || null,
-        };
+        const name = (fd.get('name') ?? '').toString().trim();
+        const description = (fd.get('description') ?? '').toString().trim() || null;
+        const location = (fd.get('location') ?? '').toString().trim() || null;
+        const latRaw = fd.get('latitude');
+        const lngRaw = fd.get('longitude');
 
-        if (!payload.name.trim()) {
-          showAlert('El nombre de la comunidad es obligatorio.');
+        if (!name) {
+          fail('El nombre de la comunidad es obligatorio.');
           return;
         }
+        if (name.length > 120) {
+          fail('El nombre no puede superar 120 caracteres.');
+          return;
+        }
+        // Coordenadas opcionales pero validadas en rango si vienen
+        let latitude = null;
+        let longitude = null;
+        if ((latRaw ?? '') !== '' && (lngRaw ?? '') !== '') {
+          const lat = parseFloat(latRaw);
+          const lng = parseFloat(lngRaw);
+          if (Number.isNaN(lat) || Number.isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+            fail('Coordenadas inválidas. Marca el punto en el mapa.');
+            return;
+          }
+          latitude = lat;
+          longitude = lng;
+        }
+
+        const payload = { name, description, location, latitude, longitude };
 
         submitBtn.disabled = true;
         submitBtn.textContent = 'Creando...';
@@ -107,7 +129,8 @@ const title = 'Crear Comunidad - EcoRaíces';
             window.location.href = `/comunidades/${data.id}`;
           }, 900);
         } catch (err) {
-          showAlert(err.message);
+          console.error('[comunidades/nueva]', err);
+          showAlert(err.message || 'No se pudo crear la comunidad.');
           submitBtn.disabled = false;
           submitBtn.textContent = 'Crear comunidad';
         }

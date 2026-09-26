@@ -6,17 +6,23 @@ import { apiGet } from "../../lib/api/client.js";
 const { initialFilterCategory = null, showFilters = true } = Astro.props;
 
 let trees = [];
-try {
-  trees = (await apiGet('/observations')) || [];
-} catch (error) {
-  console.error("Error fetching observations:", error);
-}
-
 let categories = [];
 try {
-  categories = (await apiGet('/categories')) || [];
+  // Fase 2 velocidad: observations + categories en paralelo
+  const [treesRes, catsRes] = await Promise.all([
+    apiGet('/observations').catch((error) => {
+      console.error("Error fetching observations:", error);
+      return [];
+    }),
+    apiGet('/categories').catch((error) => {
+      console.error("Error fetching categories:", error);
+      return [];
+    }),
+  ]);
+  trees = treesRes || [];
+  categories = catsRes || [];
 } catch (error) {
-  console.error("Error fetching categories:", error);
+  console.error("Error fetching map data:", error);
 }
 
 // Pass data to client
@@ -83,10 +89,7 @@ try {
   </div>
 </div>
 
-<!-- Guardamos los árboles globales en el DOM para el script del lado del cliente -->
-<script type="application/json" id="all-trees-data">
-  {JSON.stringify(trees)}
-</script>
+<!-- Los datos viven en una sola fuente: data-markers de MapComponent (sin duplicar JSON) -->
 
 <style>
   .observations-map {
@@ -282,11 +285,16 @@ try {
 
 <script>
   document.addEventListener('astro:page-load', () => {
-    const rawDataElement = document.getElementById('all-trees-data');
-    if (!rawDataElement) return;
-
-    const allTrees = JSON.parse(rawDataElement.textContent);
+    // Fase 1 limpieza: fuente única — lee markers del data-attribute del mapa
     const mapElement = document.getElementById('main-observations-map');
+    if (!mapElement) return;
+
+    let allTrees = [];
+    try {
+      allTrees = JSON.parse(mapElement.dataset.markers || '[]');
+    } catch {
+      allTrees = [];
+    }
     
     // UI Elements
     const categoryCheckboxes = document.querySelectorAll('.category-checkbox');

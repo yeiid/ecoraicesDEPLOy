@@ -1,9 +1,10 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import LoginForm from '../../components/auth/LoginForm.astro';
+import { getSafeOAuthError } from '../../lib/validation.js';
 
 const url = new URL(Astro.request.url);
-const oauthError = url.searchParams.get('error');
+const oauthError = getSafeOAuthError(url.searchParams.get('error'));
 const pageTitle = 'Iniciar Sesión - EcoRaíces';
 ---
 

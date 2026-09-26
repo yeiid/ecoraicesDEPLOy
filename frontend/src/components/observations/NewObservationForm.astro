@@ -806,8 +806,9 @@ const { categories = [], speciesList = [], userId } = Astro.props;
       if (match) selectSpecies(match);
     }
 
-    searchInput?.addEventListener('input', (e) => {
-      const val = e.target.value.trim().toLowerCase();
+    // Fase 2 velocidad: debounce 180ms + máx 8 resultados + delegación
+    let searchTimer = null;
+    function renderSuggestions(val, rawVal) {
       suggestionsList.innerHTML = '';
       speciesIdInput.value = '';
       selectedBadgeCard.style.display = 'none';
@@ -819,31 +820,60 @@ const { categories = [], speciesList = [], userId } = Astro.props;
       }
       clearBtn.style.display = 'block';
 
-      const matches = Array.isArray(speciesList) ? speciesList.filter(s => 
-        (s.name && s.name.toLowerCase().includes(val)) || 
+      const matches = Array.isArray(speciesList) ? speciesList.filter(s =>
+        (s.name && s.name.toLowerCase().includes(val)) ||
         (s.scientificName && s.scientificName.toLowerCase().includes(val))
-      ) : [];
+      ).slice(0, 8) : [];
 
       if (matches.length > 0) {
-        matches.slice(0, 8).forEach(m => {
+        const frag = document.createDocumentFragment();
+        matches.forEach(m => {
           const li = document.createElement('li');
           li.className = 'species-item';
-          li.innerHTML = `
-            <span class="species-item-name">${m.name}</span>
-            <span class="species-item-scientific">${m.scientificName || ''}</span>
-          `;
-          li.addEventListener('click', () => selectSpecies(m));
-          suggestionsList.appendChild(li);
+          li.dataset.speciesId = m.id;
+          const nameSpan = document.createElement('span');
+          nameSpan.className = 'species-item-name';
+          nameSpan.textContent = m.name;
+          const sciSpan = document.createElement('span');
+          sciSpan.className = 'species-item-scientific';
+          sciSpan.textContent = m.scientificName || '';
+          li.appendChild(nameSpan);
+          li.appendChild(sciSpan);
+          frag.appendChild(li);
         });
+        suggestionsList.appendChild(frag);
         suggestionsList.style.display = 'block';
+        suggestionsList._matches = matches;
       } else {
         const li = document.createElement('li');
         li.className = 'species-item species-item-new';
-        li.innerHTML = `<span>➕ Registrar nueva especie: "<strong>${e.target.value}</strong>"</span>`;
-        li.addEventListener('click', () => selectSpecies({ name: e.target.value }, true));
+        li.dataset.isNew = 'true';
+        const span = document.createElement('span');
+        span.textContent = `➕ Registrar nueva especie: "${rawVal}"`;
+        li.appendChild(span);
         suggestionsList.appendChild(li);
         suggestionsList.style.display = 'block';
+        suggestionsList._matches = [];
       }
+    }
+
+    suggestionsList?.addEventListener('click', (e) => {
+      const li = e.target.closest('li.species-item');
+      if (!li) return;
+      if (li.dataset.isNew === 'true') {
+        selectSpecies({ name: searchInput.value.trim() }, true);
+      } else {
+        const match = (suggestionsList._matches || []).find(m => String(m.id) === li.dataset.speciesId);
+        if (match) selectSpecies(match);
+      }
+    });
+
+    searchInput?.addEventListener('input', (e) => {
+      clearTimeout(searchTimer);
+      const rawVal = e.target.value;
+      searchTimer = setTimeout(() => {
+        renderSuggestions(rawVal.trim().toLowerCase(), rawVal.trim());
+      }, 180);
     });
 
     document.addEventListener('click', (e) => {
@@ -947,6 +977,16 @@ const { categories = [], speciesList = [], userId } = Astro.props;
         document.querySelector('.map-section')?.scrollIntoView({ behavior: 'smooth' });
         return;
       }
+      // Fase 3: valida rango numérico (antes solo truthy, "abc" pasaba)
+      {
+        const lat = parseFloat(latInput.value);
+        const lng = parseFloat(lngInput.value);
+        if (Number.isNaN(lat) || Number.isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+          showError("Coordenadas inválidas. Vuelve a marcar el punto en el mapa.");
+          document.querySelector('.map-section')?.scrollIntoView({ behavior: 'smooth' });
+          return;
+        }
+      }
 
       let currentSpeciesId = speciesIdInput.value;
       const isNewSpecies = !currentSpeciesId && newSpeciesNameInput.value;
@@ -1023,7 +1063,8 @@ const { categories = [], speciesList = [], userId } = Astro.props;
         }, 1200);
 
       } catch (err) {
-        showError(err.message);
+        console.error('[observaciones/nueva]', err);
+        showError(err.message || 'Error al guardar la observación.');
         submitBtn.disabled = false;
         submitBtn.innerHTML = `
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

@@ -88,7 +88,9 @@ const zoom = hasInitial ? 15 : 8;
       // Handle Geolocation Button
       getLocBtn.addEventListener('click', () => {
         if (!navigator.geolocation) {
-          alert("Tu navegador no soporta geolocalización.");
+          coordsDisplay.textContent = 'Tu navegador no soporta geolocalización.';
+          coordsDisplay.style.display = 'inline-block';
+          console.warn('[picker] geolocalización no soportada');
           return;
         }
         
@@ -129,7 +131,9 @@ const zoom = hasInitial ? 15 : 8;
             // For now, at least it centers the map.
           },
           (error) => {
-            alert("No se pudo obtener la ubicación.");
+            console.warn('[picker] geolocalización falló:', error?.message);
+            coordsDisplay.textContent = 'No se pudo obtener la ubicación. Marca el punto en el mapa.';
+            coordsDisplay.style.display = 'inline-block';
             getLocBtn.textContent = "¿Dónde estoy?";
             getLocBtn.disabled = false;
           },

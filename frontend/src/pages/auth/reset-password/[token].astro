@@ -21,7 +21,7 @@ const pageTitle = 'Nueva Contraseña - EcoRaíces';
       <div id="rp-alert" class="alert-box error" style="display: none; margin-bottom: 1rem;"></div>
       <div id="rp-success" class="alert-box success" style="display: none; margin-bottom: 1rem;"></div>
 
-      <form id="resetForm" data-token="{token}">
+      <form id="resetForm" data-token={token}>
         <div class="form-group">
           <label for="password">Nueva contraseña</label>
           <input
@@ -155,7 +155,14 @@ const pageTitle = 'Nueva Contraseña - EcoRaíces';
       const alert = document.getElementById('rp-alert');
       const success = document.getElementById('rp-success');
       const btn = document.getElementById('submit-btn');
-      const token = form.dataset.token;
+      // Fallback a pathname por si data-token viene vacío (ViewTransitions/SSR parcial)
+      const token = form.dataset.token || window.location.pathname.split('/').pop();
+      if (!token || token === '[token]' || token === '{token}') {
+        alert.textContent = 'Enlace inválido o expirado. Solicita uno nuevo.';
+        alert.style.display = 'block';
+        btn.disabled = true;
+        return;
+      }
 
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -168,6 +175,11 @@ const pageTitle = 'Nueva Contraseña - EcoRaíces';
         const password = form.elements.password.value;
         const confirm = form.elements.confirm.value;
 
+        if (password.length < 8 || !/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+          alert.textContent = 'La contraseña debe tener mínimo 8 caracteres, letra y número.';
+          alert.style.display = 'block';
+          return;
+        }
         if (password !== confirm) {
           alert.textContent = 'Las contraseñas no coinciden.';
           alert.style.display = 'block';

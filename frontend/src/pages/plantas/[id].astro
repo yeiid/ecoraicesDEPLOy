@@ -6,6 +6,8 @@ const { id } = Astro.params;
 
 
 import { apiGet } from "../../lib/api/client.js";
+import { getStatusLabel, getStatusClass, licenseLabel } from "../../lib/labels.js";
+import { IMAGE_FALLBACK_WIDE as IMAGE_FALLBACK, IMAGE_FALLBACK_SMALL } from "../../lib/constants.js";
 
 let especie = null;
 let especiesRelacionadas = [];
@@ -33,41 +35,7 @@ try {
 }
 
 
-// Función para obtener la etiqueta del estado de conservación
-const getStatusLabel = (status: string): string => {
-  const statusLabels: Record<string, string> = {
-    'EXTINCT': '🌍 Extinto (EX)',
-    'EXTINCT_IN_WILD': '🌳 Extinto en estado silvestre (EW)',
-    'CRITICALLY_ENDANGERED': '🚨 En peligro crítico (CR)',
-    'ENDANGERED': '⚠️ En peligro (EN)',
-    'VULNERABLE': '⚠️ Vulnerable (VU)',
-    'NEAR_THREATENED': '⚠️ Casi amenazado (NT)',
-    'LEAST_CONCERN': '✅ Preocupación menor (LC)',
-    'DATA_DEFICIENT': '❓ Datos insuficientes (DD)',
-    'NOT_EVALUATED': '❔ No evaluado (NE)'
-  };
-  return statusLabels[status] || status;
-};
-
-const getStatusClass = (status: string): string => {
-  return (status || '').toLowerCase().replace(/_/g, '-');
-};
-
-// Etiqueta legible para licencias de las fotos
-const licenseLabel = (license: string): string => {
-  const labels: Record<string, string> = {
-    'cc0': 'CC0 · Dominio público',
-    'cc-by': 'CC BY · Atribución',
-    'cc-by-sa': 'CC BY-SA · Atribución-CompartirIgual',
-    'cc-by-nc': 'CC BY-NC · No comercial',
-    'cc-by-nc-sa': 'CC BY-NC-SA',
-    'public-domain': 'Dominio público',
-  };
-  const key = (license || '').toLowerCase();
-  return labels[key] || (license ? `Licencia ${license}` : '');
-};
-
-const IMAGE_FALLBACK = 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=800&q=80';
+// Etiquetas centralizadas en src/lib/labels.js
 const mainPhoto = especie.photos?.[0];
 const mainImageUrl = mainPhoto?.url || especie.imageUrl || IMAGE_FALLBACK;
 ---
@@ -193,9 +161,11 @@ const mainImageUrl = mainPhoto?.url || especie.imageUrl || IMAGE_FALLBACK;
             <div class="observation-card">
               <div class="obs-image-wrapper">
                 <img 
-                  src={obs.imageUrl || 'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=400&q=80'} 
-                  onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=400&q=80';"
+                  src={obs.imageUrl || IMAGE_FALLBACK_SMALL} 
+                  onerror={`this.onerror=null; this.src='${IMAGE_FALLBACK_SMALL}';`}
                   alt="Avistamiento" 
+                  loading="lazy"
+                  decoding="async"
                 />
               </div>
               <div class="obs-content">
@@ -235,9 +205,11 @@ const mainImageUrl = mainPhoto?.url || especie.imageUrl || IMAGE_FALLBACK;
             <a href={`/plantas/${esp.id}`} class="related-card">
               <div class="related-img-wrapper">
                 <img 
-                  src={esp.imageUrl || 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=400&q=80'} 
-                  onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=400&q=80';"
+                  src={esp.imageUrl || IMAGE_FALLBACK_SMALL} 
+                  onerror={`this.onerror=null; this.src='${IMAGE_FALLBACK_SMALL}';`}
                   alt={esp.name} 
+                  loading="lazy"
+                  decoding="async"
                 />
               </div>
               <div class="related-content">
@@ -719,13 +691,13 @@ const mainImageUrl = mainPhoto?.url || especie.imageUrl || IMAGE_FALLBACK;
   }
 </style>
 
-<script>
+<script define:vars={{ imageFallback: IMAGE_FALLBACK }}>
   document.addEventListener('astro:page-load', () => {
     const main = document.getElementById('gallery-main');
     if (!main) return;
     const credit = document.querySelector('.photo-credit');
     const thumbs = document.querySelectorAll('.thumb-btn');
-    const fallback = 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=800&q=80';
+    const fallback = imageFallback;
 
     thumbs.forEach((btn) => {
       btn.addEventListener('click', () => {

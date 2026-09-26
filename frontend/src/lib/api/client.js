@@ -7,20 +7,41 @@
 // Cache for the working backend URL to avoid probing on every request
 let cachedWorkingBackendUrl = null;
 
-function getCandidateBackendUrls() {
-  const list = [];
-  if (typeof process !== 'undefined' && process.env.BACKEND_URL) {
-    list.push(process.env.BACKEND_URL);
+// Fase 2 velocidad: memo TTL en memoria para GETs casi-estáticos (categorías,
+// hábitats, stats). Evita re-pegar al backend en cada hit SSR.
+const responseCache = new Map();
+const CACHE_TTL_MS = 60_000;
+const CACHEABLE_PREFIXES = ['/categories', '/species/habitats', '/stats'];
+
+function getCachedGet(path) {
+  if (!CACHEABLE_PREFIXES.some((p) => path === p || path.startsWith(p + '?') || path.startsWith(p + '/') && p !== '/stats')) return null;
+  // /stats con query no se cachea; paths con ID tampoco (solo listas base)
+  if (path.includes('/related')) return null;
+  const entry = responseCache.get(path);
+  if (!entry) return null;
+  if (Date.now() - entry.at > CACHE_TTL_MS) {
+    responseCache.delete(path);
+    return null;
   }
-  list.push('http://backend:8000');
-  list.push('http://host.docker.internal:48000');
-  list.push('http://172.17.0.1:48000');
-  list.push('http://187.124.64.184:48000');
-  list.push('http://localhost:48000');
-  list.push('http://127.0.0.1:48000');
-  // Remove duplicates while preserving order
-  return [...new Set(list)];
+  return entry.data;
 }
+
+function setCachedGet(path, data) {
+  if (!CACHEABLE_PREFIXES.some((p) => path === p || path.startsWith(p + '?'))) return;
+  if (path.includes('/related')) return;
+  // Limitar tamaño: solo listas pequeñas
+  try {
+    const size = JSON.stringify(data)?.length || 0;
+    if (size > 200_000) return;
+  } catch { /* noop */ }
+  if (responseCache.size > 50) {
+    const firstKey = responseCache.keys().next().value;
+    responseCache.delete(firstKey);
+  }
+  responseCache.set(path, { at: Date.now(), data });
+}
+
+import { getCandidateBackendUrls } from '../backendHosts.js';
 
 export async function api(path, options = {}) {
   const isServer = typeof window === 'undefined';
@@ -46,6 +67,12 @@ export async function api(path, options = {}) {
   }
 
   // SSR Server-side request with multi-host fallback
+  const isGet = !options.method || options.method === 'GET';
+  if (isServer && isGet) {
+    const cached = getCachedGet(path);
+    if (cached !== null) return cached;
+  }
+
   const candidates = cachedWorkingBackendUrl 
     ? [cachedWorkingBackendUrl, ...getCandidateBackendUrls().filter(u => u !== cachedWorkingBackendUrl)]
     : getCandidateBackendUrls();
@@ -55,8 +82,16 @@ export async function api(path, options = {}) {
   for (const baseUrl of candidates) {
     const url = `${baseUrl}/api${path}`;
     try {
-      console.log(`[SSR] Fetching: ${url}`);
-      const res = await fetch(url, { ...options, headers });
+      if (import.meta.env?.DEV) console.log(`[SSR] Fetching: ${url}`);
+      // Fase 2: timeout para no colgar el SSR si un host está muerto
+      const ctrl = new AbortController();
+      const timeoutId = setTimeout(() => ctrl.abort(), 2500);
+      let res;
+      try {
+        res = await fetch(url, { ...options, headers, signal: ctrl.signal });
+      } finally {
+        clearTimeout(timeoutId);
+      }
       
       // If we got a response (even a 404/401/etc. from FastAPI), connection was successful
       cachedWorkingBackendUrl = baseUrl;
@@ -69,7 +104,9 @@ export async function api(path, options = {}) {
         throw error;
       }
       if (res.status === 204) return null;
-      return await res.json();
+      const data = await res.json();
+      if (isGet) setCachedGet(path, data);
+      return data;
     } catch (err) {
       // If it's an HTTP error with status from backend, don't fallback to other hosts, throw it
       if (err.status) {

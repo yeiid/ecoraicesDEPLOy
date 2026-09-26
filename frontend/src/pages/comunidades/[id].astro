@@ -2,6 +2,8 @@
 import Layout from '../../layouts/Layout.astro';
 import { getSessionUser } from '../../lib/middleware/auth.js';
 import { apiGet } from '../../lib/api/client.js';
+import { IMAGE_FALLBACK_DETAIL } from '../../lib/constants.js';
+import ConfirmDialog from '../../components/ui/ConfirmDialog.astro';
 
 export const prerender = false;
 
@@ -38,7 +40,7 @@ const statusInfo = {
 
 const bannerUrl =
   community.imageUrl ||
-  'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=1200&q=80';
+  IMAGE_FALLBACK_DETAIL;
 ---
 
 <Layout title={title}>
@@ -98,7 +100,7 @@ const bannerUrl =
               </button>
             )
           ) : (
-            <a href="/auth/login?redirect=/comunidades/${community.id}" class="btn btn-accent">
+            <a href={`/auth/login?redirect=${encodeURIComponent(`/comunidades/${community.id}`)}`} class="btn btn-accent">
               Inicia sesión para unirte
             </a>
           )}
@@ -163,16 +165,44 @@ const bannerUrl =
     </div>
   </div>
 
+  <ConfirmDialog
+    id="community-confirm"
+    title="Confirmar"
+    message="¿Seguro?"
+    confirmText="Confirmar"
+    cancelText="Cancelar"
+    variant="danger"
+  />
+
   <script define:vars={{ communityId: community.id, isOwner, isMember: Boolean(myMembership) }}>
     const feedback = document.getElementById('feedback');
     const showFeedback = (message, type = 'error') => {
       feedback.textContent = message;
       feedback.className = `alert-box ${type}`;
       feedback.style.display = 'block';
-      setTimeout(() => { feedback.style.display = 'none'; }, 4000);
+      if (type === 'error') console.error('[comunidades/detalle]', message);
+      if (type === 'success') setTimeout(() => { feedback.style.display = 'none'; }, 4000);
     };
 
     const reload = () => window.location.reload();
+
+    // Diálogo accesible con fallback a confirm() nativo
+    const askConfirm = (title, message) => {
+      const dialog = document.getElementById('community-confirm');
+      if (dialog && typeof dialog.showModal === 'function') {
+        dialog.querySelector('h2').textContent = title;
+        dialog.querySelector('p').textContent = message;
+        return new Promise((resolve) => {
+          const onConfirm = (e) => {
+            dialog.removeEventListener('confirm', onConfirm);
+            resolve(!!e.detail?.confirmed);
+          };
+          dialog.addEventListener('confirm', onConfirm, { once: true });
+          dialog.showModal();
+        });
+      }
+      return Promise.resolve(window.confirm(`${title}\n${message}`));
+    };
 
     const joinBtn = document.getElementById('join-btn');
     joinBtn?.addEventListener('click', async () => {
@@ -190,7 +220,8 @@ const bannerUrl =
 
     const leaveBtn = document.getElementById('leave-btn');
     leaveBtn?.addEventListener('click', async () => {
-      if (!confirm('¿Seguro que deseas abandonar esta comunidad?')) return;
+      const ok = await askConfirm('Abandonar comunidad', '¿Seguro que deseas abandonar esta comunidad?');
+      if (!ok) return;
       try {
         const res = await fetch(`/api/communities/${communityId}/members`, {
           method: 'DELETE',
@@ -209,7 +240,8 @@ const bannerUrl =
 
     const deleteBtn = document.getElementById('delete-btn');
     deleteBtn?.addEventListener('click', async () => {
-      if (!confirm('¿Eliminar esta comunidad? Esta acción no se puede deshacer.')) return;
+      const ok = await askConfirm('Eliminar comunidad', '¿Eliminar esta comunidad? Esta acción no se puede deshacer.');
+      if (!ok) return;
       try {
         const res = await fetch(`/api/communities/${communityId}`, { method: 'DELETE' });
         if (!res.ok) throw new Error((await res.json()).message || 'No se pudo eliminar');

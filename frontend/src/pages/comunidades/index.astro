@@ -2,6 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import { apiGet } from '../../lib/api/client.js';
 import { getSessionUser } from '../../lib/middleware/auth.js';
+import { IMAGE_FALLBACK_BANNER } from '../../lib/constants.js';
 
 const user = await getSessionUser({ cookies: Astro.cookies, request: Astro.request });
 
@@ -13,7 +14,7 @@ try {
 }
 
 const title = 'Comunidades - EcoRaíces';
-const fallbackBanner = 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=600&q=80';
+const fallbackBanner = IMAGE_FALLBACK_BANNER;
 ---
 
 <Layout title={title}>

@@ -30,6 +30,8 @@ const {
   
   <slot />
   
+  <div id="auth-alert" class="alert-box error" role="alert" style="display: none; margin-top: 1rem;"></div>
+  
   {showSocialLogin && (
     <div class="social-login">
       <p class="divider">O continúa con</p>
@@ -92,11 +94,22 @@ const {
           if (res.ok) {
             window.location.href = '/'; // Redirigir al inicio en éxito
           } else {
-            const err = await res.json();
-            alert("Error al iniciar sesión con Google: " + (err.detail || 'Fallo de autenticación'));
+            const err = await res.json().catch(() => ({}));
+            console.error('[auth] Google login failed:', err);
+            const box = document.getElementById('auth-alert');
+            const msg = "Error al iniciar sesión con Google: " + (err.detail || err.message || 'Fallo de autenticación');
+            if (box) {
+              box.textContent = msg;
+              box.style.display = 'block';
+            }
           }
         } catch (error) {
-          console.error("Google auth error", error);
+          console.error('[auth] Google auth error:', error);
+          const box = document.getElementById('auth-alert');
+          if (box) {
+            box.textContent = 'No se pudo contactar a Google. Intenta de nuevo.';
+            box.style.display = 'block';
+          }
         }
       }
     }

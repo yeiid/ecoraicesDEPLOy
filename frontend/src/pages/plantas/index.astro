@@ -44,6 +44,8 @@ const { categoria, habitat, estado: estadoConservacion, ordenar } = params;
 
 
 import { apiGet } from "../../lib/api/client.js";
+import { getStatusLabel } from "../../lib/labels.js";
+import { IMAGE_FALLBACK_CARD } from "../../lib/constants.js";
 
 let categorias = [];
 let habitats = [];
@@ -74,21 +76,7 @@ try {
 }
 
 
-// Función para obtener la etiqueta del estado de conservación
-const getStatusLabel = (status: string): string => {
-  const statusLabels: Record<string, string> = {
-    'EXTINCT': '🌍 Extinto (EX)',
-    'EXTINCT_IN_WILD': '🌳 Extinto en estado silvestre (EW)',
-    'CRITICALLY_ENDANGERED': '🚨 En peligro crítico (CR)',
-    'ENDANGERED': '⚠️ En peligro (EN)',
-    'VULNERABLE': '⚠️ Vulnerable (VU)',
-    'NEAR_THREATENED': '⚠️ Casi amenazado (NT)',
-    'LEAST_CONCERN': '✅ Preocupación menor (LC)',
-    'DATA_DEFICIENT': '❓ Datos insuficientes (DD)',
-    'NOT_EVALUATED': '❔ No evaluado (NE)'
-  };
-  return statusLabels[status] || status;
-};
+// Etiquetas centralizadas en src/lib/labels.js
 ---
 
 <Layout title="Catálogo de Especies - EcoRaíces">
@@ -189,8 +177,8 @@ const getStatusLabel = (status: string): string => {
             especies.map((especie: Especie) => (
               <div class="plant-card">
                 <div class="plant-image">
-                  <img src={especie.imageUrl || 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=600&q=80'} 
-                        onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=600&q=80';" 
+                  <img src={especie.imageUrl || IMAGE_FALLBACK_CARD} 
+                        onerror={`this.onerror=null; this.src='${IMAGE_FALLBACK_CARD}';`} 
                         alt={especie.name}
                         loading="lazy"
                         decoding="async"
@@ -456,13 +444,6 @@ const getStatusLabel = (status: string): string => {
   .plant-title {
     margin-bottom: 0.5rem;
     font-size: 1.1rem;
-  }
-
-  .plant-price {
-    font-weight: bold;
-    font-size: 1.2rem;
-    color: var(--color-primary);
-    margin-bottom: 1rem;
   }
 
   .plant-actions {

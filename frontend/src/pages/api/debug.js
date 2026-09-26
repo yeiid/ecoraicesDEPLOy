@@ -3,6 +3,13 @@
  * Visita: https://ecoraices.neuraljira.tech/api/debug
  */
 export async function GET() {
+  // Fase 1 limpieza: endpoint solo en desarrollo — en prod expone IPs internas
+  if (!import.meta.env?.DEV && process.env.NODE_ENV === 'production') {
+    return new Response(JSON.stringify({ error: 'Not found' }), {
+      status: 404,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
   const backendUrl = process.env.BACKEND_URL || "http://backend:8000";
   const results = {
     timestamp: new Date().toISOString(),
