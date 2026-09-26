@@ -6,7 +6,7 @@ import { apiGet } from '../../lib/api/client.js';
 export const prerender = false;
 
 const { id } = Astro.params;
-const user = await getSessionUser({ cookies: Astro.cookies });
+const user = await getSessionUser({ cookies: Astro.cookies, request: Astro.request });
 
 let community = null;
 let observations = [];

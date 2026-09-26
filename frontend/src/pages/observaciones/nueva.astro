@@ -4,7 +4,7 @@ import NewObservationForm from "../../components/observations/NewObservationForm
 import { getSessionUser } from '../../lib/middleware/auth.js';
 
 // 🔐 Verificar estado de sesión y token
-const user = await getSessionUser({ cookies: Astro.cookies });
+const user = await getSessionUser({ cookies: Astro.cookies, request: Astro.request });
 
 // Redirigir si no está autenticado
 if (!user) {

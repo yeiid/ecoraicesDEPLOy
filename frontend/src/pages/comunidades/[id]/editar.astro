@@ -7,7 +7,7 @@ import { getSessionUser } from '../../../lib/middleware/auth.js';
 export const prerender = false;
 
 const { id } = Astro.params;
-const user = await getSessionUser({ cookies: Astro.cookies });
+const user = await getSessionUser({ cookies: Astro.cookies, request: Astro.request });
 
 if (!user) {
   return Astro.redirect(`/auth/login?redirect=${Astro.url.pathname}`);

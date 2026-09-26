@@ -3,7 +3,7 @@ import Layout from "../../layouts/Layout.astro";
 import { apiGet } from "../../lib/api/client.js";
 import { getSessionUser } from "../../lib/middleware/auth.js";
 
-const user = await getSessionUser({ cookies: Astro.cookies });
+const user = await getSessionUser({ cookies: Astro.cookies, request: Astro.request });
 
 if (!user) {
   return Astro.redirect("/auth/login");

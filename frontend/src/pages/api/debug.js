@@ -65,6 +65,17 @@ export async function GET() {
   // Test 7: Try TCP to "backend" hostname directly
   results.tests.tcp_backend = await testTcp('backend', 8000);
 
+  // Test 8: Try candidate URLs
+  const candidateHosts = [
+    'http://host.docker.internal:48000/api/health',
+    'http://172.17.0.1:48000/api/health',
+    'http://187.124.64.184:48000/api/health',
+    'http://localhost:48000/api/health'
+  ];
+  for (const url of candidateHosts) {
+    results.tests[`candidate_${url}`] = await testFetch(url, url);
+  }
+
   return new Response(JSON.stringify(results, null, 2), {
     headers: { "Content-Type": "application/json" }
   });
