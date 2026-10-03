@@ -1,209 +1,233 @@
 ---
 // frontend/src/components/observations/NewObservationForm.astro
-const { categories = [], speciesList = [], userId } = Astro.props;
+const { categories = [], speciesList = [], communities = [], userId } = Astro.props;
 ---
 
-<div class="observation-form-container">
-  <div id="alert-success" class="alert-box success" role="alert" style="display: none;"></div>
-  <div id="alert-error" class="alert-box error" role="alert" style="display: none;"></div>
+<div class="quick-form-container">
+  <!-- Barra de sincronización offline -->
+  <div id="offline-sync-bar" class="offline-sync-bar" style="display: none;">
+    <div class="offline-bar-content">
+      <span class="offline-icon">📶</span>
+      <span id="offline-bar-text">3 árboles guardados localmente (sin conexión)</span>
+    </div>
+    <button type="button" id="btn-sync-offline-now" class="btn-sync-offline">
+      Sincronizar ahora
+    </button>
+  </div>
 
-  <form id="observation-form" class="modern-form" novalidate>
-    <!-- Datos ocultos para estado -->
+  <div id="alert-success" class="quick-alert success" role="alert" style="display: none;"></div>
+  <div id="alert-error" class="quick-alert error" role="alert" style="display: none;"></div>
+
+  <form id="observation-form" class="quick-form" novalidate>
     <input type="hidden" id="userId" name="userId" value={userId} />
-    <input type="hidden" id="speciesId" name="speciesId" />
     <input type="hidden" id="latitude" name="latitude" />
     <input type="hidden" id="longitude" name="longitude" />
-    <input type="hidden" id="newSpeciesName" name="newSpeciesName" />
-    <input type="hidden" id="newSpeciesScientificName" name="newSpeciesScientificName" />
+    <input type="hidden" id="estadoFitosanitario" name="estadoFitosanitario" value="Sano y vigoroso" />
 
     <!-- ========================================== -->
-    <!-- BLOQUE 1: DATOS DEL ÁRBOL (FORMULARIO PRIMERO) -->
+    <!-- TARJETA 1: UBICACIÓN ACTUAL                -->
     <!-- ========================================== -->
-    <section class="form-section">
-      <div class="section-title-wrap">
-        <div class="step-badge">1</div>
+    <div class="quick-card location-card">
+      <div class="card-header">
+        <div class="header-icon-badge">📍</div>
         <div>
-          <h2 class="section-title">Datos del Ejemplar</h2>
-          <p class="section-desc">Identifica la especie o ingresa un nuevo ejemplar nativo.</p>
+          <h2 class="card-title">Ubicación Actual</h2>
+          <span class="card-subtitle">Georreferenciación GPS en campo</span>
         </div>
       </div>
 
-      <!-- Buscador de Especies con Autocomplete -->
-      <div class="form-group species-group">
-        <label for="speciesSearch" class="form-label">
-          Nombre de la Especie <span class="required">*</span>
+      <div class="coords-display-box">
+        <div class="coord-pill">
+          <span class="coord-tag">Lat:</span>
+          <span id="display-lat" class="coord-val">--.------</span>
+        </div>
+        <div class="coord-pill">
+          <span class="coord-tag">Lng:</span>
+          <span id="display-lng" class="coord-val">--.------</span>
+        </div>
+        <span id="gps-status-indicator" class="gps-status-badge waiting">
+          Buscando satélites...
+        </span>
+      </div>
+
+      <div class="location-btn-row">
+        <button type="button" id="btn-where-am-i" class="btn-location">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <circle cx="12" cy="12" r="10"/>
+            <polygon points="12 2 12 6 12 18 12 22"/>
+            <polygon points="2 12 6 12 18 12 22 12"/>
+          </svg>
+          ¿Dónde estoy?
+        </button>
+        <button type="button" id="btn-toggle-map" class="btn-map-toggle">
+          🗺️ Ajustar en mapa
+        </button>
+      </div>
+
+      <!-- Mapa colapsable opcional (cero scroll por defecto) -->
+      <div id="map-drawer" class="map-drawer" style="display: none;">
+        <div id="quick-map" class="drawer-map"></div>
+        <span class="map-hint">Toca en el mapa para ajustar manualmente la coordenada del árbol.</span>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TARJETA 2: DATOS DEL ÁRBOL                 -->
+    <!-- ========================================== -->
+    <div class="quick-card data-card">
+      <!-- Campo Especie / Nombre Comunitario -->
+      <div class="form-item">
+        <label for="speciesInput" class="item-label">
+          <span class="item-label-icon">🌱</span> Especie o Nombre Común <span class="req">*</span>
         </label>
-        
-        <div class="search-input-wrapper">
-          <span class="input-icon">🌿</span>
+        <div class="input-shell">
           <input 
             type="text" 
-            id="speciesSearch" 
-            class="input search-input" 
-            placeholder="Escribe el nombre común o científico (ej. Guayacán, Ceiba...)"
+            id="speciesInput" 
+            name="speciesInput"
+            class="item-input" 
+            placeholder="Ej. Trupillo, Guayacán, Ceiba, Olleto..."
             autocomplete="off"
+            list="species-presets"
             required
           />
-          <button type="button" id="clear-species-btn" class="clear-btn" style="display: none;" title="Limpiar búsqueda">✕</button>
         </div>
-
-        <ul id="species-suggestions" class="species-dropdown" style="display: none;"></ul>
-
-        <!-- Tarjeta de especie seleccionada -->
-        <div id="selected-species-card" class="selected-badge-card" style="display: none;">
-          <div class="selected-icon">🌱</div>
-          <div class="selected-details">
-            <span class="selected-tag">Especie seleccionada</span>
-            <div id="selected-species-name" class="selected-name"></div>
-            <div id="selected-species-scientific" class="selected-scientific"></div>
-          </div>
-          <button type="button" id="change-species-btn" class="btn-change-species">Cambiar</button>
-        </div>
+        <datalist id="species-presets">
+          {speciesList.slice(0, 50).map((sp) => (
+            <option value={sp.name}>{sp.scientificName ? `(${sp.scientificName})` : ''}</option>
+          ))}
+        </datalist>
       </div>
 
-      <!-- Grid de Municipio y Estado de Conservación -->
-      <div class="form-row-grid">
-        <div class="form-group">
-          <label for="municipio" class="form-label">
-            Municipio o Territorio <span class="required">*</span>
-          </label>
-          <div class="input-with-icon">
-            <span class="input-icon">📍</span>
-            <input 
-              type="text"
-              id="municipio"
-              name="municipio"
-              class="input pl-icon"
-              placeholder="Ej. Riohacha, Manaure, Dibulla"
-              required
-            />
+      <!-- Campo Municipio -->
+      <div class="form-item">
+        <label for="municipioInput" class="item-label">
+          <span class="item-label-icon">📍</span> Municipio o Sector <span class="req">*</span>
+        </label>
+        <div class="input-shell">
+          <input 
+            type="text" 
+            id="municipioInput" 
+            name="municipioInput"
+            class="item-input" 
+            list="municipios-list"
+            placeholder="Seleccione o escriba un municipio"
+            required
+          />
+        </div>
+        <datalist id="municipios-list">
+          <option value="Riohacha" />
+          <option value="Dibulla" />
+          <option value="Manaure" />
+          <option value="Maicao" />
+          <option value="San Juan del Cesar" />
+          <option value="Fonseca" />
+          <option value="Barrancas" />
+          <option value="Albania" />
+          <option value="Hatonuevo" />
+          <option value="Villanueva" />
+          <option value="Uribia" />
+          <option value="Distracción" />
+        </datalist>
+      </div>
+
+      <!-- Botón para desplegar opciones secundarias -->
+      <div class="extra-toggle-wrap">
+        <button type="button" id="btn-toggle-extra" class="btn-extra-pill">
+          <span class="pill-icon">✨</span>
+          <span id="extra-btn-text">Opciones adicionales (Foto, Salud, Notas)</span>
+          <span class="pill-arrow" id="extra-arrow">▾</span>
+        </button>
+      </div>
+
+      <!-- Sección secundaria estilizada con componentes pulidos -->
+      <div id="extra-fields" class="extra-fields-panel" style="display: none;">
+        
+        <!-- Foto Rápida con botón estilizado y Thumbnail Preview -->
+        <div class="form-item">
+          <span class="item-label-mini">📷 Fotografía del Árbol</span>
+          <div class="photo-uploader-box">
+            <input type="file" id="quick-image" accept="image/*" class="file-hidden-input" />
+            <div id="photo-placeholder-btn" class="photo-btn-styled">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+              </svg>
+              <span>Tomar foto o subir imagen</span>
+            </div>
+
+            <!-- Preview miniatura -->
+            <div id="photo-preview-wrap" class="photo-preview-thumb" style="display: none;">
+              <img id="thumb-img" src="" alt="Thumbnail" />
+              <div class="thumb-info">
+                <span id="thumb-name" class="thumb-filename">foto.jpg</span>
+                <button type="button" id="btn-remove-thumb" class="btn-remove-thumb">✕ Quitar</button>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="form-group">
-          <label for="estadoConservacion" class="form-label">
-            Estado de Conservación
-          </label>
-          <div class="input-with-icon">
-            <span class="input-icon">🛡️</span>
-            <select 
-              id="estadoConservacion"
-              name="estadoConservacion"
-              class="select pl-icon"
-            >
-              <option value="">Seleccione estado (opcional)</option>
-              <option value="Preocupación menor (LC)">Preocupación menor (LC)</option>
-              <option value="Casi amenazado (NT)">Casi amenazado (NT)</option>
-              <option value="Vulnerable (VU)">Vulnerable (VU)</option>
-              <option value="En peligro (EN)">En peligro (EN)</option>
-              <option value="En peligro crítico (CR)">En peligro crítico (CR)</option>
-              <option value="Datos insuficientes (DD)">Datos insuficientes (DD)</option>
+        <!-- Chips de Salud Fitosanitaria en 1 toque -->
+        <div class="form-item">
+          <span class="item-label-mini">🌿 Condición de Salud</span>
+          <div class="health-chips-row">
+            <button type="button" class="mini-chip active" data-health="Sano y vigoroso">
+              🌳 Sano
+            </button>
+            <button type="button" class="mini-chip" data-health="Con floración o frutos">
+              🌸 Flores/Fruto
+            </button>
+            <button type="button" class="mini-chip" data-health="Dañado o talado">
+              🪓 Dañado
+            </button>
+            <button type="button" class="mini-chip" data-health="Seco o con plaga">
+              🍂 Seco/Plaga
+            </button>
+          </div>
+        </div>
+
+        <!-- Comunidad Enlazada -->
+        {communities && communities.length > 0 && (
+          <div class="form-item">
+            <label for="quick-community" class="item-label-mini">
+              👥 Comunidad del Sector
+            </label>
+            <select id="quick-community" class="item-select">
+              <option value="">-- Sin comunidad específica --</option>
+              {communities.map((c) => (
+                <option value={c.id}>{c.name} {c.location ? `(${c.location})` : ''}</option>
+              ))}
             </select>
           </div>
-        </div>
-      </div>
+        )}
 
-      <!-- Descripción / Notas de campo -->
-      <div class="form-group">
-        <label for="notes" class="form-label">Notas y Observaciones de Campo</label>
-        <textarea 
-          id="notes"
-          name="notes"
-          class="textarea"
-          rows="3"
-          placeholder="Describe el estado de la planta, altura aproximada, corteza, si tiene flores o frutos, o detalles del entorno..."
-        ></textarea>
-      </div>
-
-      <!-- Carga de Fotografía con Drag & Drop / Preview -->
-      <div class="form-group">
-        <label class="form-label">Fotografía del Árbol (Recomendado)</label>
-        
-        <div class="upload-dropzone" id="dropzone">
+        <!-- Notas Breves -->
+        <div class="form-item">
+          <label for="quick-notes" class="item-label-mini">
+            📝 Notas breves de campo
+          </label>
           <input 
-            type="file"
-            id="image"
-            name="image"
-            accept="image/*"
-            class="file-input-hidden"
+            type="text" 
+            id="quick-notes" 
+            class="item-input input-compact" 
+            placeholder="Ej. Altura 6m, cerca a la quebrada, tronco espinoso..."
           />
-          <div class="dropzone-content" id="dropzone-content">
-            <div class="upload-icon-circle">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
-                <circle cx="9" cy="9" r="2"/>
-                <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
-              </svg>
-            </div>
-            <div class="dropzone-text">
-              <span class="dropzone-highlight">Haz clic para subir una foto</span> o arrastra el archivo aquí
-            </div>
-            <span class="dropzone-sub">Formatos soportados: JPG, PNG, WebP (máx. 10 MB)</span>
-          </div>
-
-          <div id="image-preview" class="image-preview-box" style="display: none;">
-            <img id="preview-img" src="" alt="Vista previa del árbol" class="preview-img-el" />
-            <div class="preview-overlay">
-              <span id="preview-filename" class="preview-filename"></span>
-              <button type="button" id="remove-image-btn" class="btn-remove-image">
-                ✕ Quitar foto
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ========================================== -->
-    <!-- BLOQUE 2: UBICACIÓN EN EL MAPA (ABAJO)     -->
-    <!-- ========================================== -->
-    <section class="form-section map-section">
-      <div class="section-title-wrap">
-        <div class="step-badge">2</div>
-        <div class="map-title-flex">
-          <div>
-            <h2 class="section-title">Ubicación en el Mapa</h2>
-            <p class="section-desc">Haz clic en el mapa para marcar el punto exacto de la observación.</p>
-          </div>
         </div>
       </div>
 
-      <div class="map-toolbar">
-        <button type="button" id="btn-geolocate" class="btn btn-outline btn-sm btn-geo">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="3 11 22 2 13 21 11 13 3 11"/>
-          </svg>
-          Usar mi ubicación GPS actual
-        </button>
-
-        <div id="coords-status" class="coords-chip empty">
-          <span class="coords-dot"></span>
-          <span id="coords-text">Ningún punto fijado en el mapa</span>
-        </div>
-      </div>
-
-      <div class="map-frame">
-        <div id="map-container" class="interactive-map"></div>
-      </div>
-    </section>
-
-    <!-- ========================================== -->
-    <!-- BOTONES DE ACCIÓN                          -->
-    <!-- ========================================== -->
-    <div class="form-actions-bar">
-      <a href="/observaciones" class="btn btn-secondary btn-cancel">
-        Cancelar
-      </a>
-      <button 
-        type="submit" 
-        id="submit-btn"
-        class="btn btn-primary btn-submit"
-      >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <!-- Botón Enviar Principal con estilo EcoRaíces -->
+      <button type="submit" id="submit-btn" class="btn-send-ecoraices">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
         </svg>
-        Registrar Árbol
+        <span>Enviar Registro</span>
       </button>
+
+      <!-- Modo ráfaga continua para 100 árboles -->
+      <label class="continuous-mode-toggle">
+        <input type="checkbox" id="continuous-mode" checked />
+        <span>⚡ Modo ráfaga: registrar y continuar con el siguiente árbol</span>
+      </label>
     </div>
   </form>
 </div>
@@ -211,266 +235,393 @@ const { categories = [], speciesList = [], userId } = Astro.props;
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" />
 
 <style>
-  .observation-form-container {
+  .quick-form-container {
     width: 100%;
+    margin: 0 auto;
   }
 
-  .modern-form {
+  .quick-form {
     display: flex;
     flex-direction: column;
-    gap: 2rem;
-  }
-
-  /* Secciones del formulario */
-  .form-section {
-    background: #ffffff;
-    border: 1px solid var(--color-border, #e2e8f0);
-    border-radius: var(--radius-lg, 16px);
-    padding: 1.75rem;
-    box-shadow: 0 2px 8px -2px rgba(15, 23, 42, 0.05);
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-  }
-
-  .section-title-wrap {
-    display: flex;
-    align-items: flex-start;
-    gap: 1rem;
-    padding-bottom: 1.25rem;
-    border-bottom: 1px solid var(--color-border, #f1f5f9);
-  }
-
-  .step-badge {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: var(--color-primary, #1b5e20);
-    color: #ffffff;
-    font-weight: 700;
-    font-size: 0.95rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-
-  .section-title {
-    font-family: var(--font-heading, sans-serif);
-    font-size: 1.35rem;
-    font-weight: 700;
-    color: var(--color-primary-dark, #14532d);
-    margin: 0;
-    line-height: 1.3;
-  }
-
-  .section-desc {
-    font-size: 0.88rem;
-    color: var(--color-text-muted, #64748b);
-    margin: 0.25rem 0 0 0;
-  }
-
-  /* Grupos y labels */
-  .form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0.45rem;
-  }
-
-  .form-label {
-    font-weight: 600;
-    font-size: 0.92rem;
-    color: var(--color-text-main, #1e293b);
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-  }
-
-  .required {
-    color: var(--color-danger, #ef4444);
-    font-weight: 700;
-  }
-
-  /* Grid 2 columnas */
-  .form-row-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
     gap: 1.25rem;
   }
 
-  /* Inputs con iconos */
-  .input-with-icon,
-  .search-input-wrapper {
-    position: relative;
+  /* Alertas */
+  /* Barra offline */
+  .offline-sync-bar {
     display: flex;
     align-items: center;
-  }
-
-  .input-icon {
-    position: absolute;
-    left: 0.9rem;
-    pointer-events: none;
-    font-size: 1rem;
-    z-index: 2;
-  }
-
-  .pl-icon {
-    padding-left: 2.75rem !important;
-  }
-
-  .search-input {
-    padding-left: 2.75rem !important;
-    padding-right: 2.5rem !important;
-  }
-
-  .clear-btn {
-    position: absolute;
-    right: 0.75rem;
-    background: none;
-    border: none;
-    color: var(--color-gray-400);
-    cursor: pointer;
-    font-size: 1rem;
-    padding: 0.25rem;
-    border-radius: 50%;
-  }
-
-  .clear-btn:hover {
-    color: var(--color-text-main);
-  }
-
-  /* Dropdown de Autocomplete */
-  .species-group {
-    position: relative;
-  }
-
-  .species-dropdown {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: #ffffff;
-    border: 1px solid var(--color-border, #cbd5e1);
-    border-radius: var(--radius-md, 12px);
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
-    list-style: none;
-    margin: 0.4rem 0 0 0;
-    padding: 0.4rem;
-    max-height: 240px;
-    overflow-y: auto;
-    z-index: 100;
-  }
-
-  .species-item {
-    padding: 0.65rem 0.9rem;
+    justify-content: space-between;
+    gap: 0.75rem;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
     border-radius: var(--radius-sm, 8px);
-    cursor: pointer;
-    display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
-    transition: background-color 0.15s ease;
-  }
-
-  .species-item:hover,
-  .species-item.active {
-    background-color: var(--color-accent, #e8f5e9);
-  }
-
-  .species-item-name {
+    padding: 0.65rem 0.95rem;
+    font-size: 0.85rem;
     font-weight: 600;
-    color: var(--color-primary-dark, #14532d);
-    font-size: 0.95rem;
+    color: #1e40af;
+    margin-bottom: 0.75rem;
   }
 
-  .species-item-scientific {
-    font-style: italic;
-    font-size: 0.82rem;
-    color: var(--color-text-muted, #64748b);
-  }
-
-  .species-item-new {
-    background-color: #ecfdf5;
-    border: 1px dashed var(--color-success, #10b981);
-    color: var(--color-success-dark, #059669);
-    font-weight: 600;
-  }
-
-  /* Tarjeta de confirmación de especie */
-  .selected-badge-card {
+  .offline-bar-content {
     display: flex;
     align-items: center;
-    gap: 0.85rem;
-    background: var(--color-success-bg, #ecfdf5);
-    border: 1px solid #a7f3d0;
-    border-radius: var(--radius-md, 12px);
-    padding: 0.75rem 1rem;
-    margin-top: 0.6rem;
+    gap: 0.45rem;
   }
 
-  .selected-icon {
-    font-size: 1.5rem;
-    flex-shrink: 0;
-  }
-
-  .selected-details {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .selected-tag {
-    font-size: 0.72rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-weight: 700;
-    color: var(--color-success-dark, #059669);
-  }
-
-  .selected-name {
-    font-weight: 700;
-    font-size: 1.05rem;
-    color: var(--color-primary-dark, #14532d);
-  }
-
-  .selected-scientific {
-    font-style: italic;
-    font-size: 0.85rem;
-    color: var(--color-text-muted);
-  }
-
-  .btn-change-species {
-    background: none;
-    border: 1px solid var(--color-success);
-    color: var(--color-success-dark);
-    font-weight: 600;
-    font-size: 0.82rem;
+  .btn-sync-offline {
+    background: #2563eb;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
     padding: 0.35rem 0.75rem;
-    border-radius: var(--radius-pill, 999px);
+    font-size: 0.78rem;
+    font-weight: 700;
     cursor: pointer;
     transition: background 0.15s ease;
   }
 
-  .btn-change-species:hover {
-    background: #d1fae5;
+  .btn-sync-offline:hover {
+    background: #1d4ed8;
   }
 
-  /* Dropzone de imagen */
-  .upload-dropzone {
-    border: 2px dashed #cbd5e1;
+  .btn-sync-offline:disabled {
+    background: #93c5fd;
+    cursor: not-allowed;
+  }
+
+  .quick-alert {
+    padding: 0.85rem 1.15rem;
+    border-radius: var(--radius-sm, 8px);
+    font-size: 0.92rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    text-align: center;
+  }
+
+  .quick-alert.success {
+    background: #ecfdf5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
+    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.1);
+  }
+
+  .quick-alert.error {
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+  }
+
+  /* Tarjetas base con diseño EcoRaíces */
+  .quick-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
     border-radius: var(--radius-md, 12px);
-    background: var(--color-gray-50, #f8fafc);
+    padding: 1.35rem 1.5rem;
+    box-shadow: 0 2px 10px -2px rgba(15, 23, 42, 0.05);
+  }
+
+  /* Header de la tarjeta */
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.95rem;
+  }
+
+  .header-icon-badge {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    flex-shrink: 0;
+  }
+
+  .card-title {
+    font-family: var(--font-heading, sans-serif);
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--color-primary-dark, #14532d);
+    margin: 0;
+    line-height: 1.2;
+  }
+
+  .card-subtitle {
+    font-size: 0.8rem;
+    color: var(--color-text-muted, #64748b);
+  }
+
+  /* Coordenadas en caja estilizada */
+  .coords-display-box {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.65rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 0.65rem 0.85rem;
+    margin-bottom: 1rem;
+  }
+
+  .coord-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-family: monospace;
+    font-size: 0.92rem;
+  }
+
+  .coord-tag {
+    color: #64748b;
+    font-weight: 600;
+  }
+
+  .coord-val {
+    color: #1e293b;
+    font-weight: 700;
+  }
+
+  .coord-val.active {
+    color: #059669;
+  }
+
+  .gps-status-badge {
+    margin-left: auto;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+  }
+
+  .gps-status-badge.waiting {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  .gps-status-badge.ready {
+    background: #dcfce7;
+    color: #15803d;
+  }
+
+  /* Botones de ubicación */
+  .location-btn-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .btn-location {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    background: #dc2626;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    padding: 0.7rem 1.25rem;
+    font-size: 0.95rem;
+    font-weight: 700;
     cursor: pointer;
-    transition: all 0.2s ease;
-    position: relative;
+    transition: all 0.15s ease;
+    box-shadow: 0 2px 6px rgba(220, 38, 38, 0.25);
+  }
+
+  .btn-location:hover {
+    background: #b91c1c;
+    transform: translateY(-1px);
+  }
+
+  .btn-location:active {
+    transform: translateY(0);
+  }
+
+  .btn-location:disabled {
+    background: #94a3b8;
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+
+  .btn-map-toggle {
+    background: #ffffff;
+    border: 1.5px solid #cbd5e1;
+    color: #334155;
+    border-radius: 8px;
+    padding: 0.65rem 1rem;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .btn-map-toggle:hover {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+  }
+
+  /* Drawer de mapa desplegable */
+  .map-drawer {
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px dashed #e2e8f0;
+  }
+
+  .drawer-map {
+    width: 100%;
+    height: 230px;
+    border-radius: 8px;
+    border: 1.5px solid #cbd5e1;
     overflow: hidden;
   }
 
-  .upload-dropzone:hover,
-  .upload-dropzone.dragover {
-    border-color: var(--color-success, #10b981);
-    background: var(--color-success-bg, #ecfdf5);
+  .map-hint {
+    display: block;
+    font-size: 0.78rem;
+    color: #64748b;
+    margin-top: 0.35rem;
+    text-align: center;
   }
 
-  .file-input-hidden {
+  /* Tarjeta de Datos */
+  .data-card {
+    display: flex;
+    flex-direction: column;
+    gap: 1.15rem;
+  }
+
+  .form-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .item-label {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--color-text-main, #1e293b);
+  }
+
+  .item-label-icon {
+    font-size: 1.1rem;
+  }
+
+  .req {
+    color: #ef4444;
+  }
+
+  .input-shell {
+    position: relative;
+  }
+
+  .item-input {
+    width: 100%;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 0.75rem 0.95rem;
+    font-size: 1rem;
+    color: #1e293b;
+    background: #ffffff;
+    outline: none;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+  }
+
+  .item-input:focus {
+    border-color: var(--color-primary, #1b5e20);
+    box-shadow: 0 0 0 3px rgba(27, 94, 32, 0.15);
+  }
+
+  .input-compact {
+    padding: 0.55rem 0.85rem;
+    font-size: 0.9rem;
+  }
+
+  /* Botón Pill de Opciones Adicionales */
+  .extra-toggle-wrap {
+    display: flex;
+    justify-content: center;
+    margin: 0.25rem 0;
+  }
+
+  .btn-extra-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    border-radius: 999px;
+    padding: 0.45rem 1rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #334155;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .btn-extra-pill:hover {
+    background: #e2e8f0;
+    border-color: #94a3b8;
+  }
+
+  .pill-icon {
+    font-size: 0.95rem;
+  }
+
+  .pill-arrow {
+    font-size: 0.8rem;
+    transition: transform 0.2s ease;
+  }
+
+  .btn-extra-pill.active .pill-arrow {
+    transform: rotate(180deg);
+  }
+
+  /* Panel secundario */
+  .extra-fields-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.15rem;
+    background: #f8fafc;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+  }
+
+  .item-label-mini {
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: #475569;
+    margin-bottom: 0.2rem;
+  }
+
+  .item-select {
+    width: 100%;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 0.6rem 0.85rem;
+    font-size: 0.9rem;
+    color: #1e293b;
+    background: #ffffff;
+    outline: none;
+    box-sizing: border-box;
+  }
+
+  /* Foto Uploader */
+  .photo-uploader-box {
+    position: relative;
+  }
+
+  .file-hidden-input {
     position: absolute;
     width: 100%;
     height: 100%;
@@ -481,214 +632,184 @@ const { categories = [], speciesList = [], userId } = Astro.props;
     z-index: 5;
   }
 
-  .dropzone-content {
-    padding: 2rem 1.5rem;
+  .photo-btn-styled {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    text-align: center;
+    justify-content: center;
     gap: 0.5rem;
-  }
-
-  .upload-icon-circle {
-    width: 52px;
-    height: 52px;
-    border-radius: 50%;
     background: #ffffff;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--color-primary, #1b5e20);
-    margin-bottom: 0.25rem;
-  }
-
-  .dropzone-text {
-    font-size: 0.95rem;
-    color: var(--color-text-main, #334155);
-  }
-
-  .dropzone-highlight {
+    border: 2px dashed #a7f3d0;
+    border-radius: 8px;
+    padding: 0.85rem;
+    color: #065f46;
     font-weight: 600;
-    color: var(--color-primary, #1b5e20);
-    text-decoration: underline;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
   }
 
-  .dropzone-sub {
-    font-size: 0.8rem;
-    color: var(--color-text-muted, #94a3b8);
+  .photo-btn-styled:hover {
+    background: #ecfdf5;
+    border-color: #10b981;
   }
 
-  .image-preview-box {
-    position: relative;
-    width: 100%;
-    max-height: 280px;
-    background: #000;
+  .photo-preview-thumb {
     display: flex;
     align-items: center;
-    justify-content: center;
-    overflow: hidden;
+    gap: 0.75rem;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
   }
 
-  .preview-img-el {
-    max-width: 100%;
-    max-height: 280px;
-    object-fit: contain;
-    display: block;
+  .photo-preview-thumb img {
+    width: 48px;
+    height: 48px;
+    border-radius: 6px;
+    object-fit: cover;
   }
 
-  .preview-overlay {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: linear-gradient(transparent, rgba(0, 0, 0, 0.75));
-    padding: 0.75rem 1rem;
+  .thumb-info {
+    flex: 1;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    z-index: 10;
+    gap: 0.5rem;
   }
 
-  .preview-filename {
-    color: #ffffff;
+  .thumb-filename {
     font-size: 0.82rem;
+    color: #334155;
+    font-weight: 500;
+    max-width: 180px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 60%;
   }
 
-  .btn-remove-image {
-    background: rgba(239, 68, 68, 0.9);
-    color: #fff;
-    border: none;
-    border-radius: var(--radius-sm);
-    padding: 0.35rem 0.7rem;
-    font-size: 0.8rem;
+  .btn-remove-thumb {
+    background: none;
+    border: 1px solid #ef4444;
+    color: #ef4444;
+    border-radius: 6px;
+    padding: 0.25rem 0.6rem;
+    font-size: 0.75rem;
     font-weight: 600;
     cursor: pointer;
-    transition: background 0.15s;
-    z-index: 15;
   }
 
-  .btn-remove-image:hover {
-    background: #dc2626;
+  .btn-remove-thumb:hover {
+    background: #fee2e2;
   }
 
-  /* Sección del Mapa (Abajo) */
-  .map-toolbar {
+  /* Chips de Salud */
+  .health-chips-row {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
     flex-wrap: wrap;
-    margin-bottom: 0.75rem;
-  }
-
-  .btn-geo {
-    font-size: 0.88rem;
-    padding: 0.45rem 0.9rem;
-  }
-
-  .coords-chip {
-    display: inline-flex;
-    align-items: center;
     gap: 0.5rem;
-    padding: 0.4rem 0.85rem;
-    border-radius: var(--radius-pill, 999px);
-    font-family: monospace;
-    font-size: 0.84rem;
+  }
+
+  .mini-chip {
+    background: #ffffff;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 999px;
+    padding: 0.35rem 0.85rem;
+    font-size: 0.82rem;
     font-weight: 600;
-    background: #f1f5f9;
     color: #475569;
-    border: 1px solid #e2e8f0;
+    cursor: pointer;
+    transition: all 0.15s ease;
   }
 
-  .coords-chip.selected {
+  .mini-chip:hover {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+  }
+
+  .mini-chip.active {
     background: #ecfdf5;
+    border-color: #10b981;
     color: #065f46;
-    border-color: #a7f3d0;
+    box-shadow: 0 1px 4px rgba(16, 185, 129, 0.2);
   }
 
-  .coords-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #94a3b8;
-  }
-
-  .coords-chip.selected .coords-dot {
-    background: #10b981;
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25);
-  }
-
-  .map-frame {
+  /* Botón Enviar Principal EcoRaíces */
+  .btn-send-ecoraices {
     width: 100%;
-    height: 380px;
-    border-radius: var(--radius-md, 12px);
-    overflow: hidden;
-    border: 1.5px solid var(--color-border, #cbd5e1);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
-  }
-
-  .interactive-map {
-    width: 100%;
-    height: 100%;
-  }
-
-  /* Barra de acciones */
-  .form-actions-bar {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
-    gap: 1rem;
-    padding: 1.25rem 0 0 0;
+    justify-content: center;
+    gap: 0.65rem;
+    background: linear-gradient(135deg, var(--color-primary, #1b5e20) 0%, #15803d 100%);
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    padding: 0.95rem;
+    font-family: var(--font-heading, sans-serif);
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 3px 12px rgba(27, 94, 32, 0.25);
+    margin-top: 0.25rem;
   }
 
-  .btn-submit {
-    min-width: 200px;
+  .btn-send-ecoraices:hover {
+    background: linear-gradient(135deg, #14532d 0%, #166534 100%);
+    box-shadow: 0 6px 16px rgba(27, 94, 32, 0.35);
+    transform: translateY(-1px);
   }
 
-  .btn-cancel {
-    padding: 0.8rem 1.6rem;
+  .btn-send-ecoraices:active {
+    transform: translateY(0);
   }
 
-  /* Responsive */
-  @media (max-width: 768px) {
-    .form-row-grid {
-      grid-template-columns: 1fr;
+  .btn-send-ecoraices:disabled {
+    background: #94a3b8;
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+
+  /* Modo ráfaga continua */
+  .continuous-mode-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    font-size: 0.82rem;
+    color: #475569;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 0.15rem;
+  }
+
+  .continuous-mode-toggle input {
+    cursor: pointer;
+    accent-color: #16a34a;
+    width: 16px;
+    height: 16px;
+  }
+
+  @media (max-width: 640px) {
+    .quick-card {
+      padding: 1.15rem;
     }
-    .form-section {
-      padding: 1.25rem;
-    }
-    .map-toolbar {
-      flex-direction: column;
-      align-items: stretch;
-    }
-    .form-actions-bar {
-      flex-direction: column-reverse;
-      gap: 0.75rem;
-    }
-    .btn-submit,
-    .btn-cancel {
-      width: 100%;
-    }
-    .map-frame {
-      height: 300px;
+    .btn-send-ecoraices {
+      padding: 0.85rem;
+      font-size: 1.05rem;
     }
   }
 </style>
 
-<script define:vars={{ speciesList, categories }}>
+<script define:vars={{ categories, communities }}>
   document.addEventListener("DOMContentLoaded", () => {
-    initNewObservationForm();
+    initQuickObservationForm();
   });
   document.addEventListener("astro:page-load", () => {
-    initNewObservationForm();
+    initQuickObservationForm();
   });
 
-  function initNewObservationForm() {
+  function initQuickObservationForm() {
     const form = document.getElementById('observation-form');
     if (!form || form.dataset.initialized) return;
     form.dataset.initialized = "true";
@@ -697,312 +818,356 @@ const { categories = [], speciesList = [], userId } = Astro.props;
     const alertError = document.getElementById('alert-error');
     const submitBtn = document.getElementById('submit-btn');
 
+    const latInput = document.getElementById('latitude');
+    const lngInput = document.getElementById('longitude');
+    const displayLat = document.getElementById('display-lat');
+    const displayLng = document.getElementById('display-lng');
+    const gpsStatusBadge = document.getElementById('gps-status-indicator');
+    const btnWhereAmI = document.getElementById('btn-where-am-i');
+
+    const speciesInput = document.getElementById('speciesInput');
+    const municipioInput = document.getElementById('municipioInput');
+    const estadoFitosanitarioInput = document.getElementById('estadoFitosanitario');
+    const continuousMode = document.getElementById('continuous-mode');
+
+    const btnToggleExtra = document.getElementById('btn-toggle-extra');
+    const extraFields = document.getElementById('extra-fields');
+    const extraBtnText = document.getElementById('extra-btn-text');
+
+    const btnToggleMap = document.getElementById('btn-toggle-map');
+    const mapDrawer = document.getElementById('map-drawer');
+
+    // Uploader de foto rápida
+    const quickImage = document.getElementById('quick-image');
+    const photoPlaceholderBtn = document.getElementById('photo-placeholder-btn');
+    const photoPreviewWrap = document.getElementById('photo-preview-wrap');
+    const thumbImg = document.getElementById('thumb-img');
+    const thumbName = document.getElementById('thumb-name');
+    const btnRemoveThumb = document.getElementById('btn-remove-thumb');
+
+    let map = null;
+    let marker = null;
+    let mapInitialized = false;
+
+    // Recordar el último municipio utilizado para agilizar ráfaga en campo
+    const savedMunicipio = localStorage.getItem('ecoraices_last_municipio');
+    if (savedMunicipio && !municipioInput.value) {
+      municipioInput.value = savedMunicipio;
+    }
+
     const showSuccess = (msg) => {
       alertSuccess.textContent = msg;
       alertSuccess.style.display = 'block';
       alertError.style.display = 'none';
       alertSuccess.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     };
+
     const showError = (msg) => {
       alertError.textContent = msg;
       alertError.style.display = 'block';
       alertSuccess.style.display = 'none';
       alertError.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     };
+
     const hideAlerts = () => {
       alertSuccess.style.display = 'none';
       alertError.style.display = 'none';
     };
 
-    // 1. Imagen Dropzone y Preview
-    const imageInput = document.getElementById('image');
-    const dropzone = document.getElementById('dropzone');
-    const dropzoneContent = document.getElementById('dropzone-content');
-    const imagePreview = document.getElementById('image-preview');
-    const previewImg = document.getElementById('preview-img');
-    const previewFilename = document.getElementById('preview-filename');
-    const removeImageBtn = document.getElementById('remove-image-btn');
+    // Actualizar coordenadas en la UI
+    function setCoordinates(lat, lng, accuracy = null) {
+      latInput.value = Number(lat).toFixed(6);
+      lngInput.value = Number(lng).toFixed(6);
+      displayLat.textContent = Number(lat).toFixed(6);
+      displayLng.textContent = Number(lng).toFixed(6);
+      displayLat.classList.add('active');
+      displayLng.classList.add('active');
 
-    const handleFile = (file) => {
+      if (gpsStatusBadge) {
+        const accText = accuracy ? ` (±${Math.round(accuracy)}m)` : '';
+        gpsStatusBadge.textContent = `✓ GPS fijado${accText}`;
+        gpsStatusBadge.className = "gps-status-badge ready";
+      }
+
+      if (marker && map) {
+        marker.setLngLat([lng, lat]);
+      }
+    }
+
+    // Geolocalización con watchPosition continuo (GPS caliente para campo)
+    let watchId = null;
+    function startContinuousGPS() {
+      if (!navigator.geolocation) return;
+
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          setCoordinates(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
+        },
+        (err) => {
+          console.warn('[GPS Watch]', err.message);
+        },
+        { enableHighAccuracy: true, maximumAge: 6000, timeout: 15000 }
+      );
+    }
+
+    function requestGPS(silent = false) {
+      if (!navigator.geolocation) {
+        if (!silent) alert('Tu navegador no soporta geolocalización.');
+        return;
+      }
+
+      btnWhereAmI.disabled = true;
+      btnWhereAmI.innerHTML = `
+        <svg class="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
+          <path d="M12 2a10 10 0 0 1 10 10"/>
+        </svg>
+        Obteniendo GPS...
+      `;
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setCoordinates(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
+          btnWhereAmI.disabled = false;
+          btnWhereAmI.innerHTML = `✓ Ubicación fijada`;
+          setTimeout(() => {
+            btnWhereAmI.innerHTML = `
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <circle cx="12" cy="12" r="10"/>
+                <polygon points="12 2 12 6 12 18 12 22"/>
+                <polygon points="2 12 6 12 18 12 22 12"/>
+              </svg>
+              ¿Dónde estoy?
+            `;
+          }, 3000);
+        },
+        (err) => {
+          btnWhereAmI.disabled = false;
+          btnWhereAmI.innerHTML = `¿Dónde estoy?`;
+          if (!silent) {
+            alert('No se pudo obtener la ubicación GPS automática. Por favor activa los permisos de ubicación o usa "Ajustar en mapa".');
+          }
+        },
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 5000 }
+      );
+    }
+
+    btnWhereAmI?.addEventListener('click', () => requestGPS(false));
+
+    // Iniciar GPS continuo al abrir la pantalla para campo
+    startContinuousGPS();
+    if (!latInput.value) {
+      requestGPS(true);
+    }
+
+    // ==========================================
+    // SISTEMA DE COLA OFFLINE (TRABAJO EN CAMPO)
+    // ==========================================
+    const offlineSyncBar = document.getElementById('offline-sync-bar');
+    const offlineBarText = document.getElementById('offline-bar-text');
+    const btnSyncOfflineNow = document.getElementById('btn-sync-offline-now');
+
+    function getOfflineQueue() {
+      try {
+        return JSON.parse(localStorage.getItem('ecoraices_offline_trees') || '[]');
+      } catch {
+        return [];
+      }
+    }
+
+    function saveOfflineQueue(queue) {
+      try {
+        localStorage.setItem('ecoraices_offline_trees', JSON.stringify(queue));
+      } catch (e) {
+        console.error('[OfflineQueue] Error guardando cola:', e);
+      }
+      updateOfflineUI();
+    }
+
+    function updateOfflineUI() {
+      const queue = getOfflineQueue();
+      if (!offlineSyncBar) return;
+      if (queue.length > 0) {
+        offlineBarText.textContent = `${queue.length} árbol(es) guardado(s) localmente (sin conexión)`;
+        offlineSyncBar.style.display = 'flex';
+      } else {
+        offlineSyncBar.style.display = 'none';
+      }
+    }
+
+    updateOfflineUI();
+
+    async function syncOfflineQueue() {
+      const queue = getOfflineQueue();
+      if (!queue.length) return;
+
+      btnSyncOfflineNow.disabled = true;
+      btnSyncOfflineNow.textContent = "Sincronizando...";
+
+      let successCount = 0;
+      const remaining = [];
+
+      for (const item of queue) {
+        try {
+          const fd = new FormData();
+          fd.append("userId", item.userId);
+          fd.append("nombreComunitario", item.nombreComunitario);
+          fd.append("municipio", item.municipio);
+          fd.append("latitude", item.latitude);
+          fd.append("longitude", item.longitude);
+          fd.append("estadoFitosanitario", item.estadoFitosanitario || "Sano y vigoroso");
+          fd.append("observationDate", item.observationDate);
+
+          if (item.notes) fd.append("notes", item.notes);
+          if (item.communityId) fd.append("communityId", item.communityId);
+
+          if (item.imageDataUrl) {
+            const blob = await fetch(item.imageDataUrl).then(r => r.blob());
+            fd.append("image", blob, item.imageName || "offline_tree.jpg");
+          }
+
+          const res = await fetch('/api/observations', {
+            method: 'POST',
+            body: fd
+          });
+
+          if (res.ok) {
+            successCount++;
+          } else {
+            remaining.push(item);
+          }
+        } catch {
+          remaining.push(item);
+        }
+      }
+
+      saveOfflineQueue(remaining);
+      btnSyncOfflineNow.disabled = false;
+      btnSyncOfflineNow.textContent = "Sincronizar ahora";
+
+      if (successCount > 0) {
+        showSuccess(`✓ ${successCount} árbol(es) sincronizado(s) exitosamente con el servidor.`);
+      }
+    }
+
+    btnSyncOfflineNow?.addEventListener('click', syncOfflineQueue);
+    window.addEventListener('online', () => {
+      showSuccess("📶 Señal de internet recuperada. Sincronizando árboles pendientes...");
+      syncOfflineQueue();
+    });
+
+    // Foto rápida y preview
+    let currentPhotoDataUrl = null;
+    let currentPhotoName = null;
+
+    quickImage?.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
       if (file && file.type.startsWith('image/')) {
+        currentPhotoName = file.name;
         const reader = new FileReader();
-        reader.onload = (e) => {
-          previewImg.src = e.target.result;
-          previewFilename.textContent = file.name;
-          imagePreview.style.display = 'flex';
-          dropzoneContent.style.display = 'none';
+        reader.onload = (ev) => {
+          currentPhotoDataUrl = ev.target.result;
+          thumbImg.src = currentPhotoDataUrl;
+          thumbName.textContent = file.name;
+          photoPreviewWrap.style.display = 'flex';
+          photoPlaceholderBtn.style.display = 'none';
         };
         reader.readAsDataURL(file);
       }
-    };
-
-    imageInput?.addEventListener('change', (e) => {
-      const file = e.target.files?.[0];
-      if (file) handleFile(file);
     });
 
-    removeImageBtn?.addEventListener('click', (e) => {
+    btnRemoveThumb?.addEventListener('click', (e) => {
       e.stopPropagation();
-      e.preventDefault();
-      imageInput.value = '';
-      previewImg.src = '';
-      previewFilename.textContent = '';
-      imagePreview.style.display = 'none';
-      dropzoneContent.style.display = 'flex';
+      quickImage.value = '';
+      currentPhotoDataUrl = null;
+      currentPhotoName = null;
+      thumbImg.src = '';
+      photoPreviewWrap.style.display = 'none';
+      photoPlaceholderBtn.style.display = 'flex';
     });
 
-    // 2. Buscador y Autocomplete de Especies
-    const searchInput = document.getElementById('speciesSearch');
-    const suggestionsList = document.getElementById('species-suggestions');
-    const speciesIdInput = document.getElementById('speciesId');
-    const newSpeciesNameInput = document.getElementById('newSpeciesName');
-    const newSpeciesScientificNameInput = document.getElementById('newSpeciesScientificName');
-    const clearBtn = document.getElementById('clear-species-btn');
-
-    const selectedBadgeCard = document.getElementById('selected-species-card');
-    const selectedName = document.getElementById('selected-species-name');
-    const selectedScientific = document.getElementById('selected-species-scientific');
-    const changeSpeciesBtn = document.getElementById('change-species-btn');
-
-    function selectSpecies(species, isNew = false) {
-      if (isNew) {
-        speciesIdInput.value = "";
-        newSpeciesNameInput.value = species.name;
-        newSpeciesScientificNameInput.value = "Especie por identificar";
-        selectedName.textContent = species.name;
-        selectedScientific.textContent = "(Nueva especie a registrar)";
-      } else {
-        speciesIdInput.value = species.id;
-        newSpeciesNameInput.value = "";
-        newSpeciesScientificNameInput.value = "";
-        selectedName.textContent = species.name;
-        selectedScientific.textContent = species.scientificName || "Nombre científico no registrado";
-      }
-
-      searchInput.value = species.name;
-      selectedBadgeCard.style.display = 'flex';
-      suggestionsList.style.display = 'none';
-      clearBtn.style.display = 'none';
-    }
-
-    function resetSpeciesSelection() {
-      speciesIdInput.value = '';
-      newSpeciesNameInput.value = '';
-      newSpeciesScientificNameInput.value = '';
-      searchInput.value = '';
-      selectedBadgeCard.style.display = 'none';
-      clearBtn.style.display = 'none';
-      searchInput.focus();
-    }
-
-    changeSpeciesBtn?.addEventListener('click', resetSpeciesSelection);
-    clearBtn?.addEventListener('click', resetSpeciesSelection);
-
-    // Revisar si venimos con un parámetro en la URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const querySpeciesId = urlParams.get("especieId");
-    if (querySpeciesId && Array.isArray(speciesList)) {
-      const match = speciesList.find(s => s.id === querySpeciesId);
-      if (match) selectSpecies(match);
-    }
-
-    // Fase 2 velocidad: debounce 180ms + máx 8 resultados + delegación
-    let searchTimer = null;
-    function renderSuggestions(val, rawVal) {
-      suggestionsList.innerHTML = '';
-      speciesIdInput.value = '';
-      selectedBadgeCard.style.display = 'none';
-
-      if (!val) {
-        suggestionsList.style.display = 'none';
-        clearBtn.style.display = 'none';
-        return;
-      }
-      clearBtn.style.display = 'block';
-
-      const matches = Array.isArray(speciesList) ? speciesList.filter(s =>
-        (s.name && s.name.toLowerCase().includes(val)) ||
-        (s.scientificName && s.scientificName.toLowerCase().includes(val))
-      ).slice(0, 8) : [];
-
-      if (matches.length > 0) {
-        const frag = document.createDocumentFragment();
-        matches.forEach(m => {
-          const li = document.createElement('li');
-          li.className = 'species-item';
-          li.dataset.speciesId = m.id;
-          const nameSpan = document.createElement('span');
-          nameSpan.className = 'species-item-name';
-          nameSpan.textContent = m.name;
-          const sciSpan = document.createElement('span');
-          sciSpan.className = 'species-item-scientific';
-          sciSpan.textContent = m.scientificName || '';
-          li.appendChild(nameSpan);
-          li.appendChild(sciSpan);
-          frag.appendChild(li);
-        });
-        suggestionsList.appendChild(frag);
-        suggestionsList.style.display = 'block';
-        suggestionsList._matches = matches;
-      } else {
-        const li = document.createElement('li');
-        li.className = 'species-item species-item-new';
-        li.dataset.isNew = 'true';
-        const span = document.createElement('span');
-        span.textContent = `➕ Registrar nueva especie: "${rawVal}"`;
-        li.appendChild(span);
-        suggestionsList.appendChild(li);
-        suggestionsList.style.display = 'block';
-        suggestionsList._matches = [];
-      }
-    }
-
-    suggestionsList?.addEventListener('click', (e) => {
-      const li = e.target.closest('li.species-item');
-      if (!li) return;
-      if (li.dataset.isNew === 'true') {
-        selectSpecies({ name: searchInput.value.trim() }, true);
-      } else {
-        const match = (suggestionsList._matches || []).find(m => String(m.id) === li.dataset.speciesId);
-        if (match) selectSpecies(match);
-      }
-    });
-
-    searchInput?.addEventListener('input', (e) => {
-      clearTimeout(searchTimer);
-      const rawVal = e.target.value;
-      searchTimer = setTimeout(() => {
-        renderSuggestions(rawVal.trim().toLowerCase(), rawVal.trim());
-      }, 180);
-    });
-
-    document.addEventListener('click', (e) => {
-      if (!e.target.closest('.species-group')) {
-        suggestionsList.style.display = 'none';
-      }
-    });
-
-    // 3. Mapa Interactivo (MapLibre GL)
-    let map = null;
-    let marker = null;
-    const latInput = document.getElementById('latitude');
-    const lngInput = document.getElementById('longitude');
-    const coordsStatus = document.getElementById('coords-status');
-    const coordsText = document.getElementById('coords-text');
-    const btnGeolocate = document.getElementById('btn-geolocate');
-
-    function updateCoordsUI(lat, lng) {
-      latInput.value = lat;
-      lngInput.value = lng;
-      coordsText.textContent = `Lat: ${Number(lat).toFixed(6)} | Lng: ${Number(lng).toFixed(6)}`;
-      coordsStatus.className = 'coords-chip selected';
-    }
-
-    import('https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js').then((maplibreglModule) => {
-      const maplibregl = maplibreglModule.default || window.maplibregl;
-      
-      const container = document.getElementById('map-container');
-      if (!container) return;
-
-      map = new maplibregl.Map({
-        container: 'map-container',
-        style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
-        center: [-72.9068, 11.5448], // La Guajira por defecto
-        zoom: 7
+    // Chips de salud
+    const miniChips = document.querySelectorAll('.mini-chip');
+    miniChips.forEach(chip => {
+      chip.addEventListener('click', () => {
+        miniChips.forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        estadoFitosanitarioInput.value = chip.dataset.health;
       });
+    });
 
-      map.addControl(new maplibregl.NavigationControl(), 'top-right');
+    // Toggle panel secundario
+    btnToggleExtra?.addEventListener('click', () => {
+      const isHidden = extraFields.style.display === 'none';
+      extraFields.style.display = isHidden ? 'flex' : 'none';
+      btnToggleExtra.classList.toggle('active', isHidden);
+      extraBtnText.textContent = isHidden ? 'Ocultar opciones adicionales' : 'Opciones adicionales (Foto, Salud, Notas)';
+    });
 
-      function placeMarker(lng, lat, fly = false) {
-        if (marker) {
-          marker.setLngLat([lng, lat]);
-        } else {
-          marker = new maplibregl.Marker({ color: "#10b981" })
-            .setLngLat([lng, lat])
+    // Toggle mini-mapa
+    btnToggleMap?.addEventListener('click', () => {
+      const isHidden = mapDrawer.style.display === 'none';
+      mapDrawer.style.display = isHidden ? 'block' : 'none';
+      btnToggleMap.textContent = isHidden ? '✕ Cerrar mapa' : '🗺️ Ajustar en mapa';
+
+      if (isHidden && !mapInitialized) {
+        mapInitialized = true;
+        import('https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js').then((module) => {
+          const maplibregl = module.default || window.maplibregl;
+          const initialLat = parseFloat(latInput.value) || 11.5448;
+          const initialLng = parseFloat(lngInput.value) || -72.9068;
+
+          map = new maplibregl.Map({
+            container: 'quick-map',
+            style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+            center: [initialLng, initialLat],
+            zoom: latInput.value ? 15 : 8
+          });
+
+          marker = new maplibregl.Marker({ color: '#16a34a' })
+            .setLngLat([initialLng, initialLat])
             .addTo(map);
-        }
-        updateCoordsUI(lat, lng);
-        if (fly) {
-          map.flyTo({ center: [lng, lat], zoom: 14, speed: 1.5 });
-        }
+
+          map.on('click', (e) => {
+            setCoordinates(e.lngLat.lat, e.lngLat.lng);
+          });
+        });
       }
+    });
 
-      map.on('click', (e) => {
-        placeMarker(e.lngLat.lng, e.lngLat.lat, false);
-      });
-
-      // Botón de Geolocalización
-      btnGeolocate?.addEventListener('click', () => {
-        if (!navigator.geolocation) {
-          alert('Tu navegador no soporta geolocalización.');
-          return;
-        }
-
-        btnGeolocate.disabled = true;
-        btnGeolocate.textContent = 'Obteniendo GPS...';
-
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            const { latitude, longitude } = pos.coords;
-            placeMarker(longitude, latitude, true);
-            btnGeolocate.disabled = false;
-            btnGeolocate.innerHTML = `✓ Ubicación detectada`;
-            setTimeout(() => {
-              btnGeolocate.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg> Usar mi ubicación GPS actual`;
-            }, 3000);
-          },
-          (err) => {
-            btnGeolocate.disabled = false;
-            btnGeolocate.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg> Usar mi ubicación GPS actual`;
-            alert('No se pudo acceder a tu ubicación GPS. Por favor, haz clic directamente en el mapa.');
-          },
-          { enableHighAccuracy: true, timeout: 10000 }
-        );
-      });
-    }).catch(err => console.error("Error al cargar maplibre:", err));
-
-    // 4. Envío del Formulario
+    // Envío ultrarrápido con soporte Online / Offline
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       hideAlerts();
 
       const userId = document.getElementById('userId').value;
       if (!userId) {
-        showError("Por favor, inicia sesión para registrar un ejemplar.");
+        showError("Por favor inicia sesión para registrar árboles.");
         return;
       }
 
       if (!latInput.value || !lngInput.value) {
-        showError("Por favor, marca en el mapa la ubicación geográfica del árbol.");
-        document.querySelector('.map-section')?.scrollIntoView({ behavior: 'smooth' });
-        return;
-      }
-      // Fase 3: valida rango numérico (antes solo truthy, "abc" pasaba)
-      {
-        const lat = parseFloat(latInput.value);
-        const lng = parseFloat(lngInput.value);
-        if (Number.isNaN(lat) || Number.isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-          showError("Coordenadas inválidas. Vuelve a marcar el punto en el mapa.");
-          document.querySelector('.map-section')?.scrollIntoView({ behavior: 'smooth' });
-          return;
-        }
-      }
-
-      let currentSpeciesId = speciesIdInput.value;
-      const isNewSpecies = !currentSpeciesId && newSpeciesNameInput.value;
-
-      if (!currentSpeciesId && !isNewSpecies) {
-        showError("Por favor, selecciona o ingresa el nombre de la especie.");
-        searchInput?.focus();
+        showError("Por favor presiona '¿Dónde estoy?' para obtener las coordenadas.");
+        btnWhereAmI?.scrollIntoView({ behavior: 'smooth' });
         return;
       }
 
-      const municipioVal = document.getElementById('municipio')?.value.trim();
+      const speciesVal = speciesInput?.value.trim();
+      if (!speciesVal) {
+        showError("Por favor ingresa el nombre de la especie o nombre común.");
+        speciesInput?.focus();
+        return;
+      }
+
+      const municipioVal = municipioInput?.value.trim();
       if (!municipioVal) {
-        showError("Por favor, indica el municipio o territorio.");
-        document.getElementById('municipio')?.focus();
+        showError("Por favor ingresa o selecciona el municipio.");
+        municipioInput?.focus();
         return;
       }
+
+      // Guardar municipio para siguientes registros en campo
+      localStorage.setItem('ecoraices_last_municipio', municipioVal);
 
       submitBtn.disabled = true;
       submitBtn.innerHTML = `
@@ -1010,40 +1175,84 @@ const { categories = [], speciesList = [], userId } = Astro.props;
           <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
           <path d="M12 2a10 10 0 0 1 10 10"/>
         </svg>
-        Registrando ejemplar...
+        <span>Enviando registro...</span>
       `;
 
-      try {
-        // Crear especie si es nueva
-        if (isNewSpecies) {
-          const spBody = {
-            name: newSpeciesNameInput.value,
-            scientificName: newSpeciesScientificNameInput.value || "Especie por identificar",
-            categoryId: Array.isArray(categories) && categories.length > 0 ? categories[0].id : null
-          };
-          const spRes = await fetch('/api/species', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(spBody)
-          });
-          if (!spRes.ok) throw new Error("No se pudo registrar la nueva especie.");
-          const spData = await spRes.json();
-          currentSpeciesId = spData.id;
-        }
+      const observationData = {
+        userId,
+        nombreComunitario: speciesVal,
+        municipio: municipioVal,
+        latitude: latInput.value,
+        longitude: lngInput.value,
+        estadoFitosanitario: estadoFitosanitarioInput.value || "Sano y vigoroso",
+        observationDate: new Date().toISOString().split("T")[0],
+        notes: document.getElementById('quick-notes')?.value.trim() || null,
+        communityId: document.getElementById('quick-community')?.value || null,
+        imageDataUrl: currentPhotoDataUrl,
+        imageName: currentPhotoName
+      };
 
-        // Crear observación
+      const handleSuccessUI = (isOffline = false) => {
+        if (continuousMode.checked) {
+          const msg = isOffline 
+            ? `💾 Árbol "${speciesVal}" guardado en memoria offline (sin señal). Se sincronizará al detectar red. ¡Listo para el siguiente!`
+            : `✓ Árbol "${speciesVal}" registrado exitosamente en ${municipioVal}. ¡Listo para el siguiente!`;
+          showSuccess(msg);
+          speciesInput.value = '';
+          const quickNotesEl = document.getElementById('quick-notes');
+          if (quickNotesEl) quickNotesEl.value = '';
+          
+          // Limpiar foto
+          if (quickImage) quickImage.value = '';
+          currentPhotoDataUrl = null;
+          currentPhotoName = null;
+          photoPreviewWrap.style.display = 'none';
+          photoPlaceholderBtn.style.display = 'flex';
+
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = `
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+            <span>Enviar Registro</span>
+          `;
+          speciesInput.focus();
+        } else {
+          showSuccess(isOffline 
+            ? "💾 Árbol guardado en memoria local sin conexión. Se sincronizará al detectar red."
+            : "¡Árbol registrado con éxito! Redirigiendo a su ficha..."
+          );
+          setTimeout(() => {
+            window.location.href = `/observaciones`;
+          }, 1200);
+        }
+      };
+
+      // Si el navegador está offline directamente:
+      if (!navigator.onLine) {
+        const queue = getOfflineQueue();
+        queue.push(observationData);
+        saveOfflineQueue(queue);
+        handleSuccessUI(true);
+        return;
+      }
+
+      // Si está online, intentar enviar por red
+      try {
         const formData = new FormData();
-        formData.append("speciesId", currentSpeciesId);
         formData.append("userId", userId);
+        formData.append("nombreComunitario", speciesVal);
+        formData.append("municipio", municipioVal);
         formData.append("latitude", latInput.value);
         formData.append("longitude", lngInput.value);
-        formData.append("municipio", municipioVal);
-        formData.append("estadoConservacion", document.getElementById('estadoConservacion')?.value || "");
-        formData.append("notes", document.getElementById('notes')?.value || "");
-        formData.append("observationDate", new Date().toISOString().split("T")[0]);
+        formData.append("estadoFitosanitario", observationData.estadoFitosanitario);
+        formData.append("observationDate", observationData.observationDate);
 
-        if (imageInput.files && imageInput.files[0]) {
-          formData.append("image", imageInput.files[0]);
+        if (observationData.notes) formData.append("notes", observationData.notes);
+        if (observationData.communityId) formData.append("communityId", observationData.communityId);
+
+        if (quickImage && quickImage.files && quickImage.files[0]) {
+          formData.append("image", quickImage.files[0]);
         }
 
         const res = await fetch('/api/observations', {
@@ -1053,27 +1262,19 @@ const { categories = [], speciesList = [], userId } = Astro.props;
 
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.detail || errData.message || "Error al guardar la observación.");
+          throw new Error(errData.detail || errData.message || "Error al registrar el árbol.");
         }
 
-        const newObs = await res.json();
-        showSuccess("¡Árbol registrado con éxito! Redirigiendo...");
-        setTimeout(() => {
-          window.location.href = `/observaciones/${newObs.id || ''}`;
-        }, 1200);
+        handleSuccessUI(false);
 
       } catch (err) {
-        console.error('[observaciones/nueva]', err);
-        showError(err.message || 'Error al guardar la observación.');
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = `
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-          </svg>
-          Registrar Árbol
-        `;
+        // Fallback por corte de señal intermitente en campo
+        console.warn('[Offline Fallback]', err);
+        const queue = getOfflineQueue();
+        queue.push(observationData);
+        saveOfflineQueue(queue);
+        handleSuccessUI(true);
       }
     });
   }
 </script>
-

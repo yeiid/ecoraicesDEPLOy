@@ -142,11 +142,24 @@ def get_observations(
         
     return formatted
 
+from pydantic import BaseModel
+
+class ObservationValidationRequest(BaseModel):
+    scientificName: Optional[str] = None
+    commonName: Optional[str] = None
+    notes: Optional[str] = None
+    approved: Optional[bool] = False
+
 @router.post("")
 @router.post("/")
 async def create_observation(
     request: Request,
-    speciesId: str = Form(...),
+    speciesId: Optional[str] = Form(None),
+    nombreComunitario: Optional[str] = Form(None),
+    nombreCientificoPropuesto: Optional[str] = Form(None),
+    communityId: Optional[str] = Form(None),
+    verificationNotes: Optional[str] = Form(None),
+    estadoFitosanitario: Optional[str] = Form(None),
     observationDate: str = Form(...),
     latitude: float = Form(...),
     longitude: float = Form(...),
@@ -159,6 +172,34 @@ async def create_observation(
 ):
     user_id = get_current_user_id(request)
     
+    # Resolver especie si no se envió speciesId preexistente
+    if not speciesId or not speciesId.strip():
+        if not nombreComunitario or not nombreComunitario.strip():
+            raise HTTPException(status_code=400, detail="Debes indicar el nombre comunitario o local del árbol.")
+        
+        comm_name = nombreComunitario.strip()
+        sci_prop = (nombreCientificoPropuesto or "").strip()
+        
+        # Buscar si ya existe una especie con este nombre
+        existing_sp = db.query(Species).filter(Species.name.ilike(comm_name)).first()
+        if existing_sp:
+            speciesId = existing_sp.id
+        else:
+            first_cat = db.query(Category).first()
+            new_sci = sci_prop if sci_prop else f"Pendiente ({comm_name[:18]} - {uuid.uuid4().hex[:6]})"
+            new_sp = Species(
+                id="c" + uuid.uuid4().hex[:24],
+                name=comm_name,
+                scientificName=new_sci,
+                categoryId=first_cat.id if first_cat else None,
+                status="PENDIENTE_VALIDACION",
+                description=f"Ejemplar registrado por la comunidad en {municipio or 'el territorio'}. Pendiente de validación taxonómica por la red local."
+            )
+            db.add(new_sp)
+            db.commit()
+            db.refresh(new_sp)
+            speciesId = new_sp.id
+
     UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
     
     image_url = None
@@ -181,19 +222,28 @@ async def create_observation(
         observationDate = observationDate[:-1]
     parsed_date = datetime.fromisoformat(observationDate)
     
+    full_notes = notes or ""
+    if estadoFitosanitario and estadoFitosanitario.strip():
+        fit_note = f"Condición de salud: {estadoFitosanitario.strip()}"
+        full_notes = f"{fit_note}. {full_notes}".strip()
+
+    status_initial = "PENDING_VALIDATION" if not nombreCientificoPropuesto else "PENDING"
+    
     observation = Observation(
         id=uuid.uuid4().hex,
         speciesId=speciesId,
         userId=user_id,
+        communityId=communityId.strip() if communityId and communityId.strip() else None,
         observationDate=parsed_date,
         latitude=latitude,
         longitude=longitude,
         altitude=altitude,
         municipio=municipio,
         estadoConservacion=estadoConservacion,
-        notes=notes,
+        notes=full_notes if full_notes else None,
         imageUrl=image_url,
-        status="PENDING"
+        status=status_initial,
+        verificationNotes=verificationNotes.strip() if verificationNotes and verificationNotes.strip() else None
     )
     
     db.add(observation)
@@ -207,6 +257,7 @@ async def create_observation(
         "id": observation.id,
         "speciesId": observation.speciesId,
         "userId": observation.userId,
+        "communityId": observation.communityId,
         "observationDate": observation.observationDate.isoformat() if observation.observationDate else None,
         "latitude": observation.latitude,
         "longitude": observation.longitude,
@@ -217,6 +268,65 @@ async def create_observation(
         "imageUrl": observation.imageUrl,
         "status": observation.status,
     }
+
+@router.post("/{id}/validate")
+def validate_observation_community(
+    id: str,
+    data: ObservationValidationRequest,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    user_id = get_current_user_id(request)
+    obs = db.query(Observation).filter(Observation.id == id).first()
+    if not obs:
+        raise HTTPException(status_code=404, detail="Observación no encontrada")
+        
+    user = db.query(User).filter(User.id == user_id).first()
+    author_name = user.name or user.username if user else "Validador comunitario"
+
+    # Actualizar o sugerir nombre científico
+    if data.scientificName and data.scientificName.strip():
+        sci_clean = data.scientificName.strip()
+        matched = db.query(Species).filter(Species.scientificName.ilike(sci_clean)).first()
+        if not matched:
+            current_sp = db.query(Species).filter(Species.id == obs.speciesId).first()
+            if current_sp and "Pendiente" in (current_sp.scientificName or ""):
+                current_sp.scientificName = sci_clean
+                if data.commonName and data.commonName.strip():
+                    current_sp.name = data.commonName.strip()
+                current_sp.status = "VALIDADA_COMUNIDAD"
+                db.commit()
+            else:
+                first_cat = db.query(Category).first()
+                new_sp = Species(
+                    id="c" + uuid.uuid4().hex[:24],
+                    name=data.commonName.strip() if data.commonName else (current_sp.name if current_sp else "Árbol Validado"),
+                    scientificName=sci_clean,
+                    categoryId=first_cat.id if first_cat else None,
+                    status="VALIDADA_COMUNIDAD"
+                )
+                db.add(new_sp)
+                db.commit()
+                db.refresh(new_sp)
+                obs.speciesId = new_sp.id
+        else:
+            obs.speciesId = matched.id
+
+    if data.notes and data.notes.strip():
+        prev_notes = obs.verificationNotes or ""
+        new_entry = f"[{author_name}]: {data.notes.strip()}"
+        obs.verificationNotes = f"{prev_notes}\n{new_entry}".strip()
+
+    if data.approved:
+        obs.status = "APPROVED"
+        obs.verifiedById = user_id
+        obs.verifiedAt = datetime.utcnow()
+    else:
+        obs.status = "COMMUNITY_VALIDATED"
+        
+    db.commit()
+    db.refresh(obs)
+    return {"message": "Validación comunitaria registrada con éxito", "status": obs.status}
 
 @router.get("/{id}")
 def get_observation_detail(id: str, db: Session = Depends(get_db)):
@@ -231,6 +341,10 @@ def get_observation_detail(id: str, db: Session = Depends(get_db)):
         
     user_obj = db.query(User).filter(User.id == obs.userId).first() if obs.userId else None
     
+    community_obj = None
+    if obs.communityId:
+        community_obj = db.query(Community).filter(Community.id == obs.communityId).first()
+
     comments = db.query(Comment).filter(Comment.observationId == id).order_by(Comment.createdAt.asc()).all()
     comments_list = []
     for c in comments:
@@ -247,11 +361,19 @@ def get_observation_detail(id: str, db: Session = Depends(get_db)):
             }
         })
         
+    community_data = {
+        "id": community_obj.id,
+        "name": community_obj.name,
+        "location": community_obj.location,
+        "description": community_obj.description
+    } if community_obj else None
+
     return {
         "id": obs.id,
         "speciesId": obs.speciesId,
         "userId": obs.userId,
         "communityId": obs.communityId,
+        "community": community_data,
         "observationDate": obs.observationDate.isoformat() if obs.observationDate else None,
         "latitude": obs.latitude,
         "longitude": obs.longitude,
@@ -261,6 +383,7 @@ def get_observation_detail(id: str, db: Session = Depends(get_db)):
         "notes": obs.notes,
         "imageUrl": obs.imageUrl,
         "status": obs.status,
+        "verificationNotes": obs.verificationNotes,
         "verified": obs.status == "APPROVED",
         "isVerified": obs.status == "APPROVED",
         "createdAt": obs.createdAt.isoformat() if obs.createdAt else None,

@@ -12,11 +12,12 @@ if (!user) {
   return Astro.redirect(`/auth/login?redirect=${Astro.url.pathname}`);
 }
 
-// Obtener las categorías y especies para el formulario (en paralelo)
+// Obtener las categorías, especies y comunidades para el formulario (en paralelo)
 let categories = [];
 let species = [];
+let communities = [];
 {
-  const [catsRes, speciesRes] = await Promise.all([
+  const [catsRes, speciesRes, commsRes] = await Promise.all([
     apiGet('/categories').catch((e) => {
       console.error('Error fetching categories:', e);
       return [];
@@ -25,230 +26,68 @@ let species = [];
       console.error('Error fetching species:', e);
       return [];
     }),
+    apiGet('/communities').catch((e) => {
+      console.error('Error fetching communities:', e);
+      return [];
+    }),
   ]);
   categories = catsRes || [];
   species = speciesRes || [];
+  communities = commsRes || [];
 }
 
 // Título de la página
-const title = "Registrar Nuevo Árbol - EcoRaices";
+const title = "Registro Rápido de Árboles - EcoRaíces";
 ---
 
 <Layout title={title}>
   <div class="new-observation-page">
-    <nav class="breadcrumb" aria-label="Migas de pan">
-      <a href="/">Inicio</a>
-      <span class="breadcrumb-separator">›</span>
-      <a href="/observaciones">Observaciones</a>
-      <span class="breadcrumb-separator">›</span>
-      <span class="breadcrumb-current">Registrar Nuevo Árbol</span>
-    </nav>
-
     <div class="page-header">
-      <div class="header-badge">🌲 Inventario Forestal Comunitario</div>
-      <h1>Registrar Nuevo Árbol</h1>
-      <p class="page-description">
-        Contribuye al mapeo y conservación de nuestra biodiversidad compartiendo los árboles 
-        que encuentres. Completa los datos del ejemplar y confirma su posición en el mapa interactivo.
-      </p>
+      <h1>Formulario de Registro de Especies</h1>
     </div>
 
     <div class="form-container">
       <NewObservationForm
         categories={categories}
         speciesList={species}
+        communities={communities}
         userId={user.id}
       />
     </div>
-
-    <section class="observation-tips">
-      <h2>Consejos para un buen registro forestal</h2>
-
-      <div class="tips-grid">
-        <div class="tip-card">
-          <div class="tip-icon">📸</div>
-          <h3>Fotografía</h3>
-          <p>
-            Toma fotos nítidas con buena luz. Procura capturar las hojas,
-            la corteza y la silueta completa del árbol.
-          </p>
-        </div>
-
-        <div class="tip-card">
-          <div class="tip-icon">📏</div>
-          <h3>Dimensiones</h3>
-          <p>
-            Estima la altura y grosor del tronco. Estos datos son vitales 
-            para monitorear el crecimiento y edad del espécimen.
-          </p>
-        </div>
-
-        <div class="tip-card">
-          <div class="tip-icon">📍</div>
-          <h3>Ubicación</h3>
-          <p>
-            Usa el botón de GPS para marcar tu ubicación exacta o arrastra el 
-            marcador en el mapa hacia el punto exacto.
-          </p>
-        </div>
-
-        <div class="tip-card">
-          <div class="tip-icon">🌱</div>
-          <h3>Especie</h3>
-          <p>
-            Si la especie no aparece en la lista, puedes registrarla escribiendo 
-            su nombre común o científico.
-          </p>
-        </div>
-      </div>
-    </section>
   </div>
 </Layout>
 
 <style>
   .new-observation-page {
-    max-width: 880px;
-    margin: 1.5rem auto 4rem;
+    max-width: 580px;
+    margin: 1.5rem auto 3rem;
     padding: 0 1rem;
-  }
-
-  .breadcrumb {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.85rem;
-    color: var(--color-text-muted, #64748b);
-    margin-bottom: 1.5rem;
-  }
-
-  .breadcrumb a {
-    color: var(--color-primary, #1b5e20);
-    text-decoration: none;
-    font-weight: 500;
-  }
-
-  .breadcrumb a:hover {
-    text-decoration: underline;
-  }
-
-  .breadcrumb-separator {
-    color: #cbd5e1;
-    font-size: 1rem;
-  }
-
-  .breadcrumb-current {
-    color: var(--color-text-main, #334155);
-    font-weight: 600;
   }
 
   .page-header {
     text-align: center;
-    margin-bottom: 2.25rem;
-  }
-
-  .header-badge {
-    display: inline-block;
-    background: #ecfdf5;
-    color: var(--color-primary-dark, #065f46);
-    border: 1px solid #a7f3d0;
-    font-size: 0.8rem;
-    font-weight: 700;
-    padding: 0.35rem 0.85rem;
-    border-radius: 999px;
-    margin-bottom: 0.75rem;
+    margin-bottom: 1.5rem;
   }
 
   .page-header h1 {
-    font-size: 2.2rem;
+    font-size: 1.75rem;
     font-weight: 800;
-    color: var(--color-primary-dark, #14532d);
-    margin: 0 0 0.75rem 0;
+    color: #1e293b;
+    margin: 0;
     letter-spacing: -0.02em;
-    line-height: 1.2;
-  }
-
-  .page-description {
-    max-width: 650px;
-    margin: 0 auto;
-    font-size: 1.05rem;
-    color: var(--color-text-muted, #475569);
-    line-height: 1.6;
   }
 
   .form-container {
-    margin-bottom: 3.5rem;
-  }
-
-  .observation-tips {
-    margin-top: 3.5rem;
-    padding-top: 2.5rem;
-    border-top: 1px solid var(--color-border, #e2e8f0);
-  }
-
-  .observation-tips h2 {
-    text-align: center;
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--color-primary-dark, #14532d);
-    margin-bottom: 1.75rem;
-  }
-
-  .tips-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1.25rem;
-  }
-
-  .tip-card {
-    background-color: #ffffff;
-    border: 1px solid var(--color-border, #e2e8f0);
-    border-radius: var(--radius-md, 12px);
-    padding: 1.25rem;
-    text-align: center;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-  }
-
-  .tip-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  }
-
-  .tip-icon {
-    font-size: 2rem;
-    margin-bottom: 0.5rem;
-  }
-
-  .tip-card h3 {
-    font-size: 1.05rem;
-    font-weight: 700;
-    color: var(--color-primary-dark, #14532d);
-    margin-bottom: 0.4rem;
-  }
-
-  .tip-card p {
-    font-size: 0.85rem;
-    color: var(--color-text-muted, #64748b);
-    line-height: 1.5;
-    margin: 0;
+    width: 100%;
   }
 
   @media (max-width: 640px) {
     .new-observation-page {
-      margin-top: 1rem;
+      margin-top: 0.75rem;
       padding: 0 0.75rem;
     }
-
     .page-header h1 {
-      font-size: 1.75rem;
-    }
-
-    .page-description {
-      font-size: 0.95rem;
-    }
-
-    .tips-grid {
-      grid-template-columns: 1fr;
+      font-size: 1.4rem;
     }
   }
 </style>

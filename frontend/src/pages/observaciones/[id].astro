@@ -152,15 +152,36 @@ const mapMarker = observation
 
                   {observation.municipio && (
                     <div class="info-item">
-                      <span class="label">Municipio:</span>
-                      <span class="value">{observation.municipio}</span>
+                      <span class="label">Municipio / Sector:</span>
+                      <span class="value">📍 {observation.municipio}</span>
+                    </div>
+                  )}
+
+                  {observation.community && (
+                    <div class="info-item">
+                      <span class="label">Comunidad Enlazada:</span>
+                      <span class="value">
+                        <a href={`/comunidades/${observation.community.id}`} class="community-link">
+                          👥 {observation.community.name}
+                        </a>
+                      </span>
                     </div>
                   )}
 
                   {observation.estadoConservacion && (
                     <div class="info-item">
                       <span class="label">Estado de conservación:</span>
-                      <span class="value">{observation.estadoConservacion}</span>
+                      <span class="value status-badge-val">
+                        <span class={`iucn-pill ${
+                          observation.estadoConservacion.includes('CR') ? 'iucn-cr' :
+                          observation.estadoConservacion.includes('EN') ? 'iucn-en' :
+                          observation.estadoConservacion.includes('VU') ? 'iucn-vu' :
+                          observation.estadoConservacion.includes('NT') ? 'iucn-nt' :
+                          observation.estadoConservacion.includes('LC') ? 'iucn-lc' : 'iucn-dd'
+                        }`}>
+                          {observation.estadoConservacion}
+                        </span>
+                      </span>
                     </div>
                   )}
 
@@ -187,6 +208,80 @@ const mapMarker = observation
                     <p>{observation.notes}</p>
                   </div>
                 )}
+              </div>
+
+              <!-- SECCIÓN: RED DE VALIDACIÓN COMUNITARIA DEL SECTOR -->
+              <div class="info-card validation-card">
+                <h2>🤝 Red de Validación Comunitaria del Sector</h2>
+                
+                {observation.isVerified ? (
+                  <div class="validation-status-box approved">
+                    <span class="status-icon">✅</span>
+                    <div>
+                      <strong>Especie Validada Taxonómicamente</strong>
+                      <p>Este ejemplar ha sido revisado y verificado por la red de guardianes del sector.</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div class="validation-status-box pending">
+                    <span class="status-icon">🌱</span>
+                    <div>
+                      <strong>Pendiente de Validación Comunitaria</strong>
+                      <p>
+                        Este árbol fue registrado con su nombre local por la comunidad en 
+                        <strong> {observation.municipio || "el territorio"}</strong>. 
+                        ¡Los vecinos y conocedores del sector pueden colaborar para certificar su nombre científico!
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {observation.verificationNotes && (
+                  <div class="field-notes-box">
+                    <span class="field-notes-title">📝 Notas y pistas de validación aportadas:</span>
+                    <pre class="field-notes-content">{observation.verificationNotes}</pre>
+                  </div>
+                )}
+
+                <!-- Formulario interactivo de validación -->
+                <div class="validate-action-box">
+                  <h3>Aportar o Validar Nombre Científico</h3>
+                  <p class="validate-sub">
+                    ¿Reconoces esta especie a partir de las fotos o vives en {observation.municipio || "este sector"}? 
+                    Propón el nombre científico para nutrir el inventario comunitario.
+                  </p>
+
+                  <form id="community-validate-form" class="validate-form">
+                    <div class="val-input-group">
+                      <label for="val-scientific-name">Nombre Científico:</label>
+                      <input 
+                        type="text" 
+                        id="val-scientific-name" 
+                        placeholder="Ej. Handroanthus chrysanthus" 
+                        class="val-input italic-input"
+                        value={observation.species?.scientificName && !observation.species.scientificName.includes('Pendiente') ? observation.species.scientificName : ''}
+                        required
+                      />
+                    </div>
+
+                    <div class="val-input-group">
+                      <label for="val-notes">Observación o justificación botánica:</label>
+                      <textarea 
+                        id="val-notes" 
+                        rows="2" 
+                        placeholder="Ej. Las hojas compuestas digitadas y la corteza fisurada corresponden a esta especie..."
+                        class="val-textarea"
+                      ></textarea>
+                    </div>
+
+                    <div class="val-buttons">
+                      <button type="submit" id="btn-submit-val" class="btn btn-primary btn-sm">
+                        🌿 Validar y Confirmar Especie
+                      </button>
+                    </div>
+                    <div id="val-feedback" class="val-feedback" style="display: none;"></div>
+                  </form>
+                </div>
               </div>
 
               {observation.species && (
@@ -458,8 +553,157 @@ const mapMarker = observation
     background-color: transparent;
   }
 
-  .btn-outline:hover {
-    background-color: #f0f7f0;
+  .community-link {
+    color: var(--color-primary, #1b5e20);
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .community-link:hover {
+    text-decoration: underline;
+  }
+
+  /* IUCN Pills */
+  .iucn-pill {
+    display: inline-block;
+    padding: 0.25rem 0.65rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #ffffff;
+  }
+  .iucn-lc { background: #16a34a; }
+  .iucn-nt { background: #ca8a04; }
+  .iucn-vu { background: #ea580c; }
+  .iucn-en { background: #dc2626; }
+  .iucn-cr { background: #9333ea; }
+  .iucn-dd { background: #64748b; }
+
+  /* Validation Card */
+  .validation-card {
+    border-left: 4px solid var(--color-primary, #1b5e20);
+  }
+  .validation-status-box {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.25rem;
+  }
+  .validation-status-box.pending {
+    background: #fefce8;
+    border: 1px solid #fef08a;
+    color: #854d0e;
+  }
+  .validation-status-box.approved {
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    color: #065f46;
+  }
+  .validation-status-box strong {
+    display: block;
+    font-size: 0.95rem;
+    margin-bottom: 0.2rem;
+  }
+  .validation-status-box p {
+    margin: 0;
+    font-size: 0.85rem;
+    line-height: 1.4;
+  }
+  .status-icon {
+    font-size: 1.5rem;
+    line-height: 1;
+  }
+
+  .field-notes-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.85rem;
+    margin-bottom: 1.25rem;
+  }
+  .field-notes-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #475569;
+    display: block;
+    margin-bottom: 0.35rem;
+  }
+  .field-notes-content {
+    margin: 0;
+    font-family: inherit;
+    font-size: 0.85rem;
+    color: #334155;
+    white-space: pre-wrap;
+  }
+
+  .validate-action-box {
+    background: #f0fdf4;
+    border: 1px dashed #86efac;
+    border-radius: 8px;
+    padding: 1.15rem;
+  }
+  .validate-action-box h3 {
+    margin: 0 0 0.25rem 0;
+    font-size: 1.05rem;
+    color: #14532d;
+  }
+  .validate-sub {
+    font-size: 0.84rem;
+    color: #475569;
+    margin: 0 0 1rem 0;
+    line-height: 1.4;
+  }
+  .validate-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+  }
+  .val-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .val-input-group label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #1e293b;
+  }
+  .val-input {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    outline: none;
+  }
+  .val-input:focus, .val-textarea:focus {
+    border-color: #10b981;
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+  }
+  .italic-input {
+    font-style: italic;
+  }
+  .val-textarea {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 0.88rem;
+    resize: vertical;
+    outline: none;
+  }
+  .val-feedback {
+    padding: 0.6rem 0.85rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  .val-feedback.success {
+    background: #dcfce7;
+    color: #15803d;
+  }
+  .val-feedback.error {
+    background: #fee2e2;
+    color: #b91c1c;
   }
 
   /* Responsive */
@@ -481,3 +725,66 @@ const mapMarker = observation
     }
   }
 </style>
+
+<script define:vars={{ observationId: observation?.id }}>
+  document.addEventListener("DOMContentLoaded", () => {
+    initValidationForm();
+  });
+  document.addEventListener("astro:page-load", () => {
+    initValidationForm();
+  });
+
+  function initValidationForm() {
+    const form = document.getElementById('community-validate-form');
+    if (!form || form.dataset.initialized) return;
+    form.dataset.initialized = "true";
+
+    const feedback = document.getElementById('val-feedback');
+    const submitBtn = document.getElementById('btn-submit-val');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const sciName = document.getElementById('val-scientific-name')?.value.trim();
+      const notes = document.getElementById('val-notes')?.value.trim();
+
+      if (!sciName) {
+        alert("Por favor ingresa el nombre científico sugerido.");
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Registrando aporte...";
+
+      try {
+        const res = await fetch(`/api/observations/${observationId}/validate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            scientificName: sciName,
+            notes: notes
+          })
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || err.message || "Error al validar la especie");
+        }
+
+        feedback.className = "val-feedback success";
+        feedback.textContent = "¡Aporte de validación registrado con éxito! Actualizando ficha...";
+        feedback.style.display = "block";
+
+        setTimeout(() => {
+          window.location.reload();
+        }, 1200);
+
+      } catch (err) {
+        feedback.className = "val-feedback error";
+        feedback.textContent = err.message || "Error al registrar validación.";
+        feedback.style.display = "block";
+        submitBtn.disabled = false;
+        submitBtn.textContent = "🌿 Validar y Confirmar Especie";
+      }
+    });
+  }
+</script>
