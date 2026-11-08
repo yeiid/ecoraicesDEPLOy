@@ -1190,7 +1190,6 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
         observationDate: new Date().toISOString().split("T")[0],
         notes: document.getElementById('quick-notes')?.value.trim() || null,
         communityId: document.getElementById('quick-community')?.value || null,
-        imageDataUrl: currentPhotoDataUrl,
         imageName: currentPhotoName
       };
 
@@ -1206,7 +1205,7 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
           
           // Limpiar foto
           if (quickImage) quickImage.value = '';
-          currentPhotoDataUrl = null;
+          currentPhotoBlob = null;
           currentPhotoName = null;
           photoPreviewWrap.style.display = 'none';
           photoPlaceholderBtn.style.display = 'flex';
@@ -1272,8 +1271,20 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
       } catch (err) {
         // Fallback por corte de señal intermitente en campo
         console.warn('[Offline Fallback IndexedDB]', err);
-        await saveOfflineObservation(observationData, currentPhotoBlob, currentPhotoName);
-        handleSuccessUI(true);
+        try {
+          await saveOfflineObservation(observationData, currentPhotoBlob, currentPhotoName);
+          handleSuccessUI(true);
+        } catch (saveErr) {
+          console.error('[Error guardando offline]', saveErr);
+          showError("Error al registrar: " + (err.message || "Por favor intente nuevamente."));
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = `
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+            <span>Enviar Registro</span>
+          `;
+        }
       }
     });
   }
