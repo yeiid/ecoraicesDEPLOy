@@ -434,7 +434,7 @@ const statusClass = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejec
   }
 
   .stat-box {
-    background: #ffffff;
+    background: var(--color-card);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     padding: 1.1rem 0.9rem;
@@ -459,7 +459,7 @@ const statusClass = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejec
     font-family: var(--font-heading);
     font-size: 1.7rem;
     font-weight: 800;
-    color: #1f2937;
+    color: var(--color-text-main);
     line-height: 1.2;
   }
 
@@ -470,7 +470,7 @@ const statusClass = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejec
   }
 
   .panel-section {
-    background: #ffffff;
+    background: var(--color-card);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg, 16px);
     padding: 1.5rem;
@@ -750,7 +750,8 @@ const statusClass = { PENDING: "pending", APPROVED: "approved", REJECTED: "rejec
   }
 
   .modal-dialog {
-    background: #ffffff;
+    background: var(--color-card);
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-lg, 16px);
     box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
     width: 100%;

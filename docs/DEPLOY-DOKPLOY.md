@@ -44,6 +44,11 @@ EcoRaíces sincroniza los árboles a `gis.geo2` de su PostGIS, y tu mapa (`map.n
 | `PUBLIC_MAP_API_URL` | API del mapa (default `https://map.neuraljira.tech`). ⚠️ Se inlinea en el bundle en el **build**: si la cambias, recompila la imagen |
 | `PLANTNET_API_KEY` | Identificación por foto (opcional) |
 | `CONTACT_EMAIL` | Destinatario del formulario de contacto |
+| `APP_DOMAIN` | CORS del sync-service (`services/sync-service/README.md`) |
+| `CORS_ORIGINS` | CORS del backend (coma-separados; default solo-localhost si no se define) |
+| `PROXY_TIMEOUT_MS` | Timeout proxy Astro→FastAPI (default `5000`) |
+| `DB_POOL_SIZE` / `DB_POOL_MAX_OVERFLOW` / `DB_POOL_TIMEOUT` | Presupuesto de conexiones (ver `docs/RENDIMIENTO-RECURSOS.md`) |
+| `MAX_CONCURRENT_UPLOADS` | Concurrencia del sync-service (default `8`) |
 
 ## 5. Verificación post-despliegue
 
@@ -70,6 +75,19 @@ docker compose -f docker-compose.dokploy.yml exec db psql -U ecoraices -d postgr
 pg_dump "postgresql://ecoraices:TU_PASS@localhost:5434/ecoraices" --no-owner --no-acl \
   | docker compose -f docker-compose.dokploy.yml exec -T db psql -U ecoraices -d ecoraices
 ```
+
+## 6.1 Servicios (4 en el compose)
+
+`backend` (FastAPI), `db` (PostGIS), `app` (Astro SSR) y `sync-service` (Go, subidas de imágenes). Ver `services/sync-service/README.md` para sus endpoints y `docs/RENDIMIENTO-RECURSOS.md` para límites Docker, monitoreo y pruebas k6 (`loadtest/`).
+
+## 6.2 Troubleshooting
+
+| Síntoma | Causa probable | Acción |
+|---|---|---|
+| `502 Backend proxy error` | Backend caído o timeout (`PROXY_TIMEOUT_MS`) | `docker compose logs backend`, `curl localhost:8000/api/health` |
+| `503 Servidor ocupado` (sync) | Concurrencia > `MAX_CONCURRENT_UPLOADS` | Subir el límite o verificar abuso |
+| DB `pool Timeout` | Pool SQLAlchemy agotado (N+1) | Revisar `DB_POOL_*`, `pg_stat_activity` |
+| Disco lleno en `uploads_data` | Subidas sin limpieza | `docker volume inspect uploads_data`, purgar huérfanos |
 
 ## 7. Actualizaciones
 

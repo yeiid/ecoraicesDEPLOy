@@ -7,7 +7,7 @@ from typing import Optional
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request, Form
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_
 
 from app.db.database import get_db
@@ -77,8 +77,11 @@ def get_observations(
     verified: Optional[bool] = None,
     dateFrom: Optional[str] = None,
     dateTo: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
     db: Session = Depends(get_db)
 ):
+    limit = max(1, min(limit, 500))
     query = db.query(Observation)
     
     if categoryId:
@@ -94,9 +97,17 @@ def get_observations(
         end_date = datetime.fromisoformat(dateTo)
         query = query.filter(Observation.observationDate <= end_date.replace(hour=23, minute=59, second=59))
         
-    query = query.order_by(Observation.createdAt.desc())
+    query = query.order_by(Observation.createdAt.desc()).offset(offset).limit(limit)
     observations = query.all()
-    
+
+    # Batch-load related entities INSTEAD of N+1 queries.
+    species_ids = {o.speciesId for o in observations if o.speciesId}
+    user_ids = {o.userId for o in observations if o.userId}
+    species_map = {s.id: s for s in db.query(Species).filter(Species.id.in_(species_ids)).all()} if species_ids else {}
+    category_ids = {s.categoryId for s in species_map.values() if getattr(s, 'categoryId', None)}
+    category_map = {c.id: c for c in db.query(Category).filter(Category.id.in_(category_ids)).all()} if category_ids else {}
+    user_map = {u.id: u for u in db.query(User).filter(User.id.in_(user_ids)).all()} if user_ids else {}
+
     formatted = []
     for obs in observations:
         obs_dict = {
@@ -116,30 +127,20 @@ def get_observations(
             "verified": obs.status == 'APPROVED',
             "isVerified": obs.status == 'APPROVED',
         }
-        
-        species_obj = db.query(Species).filter(Species.id == obs.speciesId).first()
+        species_obj = species_map.get(obs.speciesId)
         if species_obj:
-            category_obj = db.query(Category).filter(Category.id == species_obj.categoryId).first() if getattr(species_obj, 'categoryId', None) else None
+            category_obj = category_map.get(getattr(species_obj, 'categoryId', None))
             obs_dict["species"] = {
                 "id": species_obj.id,
                 "name": species_obj.name,
                 "scientificName": getattr(species_obj, 'scientificName', None),
-                "category": {
-                    "id": category_obj.id,
-                    "name": category_obj.name
-                } if category_obj else None
+                "category": {"id": category_obj.id, "name": category_obj.name} if category_obj else None,
             }
-            
-        user_obj = db.query(User).filter(User.id == obs.userId).first()
+        user_obj = user_map.get(obs.userId)
         if user_obj:
-            obs_dict["user"] = {
-                "id": user_obj.id,
-                "username": user_obj.username,
-                "avatarUrl": user_obj.avatarUrl
-            }
-            
+            obs_dict["user"] = {"id": user_obj.id, "username": user_obj.username, "avatarUrl": user_obj.avatarUrl}
         formatted.append(obs_dict)
-        
+
     return formatted
 
 from pydantic import BaseModel
@@ -209,10 +210,20 @@ async def create_observation(
             ext = ".jpg"
         file_name = f"{uuid.uuid4().hex}-{int(time.time() * 1000)}{ext}"
         file_path = UPLOADS_DIR / file_name
-        
-        contents = await image.read()
+        # Streaming write in 1 MiB chunks with 10 MiB cap — avoids loading into RAM
+        MAX_IMAGE_SIZE = 10 * 1024 * 1024
+        size = 0
         with open(file_path, "wb") as f:
-            f.write(contents)
+            while True:
+                chunk = await image.read(1 * 1024 * 1024)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > MAX_IMAGE_SIZE:
+                    f.close()
+                    file_path.unlink(missing_ok=True)
+                    raise HTTPException(status_code=413, detail="Image exceeds 10 MiB")
+                f.write(chunk)
             
         image_url = f"/uploads/observations/{file_name}"
         

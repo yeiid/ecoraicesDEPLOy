@@ -253,13 +253,13 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
-    background: #eff6ff;
-    border: 1px solid #bfdbfe;
+    background: var(--color-info-bg);
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-sm, 8px);
     padding: 0.65rem 0.95rem;
     font-size: 0.85rem;
     font-weight: 600;
-    color: #1e40af;
+    color: var(--color-info);
     margin-bottom: 0.75rem;
   }
 
@@ -270,7 +270,7 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
   }
 
   .btn-sync-offline {
-    background: #2563eb;
+    background: var(--color-info);
     color: #ffffff;
     border: none;
     border-radius: 6px;
@@ -282,11 +282,11 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
   }
 
   .btn-sync-offline:hover {
-    background: #1d4ed8;
+    filter: brightness(0.9);
   }
 
   .btn-sync-offline:disabled {
-    background: #93c5fd;
+    opacity: 0.5;
     cursor: not-allowed;
   }
 
@@ -300,25 +300,25 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
   }
 
   .quick-alert.success {
-    background: #ecfdf5;
-    color: #065f46;
-    border: 1px solid #a7f3d0;
+    background: var(--color-success-bg);
+    color: var(--color-primary);
+    border: 1px solid var(--color-border);
     box-shadow: 0 2px 6px rgba(16, 185, 129, 0.1);
   }
 
   .quick-alert.error {
-    background: #fef2f2;
-    color: #991b1b;
-    border: 1px solid #fecaca;
+    background: var(--color-danger-bg);
+    color: var(--color-danger);
+    border: 1px solid var(--color-border);
   }
 
   /* Tarjetas base con diseño EcoRaíces */
   .quick-card {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
+    background: var(--color-card);
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-md, 12px);
     padding: 1.35rem 1.5rem;
-    box-shadow: 0 2px 10px -2px rgba(15, 23, 42, 0.05);
+    box-shadow: var(--shadow-sm);
   }
 
   /* Header de la tarjeta */
@@ -333,8 +333,8 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
     width: 38px;
     height: 38px;
     border-radius: 10px;
-    background: #f0fdf4;
-    border: 1px solid #bbf7d0;
+    background: var(--color-success-bg);
+    border: 1px solid var(--color-border);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -346,14 +346,14 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
     font-family: var(--font-heading, sans-serif);
     font-size: 1.2rem;
     font-weight: 700;
-    color: var(--color-primary-dark, #14532d);
+    color: var(--color-primary-dark);
     margin: 0;
     line-height: 1.2;
   }
 
   .card-subtitle {
     font-size: 0.8rem;
-    color: var(--color-text-muted, #64748b);
+    color: var(--color-text-muted);
   }
 
   /* Coordenadas en caja estilizada */
@@ -362,8 +362,8 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
     flex-wrap: wrap;
     align-items: center;
     gap: 0.65rem;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
+    background: var(--color-gray-50);
+    border: 1px solid var(--color-border);
     border-radius: 10px;
     padding: 0.65rem 0.85rem;
     margin-bottom: 1rem;
@@ -378,17 +378,17 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
   }
 
   .coord-tag {
-    color: #64748b;
+    color: var(--color-text-muted);
     font-weight: 600;
   }
 
   .coord-val {
-    color: #1e293b;
+    color: var(--color-text-main);
     font-weight: 700;
   }
 
   .coord-val.active {
-    color: #059669;
+    color: var(--color-primary);
   }
 
   .gps-status-badge {
@@ -400,13 +400,15 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
   }
 
   .gps-status-badge.waiting {
-    background: #fef3c7;
-    color: #92400e;
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+    border: 1px solid var(--color-border);
   }
 
   .gps-status-badge.ready {
-    background: #dcfce7;
-    color: #15803d;
+    background: var(--color-success-bg);
+    color: var(--color-primary);
+    border: 1px solid var(--color-border);
   }
 
   /* Botones de ubicación */
@@ -450,9 +452,9 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
   }
 
   .btn-map-toggle {
-    background: #ffffff;
-    border: 1.5px solid #cbd5e1;
-    color: #334155;
+    background: var(--color-card);
+    border: 1.5px solid var(--color-border);
+    color: var(--color-text-main);
     border-radius: 8px;
     padding: 0.65rem 1rem;
     font-size: 0.88rem;
@@ -462,29 +464,29 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
   }
 
   .btn-map-toggle:hover {
-    background: #f1f5f9;
-    border-color: #94a3b8;
+    background: var(--color-gray-50);
+    border-color: var(--color-primary);
   }
 
   /* Drawer de mapa desplegable */
   .map-drawer {
     margin-top: 1rem;
     padding-top: 0.75rem;
-    border-top: 1px dashed #e2e8f0;
+    border-top: 1px dashed var(--color-border);
   }
 
   .drawer-map {
     width: 100%;
     height: 230px;
     border-radius: 8px;
-    border: 1.5px solid #cbd5e1;
+    border: 1.5px solid var(--color-border);
     overflow: hidden;
   }
 
   .map-hint {
     display: block;
     font-size: 0.78rem;
-    color: #64748b;
+    color: var(--color-text-muted);
     margin-top: 0.35rem;
     text-align: center;
   }
@@ -508,7 +510,7 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
     gap: 0.45rem;
     font-size: 0.95rem;
     font-weight: 700;
-    color: var(--color-text-main, #1e293b);
+    color: var(--color-text-main);
   }
 
   .item-label-icon {
@@ -516,7 +518,7 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
   }
 
   .req {
-    color: #ef4444;
+    color: var(--color-danger);
   }
 
   .input-shell {
@@ -525,20 +527,20 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
 
   .item-input {
     width: 100%;
-    border: 1.5px solid #cbd5e1;
+    border: 1.5px solid var(--color-border);
     border-radius: 8px;
     padding: 0.75rem 0.95rem;
     font-size: 1rem;
-    color: #1e293b;
-    background: #ffffff;
+    color: var(--color-text-main);
+    background: var(--color-card);
     outline: none;
     transition: all 0.2s ease;
     box-sizing: border-box;
   }
 
   .item-input:focus {
-    border-color: var(--color-primary, #1b5e20);
-    box-shadow: 0 0 0 3px rgba(27, 94, 32, 0.15);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
   }
 
   .input-compact {
@@ -557,13 +559,13 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    background: #f1f5f9;
-    border: 1px solid #cbd5e1;
+    background: var(--color-gray-50);
+    border: 1px solid var(--color-border);
     border-radius: 999px;
     padding: 0.45rem 1rem;
     font-size: 0.85rem;
     font-weight: 600;
-    color: #334155;
+    color: var(--color-text-main);
     cursor: pointer;
     transition: all 0.15s ease;
   }
@@ -592,26 +594,26 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
     flex-direction: column;
     gap: 1rem;
     padding: 1.15rem;
-    background: #f8fafc;
+    background: var(--color-gray-50);
     border-radius: 10px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--color-border);
   }
 
   .item-label-mini {
     font-size: 0.84rem;
     font-weight: 700;
-    color: #475569;
+    color: var(--color-text-muted);
     margin-bottom: 0.2rem;
   }
 
   .item-select {
     width: 100%;
-    border: 1.5px solid #cbd5e1;
+    border: 1.5px solid var(--color-border);
     border-radius: 8px;
     padding: 0.6rem 0.85rem;
     font-size: 0.9rem;
-    color: #1e293b;
-    background: #ffffff;
+    color: var(--color-text-main);
+    background: var(--color-card);
     outline: none;
     box-sizing: border-box;
   }
@@ -637,11 +639,11 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    background: #ffffff;
-    border: 2px dashed #a7f3d0;
+    background: var(--color-card);
+    border: 2px dashed var(--color-border);
     border-radius: 8px;
     padding: 0.85rem;
-    color: #065f46;
+    color: var(--color-primary);
     font-weight: 600;
     font-size: 0.9rem;
     cursor: pointer;
@@ -649,16 +651,16 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
   }
 
   .photo-btn-styled:hover {
-    background: #ecfdf5;
-    border-color: #10b981;
+    background: var(--color-success-bg);
+    border-color: var(--color-primary);
   }
 
   .photo-preview-thumb {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    background: #ffffff;
-    border: 1px solid #cbd5e1;
+    background: var(--color-card);
+    border: 1px solid var(--color-border);
     border-radius: 8px;
     padding: 0.5rem 0.75rem;
   }
@@ -680,7 +682,7 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
 
   .thumb-filename {
     font-size: 0.82rem;
-    color: #334155;
+    color: var(--color-text-main);
     font-weight: 500;
     max-width: 180px;
     white-space: nowrap;
@@ -690,8 +692,8 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
 
   .btn-remove-thumb {
     background: none;
-    border: 1px solid #ef4444;
-    color: #ef4444;
+    border: 1px solid var(--color-danger);
+    color: var(--color-danger);
     border-radius: 6px;
     padding: 0.25rem 0.6rem;
     font-size: 0.75rem;
@@ -700,7 +702,7 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
   }
 
   .btn-remove-thumb:hover {
-    background: #fee2e2;
+    background: var(--color-danger-bg);
   }
 
   /* Chips de Salud */
@@ -711,26 +713,26 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
   }
 
   .mini-chip {
-    background: #ffffff;
-    border: 1.5px solid #cbd5e1;
+    background: var(--color-card);
+    border: 1.5px solid var(--color-border);
     border-radius: 999px;
     padding: 0.35rem 0.85rem;
     font-size: 0.82rem;
     font-weight: 600;
-    color: #475569;
+    color: var(--color-text-muted);
     cursor: pointer;
     transition: all 0.15s ease;
   }
 
   .mini-chip:hover {
-    background: #f1f5f9;
-    border-color: #94a3b8;
+    background: var(--color-gray-100);
+    border-color: var(--color-text-muted);
   }
 
   .mini-chip.active {
-    background: #ecfdf5;
-    border-color: #10b981;
-    color: #065f46;
+    background: var(--color-success-bg);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
     box-shadow: 0 1px 4px rgba(16, 185, 129, 0.2);
   }
 
@@ -777,7 +779,7 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
     align-items: center;
     gap: 0.55rem;
     font-size: 0.82rem;
-    color: #475569;
+    color: var(--color-text-muted);
     font-weight: 600;
     cursor: pointer;
     margin-top: 0.15rem;
@@ -785,7 +787,7 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
 
   .continuous-mode-toggle input {
     cursor: pointer;
-    accent-color: #16a34a;
+    accent-color: var(--color-primary);
     width: 16px;
     height: 16px;
   }
@@ -801,7 +803,15 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
   }
 </style>
 
-<script define:vars={{ categories, communities }}>
+<script>
+  import { optimizeFieldImage } from '../../lib/imageOptimizer.js';
+  import { 
+    saveOfflineObservation, 
+    getPendingObservations, 
+    removePendingObservation, 
+    getPendingCount 
+  } from '../../lib/offlineStore.js';
+
   document.addEventListener("DOMContentLoaded", () => {
     initQuickObservationForm();
   });
@@ -961,34 +971,17 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
     }
 
     // ==========================================
-    // SISTEMA DE COLA OFFLINE (TRABAJO EN CAMPO)
+    // SISTEMA DE COLA OFFLINE (INDEXEDDB PARA CAMPO)
     // ==========================================
     const offlineSyncBar = document.getElementById('offline-sync-bar');
     const offlineBarText = document.getElementById('offline-bar-text');
     const btnSyncOfflineNow = document.getElementById('btn-sync-offline-now');
 
-    function getOfflineQueue() {
-      try {
-        return JSON.parse(localStorage.getItem('ecoraices_offline_trees') || '[]');
-      } catch {
-        return [];
-      }
-    }
-
-    function saveOfflineQueue(queue) {
-      try {
-        localStorage.setItem('ecoraices_offline_trees', JSON.stringify(queue));
-      } catch (e) {
-        console.error('[OfflineQueue] Error guardando cola:', e);
-      }
-      updateOfflineUI();
-    }
-
-    function updateOfflineUI() {
-      const queue = getOfflineQueue();
+    async function updateOfflineUI() {
+      const count = await getPendingCount();
       if (!offlineSyncBar) return;
-      if (queue.length > 0) {
-        offlineBarText.textContent = `${queue.length} árbol(es) guardado(s) localmente (sin conexión)`;
+      if (count > 0) {
+        offlineBarText.textContent = `${count} árbol(es) guardado(s) en IndexedDB (sin conexión)`;
         offlineSyncBar.style.display = 'flex';
       } else {
         offlineSyncBar.style.display = 'none';
@@ -996,34 +989,30 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
     }
 
     updateOfflineUI();
+    window.addEventListener('ecoraices:sync-count-changed', updateOfflineUI);
 
     async function syncOfflineQueue() {
-      const queue = getOfflineQueue();
+      const queue = await getPendingObservations();
       if (!queue.length) return;
 
       btnSyncOfflineNow.disabled = true;
       btnSyncOfflineNow.textContent = "Sincronizando...";
 
       let successCount = 0;
-      const remaining = [];
 
       for (const item of queue) {
         try {
           const fd = new FormData();
-          fd.append("userId", item.userId);
-          fd.append("nombreComunitario", item.nombreComunitario);
-          fd.append("municipio", item.municipio);
-          fd.append("latitude", item.latitude);
-          fd.append("longitude", item.longitude);
-          fd.append("estadoFitosanitario", item.estadoFitosanitario || "Sano y vigoroso");
-          fd.append("observationDate", item.observationDate);
+          const data = item.treeData || {};
 
-          if (item.notes) fd.append("notes", item.notes);
-          if (item.communityId) fd.append("communityId", item.communityId);
+          Object.entries(data).forEach(([k, v]) => {
+            if (v !== undefined && v !== null) {
+              fd.append(k, String(v));
+            }
+          });
 
-          if (item.imageDataUrl) {
-            const blob = await fetch(item.imageDataUrl).then(r => r.blob());
-            fd.append("image", blob, item.imageName || "offline_tree.jpg");
+          if (item.imageBlob) {
+            fd.append("image", item.imageBlob, item.imageName || "tree.webp");
           }
 
           const res = await fetch('/api/observations', {
@@ -1032,18 +1021,17 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
           });
 
           if (res.ok) {
+            await removePendingObservation(item.id);
             successCount++;
-          } else {
-            remaining.push(item);
           }
-        } catch {
-          remaining.push(item);
+        } catch (syncErr) {
+          console.error('[Offline Sync] Error con árbol:', syncErr);
         }
       }
 
-      saveOfflineQueue(remaining);
       btnSyncOfflineNow.disabled = false;
       btnSyncOfflineNow.textContent = "Sincronizar ahora";
+      updateOfflineUI();
 
       if (successCount > 0) {
         showSuccess(`✓ ${successCount} árbol(es) sincronizado(s) exitosamente con el servidor.`);
@@ -1056,30 +1044,44 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
       syncOfflineQueue();
     });
 
-    // Foto rápida y preview
-    let currentPhotoDataUrl = null;
+    // Foto rápida con compresión WebP en cliente
+    let currentPhotoBlob = null;
     let currentPhotoName = null;
 
-    quickImage?.addEventListener('change', (e) => {
+    quickImage?.addEventListener('change', async (e) => {
       const file = e.target.files?.[0];
       if (file && file.type.startsWith('image/')) {
         currentPhotoName = file.name;
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          currentPhotoDataUrl = ev.target.result;
-          thumbImg.src = currentPhotoDataUrl;
-          thumbName.textContent = file.name;
+        try {
+          const optimized = await optimizeFieldImage(file, { maxDimension: 1600, quality: 0.82 });
+          currentPhotoBlob = optimized.blob;
+          currentPhotoName = optimized.fileName;
+
+          const previewUrl = URL.createObjectURL(optimized.blob);
+          thumbImg.src = previewUrl;
+          const kbSize = Math.round(optimized.compressedSize / 1024);
+          thumbName.textContent = `${optimized.fileName} (~${kbSize} KB)`;
           photoPreviewWrap.style.display = 'flex';
           photoPlaceholderBtn.style.display = 'none';
-        };
-        reader.readAsDataURL(file);
+        } catch (err) {
+          console.warn('[Image Optimizer Fallback]', err);
+          currentPhotoBlob = file;
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            thumbImg.src = ev.target.result;
+            thumbName.textContent = file.name;
+            photoPreviewWrap.style.display = 'flex';
+            photoPlaceholderBtn.style.display = 'none';
+          };
+          reader.readAsDataURL(file);
+        }
       }
     });
 
     btnRemoveThumb?.addEventListener('click', (e) => {
       e.stopPropagation();
       quickImage.value = '';
-      currentPhotoDataUrl = null;
+      currentPhotoBlob = null;
       currentPhotoName = null;
       thumbImg.src = '';
       photoPreviewWrap.style.display = 'none';
@@ -1230,9 +1232,7 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
 
       // Si el navegador está offline directamente:
       if (!navigator.onLine) {
-        const queue = getOfflineQueue();
-        queue.push(observationData);
-        saveOfflineQueue(queue);
+        await saveOfflineObservation(observationData, currentPhotoBlob, currentPhotoName);
         handleSuccessUI(true);
         return;
       }
@@ -1251,7 +1251,9 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
         if (observationData.notes) formData.append("notes", observationData.notes);
         if (observationData.communityId) formData.append("communityId", observationData.communityId);
 
-        if (quickImage && quickImage.files && quickImage.files[0]) {
+        if (currentPhotoBlob) {
+          formData.append("image", currentPhotoBlob, currentPhotoName || "tree.webp");
+        } else if (quickImage && quickImage.files && quickImage.files[0]) {
           formData.append("image", quickImage.files[0]);
         }
 
@@ -1269,10 +1271,8 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
 
       } catch (err) {
         // Fallback por corte de señal intermitente en campo
-        console.warn('[Offline Fallback]', err);
-        const queue = getOfflineQueue();
-        queue.push(observationData);
-        saveOfflineQueue(queue);
+        console.warn('[Offline Fallback IndexedDB]', err);
+        await saveOfflineObservation(observationData, currentPhotoBlob, currentPhotoName);
         handleSuccessUI(true);
       }
     });

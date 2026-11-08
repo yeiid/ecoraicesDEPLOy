@@ -11,8 +11,10 @@ export function getCandidateBackendUrls() {
   list.push('http://backend:8000');
   list.push('http://host.docker.internal:48000');
   list.push('http://172.17.0.1:48000');
-  // IP pública legacy — mantener solo como fallback servidor
-  list.push('http://187.124.64.184:48000');
+  // Legacy public-IP fallback — only enabled explicitly via env (never in prod by default)
+  if (process.env.ENABLE_LEGACY_BACKEND_FALLBACK === 'true') {
+    list.push('http://187.124.64.184:48000');
+  }
   list.push('http://localhost:48000');
   list.push('http://127.0.0.1:48000');
   return [...new Set(list)];

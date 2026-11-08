@@ -1,6 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 import logging
+import time
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ecoraices")
@@ -25,6 +27,30 @@ if not allowed_origins:
         "http://frontend:8080",
     ]
 
+class MetricsMiddleware(BaseHTTPMiddleware):
+    """Contadores de latencia/estado: exposition Prometheus en /metrics."""
+    async def dispatch(self, request: Request, call_next):
+        if request.url.path == "/metrics":
+            return await call_next(request)
+        start = time.time()
+        response = await call_next(request)
+        duration = time.time() - start
+        REQUEST_COUNT.labels(method=request.method, path=request.url.path, status=str(response.status_code)).inc()
+        REQUEST_LATENCY.observe(duration)
+        return response
+
+
+try:
+    from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
+    REQUEST_COUNT = Counter("http_requests_total", "Total HTTP requests", ["method", "path", "status"])
+    REQUEST_LATENCY = Histogram("http_request_latency_seconds", "HTTP latency")
+    REQUEST_IN_FLIGHT = Gauge("http_requests_in_flight", "In flight")
+    HAS_PROM = True
+except ImportError:
+    HAS_PROM = False
+
+application.add_middleware(MetricsMiddleware) if HAS_PROM else None
+
 application.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
@@ -33,6 +59,13 @@ application.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
+# Prometheus exposition
+if HAS_PROM:
+    @application.get("/metrics")
+    def metrics():
+        return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
 
 # Health check — always available
 @application.get("/api/health")

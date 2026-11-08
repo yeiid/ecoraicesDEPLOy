@@ -1,24 +1,24 @@
 /**
  * Proxy Catch-All para redirigir peticiones de Astro hacia FastAPI.
- * Esto atrapa todas las llamadas al cliente a /api/* que no tengan 
- * un archivo físico correspondiente en src/pages/api/
+ * Incluye timeout por candidato (5s) para evitar cuelgues indefinidos
+ * cuando el backend está caído o bajo carga extrema.
  */
-// Cache for the working backend URL to avoid probing on every request
 let cachedWorkingBackendUrl = null;
 
 import { getCandidateBackendUrls } from '../../lib/backendHosts.js';
+
+const PROXY_TIMEOUT_MS = Number(process.env.PROXY_TIMEOUT_MS || 5000);
 
 export async function ALL({ request, params }) {
   const path = params.path;
   const url = new URL(request.url);
   const search = url.search;
 
-  // Clone headers avoiding problematic proxy headers
   const headers = new Headers(request.headers);
   headers.delete("host");
 
-  const bodyBuffer = request.method !== 'GET' && request.method !== 'HEAD' 
-    ? await request.arrayBuffer() 
+  const bodyBuffer = request.method !== 'GET' && request.method !== 'HEAD'
+    ? await request.arrayBuffer()
     : undefined;
 
   const candidates = cachedWorkingBackendUrl
@@ -32,17 +32,19 @@ export async function ALL({ request, params }) {
     const targetUrl = `${baseUrl}/api/${path}${search}`;
     lastTargetUrl = targetUrl;
 
-    try {
-      console.log(`[Proxy] ${request.method} ${targetUrl}`);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), PROXY_TIMEOUT_MS);
 
+    try {
       const response = await fetch(targetUrl, {
         method: request.method,
-        headers: headers,
+        headers,
         body: bodyBuffer,
-        redirect: 'follow'
+        redirect: 'follow',
+        signal: controller.signal,
       });
 
-      console.log(`[Proxy] Response: ${response.status} from ${targetUrl}`);
+      clearTimeout(timeoutId);
       cachedWorkingBackendUrl = baseUrl;
 
       const responseHeaders = new Headers(response.headers);
@@ -58,7 +60,7 @@ export async function ALL({ request, params }) {
         headers: responseHeaders,
       });
     } catch (error) {
-      console.warn(`[Proxy] Failed ${request.method} ${targetUrl}: ${error.message}. Trying next candidate...`);
+      clearTimeout(timeoutId);
       lastError = error;
       if (cachedWorkingBackendUrl === baseUrl) {
         cachedWorkingBackendUrl = null;

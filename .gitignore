@@ -30,3 +30,6 @@ __pycache__/
 backend/venv/
 venv/
 .venv/
+
+# Raw media folder
+eco/

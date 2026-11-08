@@ -8,7 +8,6 @@ const { initialFilterCategory = null, showFilters = true } = Astro.props;
 let trees = [];
 let categories = [];
 try {
-  // Fase 2 velocidad: observations + categories en paralelo
   const [treesRes, catsRes] = await Promise.all([
     apiGet('/observations').catch((error) => {
       console.error("Error fetching observations:", error);
@@ -24,268 +23,406 @@ try {
 } catch (error) {
   console.error("Error fetching map data:", error);
 }
-
-// Pass data to client
 ---
 
-<div class="observations-map" data-initial-category={initialFilterCategory}>
+<div class="observations-map-root" data-initial-category={initialFilterCategory}>
   {showFilters && (
-    <div class="filters-topbar">
-      <div class="filters-container">
-        
-        <div class="filter-group categories-group">
-          <div class="categories-chips" id="category-filters">
-            {categories.map((category) => (
-              <label class="chip-label">
-                <input
-                  type="checkbox"
-                  value={category.id}
-                  class="category-checkbox sr-only"
-                  checked={initialFilterCategory === category.id}
-                />
-                {category.name}
-              </label>
-            ))}
-          </div>
+    <div class="minimal-toolbar-card">
+      <div class="toolbar-primary-row">
+        <!-- Quick Filter Segmented Pills -->
+        <div class="segmented-filters" role="group" aria-label="Filtros rápidos de especies">
+          <button type="button" class="segment-btn active" data-filter="all">
+            <span class="seg-icon">🌐</span>
+            <span class="seg-text">Todos</span>
+            <span class="seg-badge" id="badge-all-count">{trees.length}</span>
+          </button>
+          
+          <button type="button" class="segment-btn btn-danger-pill" data-filter="invasive" title="Monitoreo de Neem y zonas alelopáticas">
+            <span class="seg-icon">🚨</span>
+            <span class="seg-text">Invasores (Neem)</span>
+          </button>
+          
+          <button type="button" class="segment-btn btn-success-pill" data-filter="native" title="Flora nativa protectora de La Guajira">
+            <span class="seg-icon">🌿</span>
+            <span class="seg-text">Nativas</span>
+          </button>
+
+          <button type="button" class="segment-btn btn-verified-pill" data-filter="verified" title="Registros confirmados por especialistas">
+            <span class="seg-icon">✓</span>
+            <span class="seg-text">Verificados</span>
+          </button>
         </div>
 
-        <div class="secondary-filters">
-          <div class="filter-group">
-            <label class="toggle-label">
-              <input type="checkbox" id="verified-only" class="toggle-checkbox sr-only" />
-              <span class="toggle-switch"></span>
-              <span class="toggle-text">Solo verificados</span>
-            </label>
+        <!-- Search & Info Minimal -->
+        <div class="toolbar-tools">
+          <div class="search-input-wrapper">
+            <span class="search-icon">🔍</span>
+            <input 
+              type="text" 
+              id="tree-search-input" 
+              class="minimal-search-input" 
+              placeholder="Buscar especie o municipio..." 
+              aria-label="Buscar árbol"
+            />
           </div>
 
-          <div class="filter-info">
-            <span class="trees-count" id="trees-count-display">
-              Mostrando {trees.length} árboles
-            </span>
-            <button id="clear-filters-btn" class="btn-clear" style="display:none;">
-              Limpiar
-            </button>
+          <div class="visible-counter-badge" id="trees-count-display">
+            <span class="pulse-status-dot"></span>
+            <span id="counter-text">{trees.length} visibles</span>
           </div>
+
+          <button id="clear-filters-btn" class="btn-reset-filters" style="display: none;" title="Restablecer filtros">
+            ✕ Limpiar
+          </button>
         </div>
-        
       </div>
+
+      <!-- Category Micro-Chips (Optional) -->
+      {categories.length > 0 && (
+        <div class="category-micro-scroll" id="category-micro-filters">
+          <span class="micro-label">Categorías:</span>
+          {categories.map((cat) => (
+            <button 
+              type="button" 
+              class="micro-category-chip" 
+              data-category-id={cat.id}
+            >
+              {cat.name}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )}
 
-  <div class="map-wrapper">
-    <div id="no-trees-message" class="no-trees-message" style="display: none;">
-      <p>No se encontraron árboles con los filtros seleccionados.</p>
+  <!-- Map Frame with Floating Empty Toast -->
+  <div class="map-frame-wrapper">
+    <!-- Sleek Floating Empty State Toast (Never obstructs the map) -->
+    <div id="no-trees-message" class="minimal-empty-toast" style="display: none;">
+      <span class="empty-icon">🍃</span>
+      <span class="empty-text">No se encontraron árboles con los filtros activos.</span>
+      <button type="button" id="toast-reset-btn" class="toast-reset-link">Mostrar todos</button>
     </div>
 
-    <!-- Pasa los datos del servidor a JSON en el atributo para uso inicial -->
     <MapComponent
       id="main-observations-map"
-      center={[-74.0817, 4.6097]}
-      zoom={6}
+      center={[-72.9068, 11.5448]} // La Guajira
+      zoom={7}
       markers={trees}
       readOnly={true}
-      height="600px"
+      height="620px"
     />
   </div>
 </div>
 
-<!-- Los datos viven en una sola fuente: data-markers de MapComponent (sin duplicar JSON) -->
-
 <style>
-  .observations-map {
+  .observations-map-root {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 0.85rem;
+    width: 100%;
   }
 
-  /* Filtros Topbar */
-  .filters-topbar {
-    background-color: var(--color-card, #ffffff);
-    border-radius: 12px;
-    padding: 1rem 1.25rem;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-    border: 1px solid var(--color-border, #eef2f0);
-    z-index: 10;
-  }
-
-  .filters-container {
+  /* Minimalist Toolbar Card in Light Theme */
+  .minimal-toolbar-card {
+    background: #ffffff;
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 14px;
+    padding: 0.75rem 1rem;
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 0.65rem;
+    transition: all 0.2s ease;
   }
 
-  .categories-group {
-    border-bottom: 1px solid var(--color-border, #eef2f0);
-    padding-bottom: 1rem;
-  }
-
-  .categories-chips {
+  .toolbar-primary-row {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
   }
 
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    border: 0;
+  /* Segmented Filter Pills */
+  .segmented-filters {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    background: #f1f5f9;
+    padding: 4px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
   }
 
-  .chip-label {
+  .segment-btn {
     display: inline-flex;
     align-items: center;
-    padding: 0.5rem 1.2rem;
-    border-radius: 9999px;
-    font-size: 0.9rem;
-    font-weight: 500;
-    background-color: var(--color-bg-secondary, #f3f4f6);
-    color: var(--color-text-muted, #4b5563);
+    gap: 5px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 5px 11px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #475569;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    user-select: none;
+  }
+
+  .segment-btn:hover {
+    color: #0f172a;
+    background: rgba(255, 255, 255, 0.6);
+  }
+
+  .segment-btn.active {
+    background: #ffffff;
+    color: #0f172a;
+    border-color: #cbd5e1;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06);
+  }
+
+  .seg-badge {
+    background: #e2e8f0;
+    color: #334155;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 999px;
+  }
+
+  .segment-btn.active .seg-badge {
+    background: #064e3b;
+    color: #ffffff;
+  }
+
+  /* Specific Pill Variants */
+  .btn-danger-pill.active {
+    background: #fee2e2 !important;
+    color: #b91c1c !important;
+    border-color: #fca5a5 !important;
+  }
+
+  .btn-success-pill.active {
+    background: #ecfdf5 !important;
+    color: #047857 !important;
+    border-color: #a7f3d0 !important;
+  }
+
+  .btn-verified-pill.active {
+    background: #eff6ff !important;
+    color: #1d4ed8 !important;
+    border-color: #bfdbfe !important;
+  }
+
+  /* Tools: Search + Counter */
+  .toolbar-tools {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .search-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .search-icon {
+    position: absolute;
+    left: 10px;
+    font-size: 12px;
+    color: #94a3b8;
+    pointer-events: none;
+  }
+
+  .minimal-search-input {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 6px 12px 6px 30px;
+    font-size: 0.82rem;
+    color: #0f172a;
+    outline: none;
+    transition: all 0.2s ease;
+    width: 200px;
+  }
+
+  .minimal-search-input:focus {
+    background: #ffffff;
+    border-color: #10b981;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
+    width: 230px;
+  }
+
+  .visible-counter-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #475569;
+    background: #f1f5f9;
+    padding: 5px 10px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+  }
+
+  .pulse-status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background-color: #10b981;
+    box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+  }
+
+  .btn-reset-filters {
+    background: #fee2e2;
+    color: #dc2626;
+    border: 1px solid #fecdd3;
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 5px 9px;
+    border-radius: 6px;
     cursor: pointer;
     transition: all 0.2s ease;
-    border: 1px solid transparent;
-    user-select: none;
   }
 
-  .chip-label:hover {
-    background-color: var(--color-border, #e5e7eb);
+  .btn-reset-filters:hover {
+    background: #fca5a5;
+    color: #991b1b;
   }
 
-  .chip-label:has(input:checked) {
-    background-color: var(--color-accent);
-    color: var(--color-primary);
-    border-color: var(--color-primary);
+  /* Micro-Category Chips */
+  .category-micro-scroll {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    padding-top: 4px;
+    border-top: 1px solid #f1f5f9;
+  }
+
+  .micro-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #64748b;
+    margin-right: 4px;
+    white-space: nowrap;
+  }
+
+  .micro-category-chip {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 999px;
+    padding: 3px 9px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #475569;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+  }
+
+  .micro-category-chip:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+  }
+
+  .micro-category-chip.active {
+    background: #047857;
+    color: #ffffff;
+    border-color: #047857;
     font-weight: 600;
   }
 
-  .secondary-filters {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    align-items: center;
-    gap: 1rem;
-  }
-
-  /* Custom Toggle Switch */
-  .toggle-label {
-    display: inline-flex;
-    align-items: center;
-    cursor: pointer;
-    gap: 0.5rem;
-    user-select: none;
-  }
-
-  .toggle-switch {
+  /* Map Frame Wrapper */
+  .map-frame-wrapper {
     position: relative;
-    width: 44px;
-    height: 24px;
-    background-color: var(--color-border, #cbd5e1);
-    border-radius: 9999px;
-    transition: background-color 0.3s ease;
-  }
-
-  .toggle-switch::after {
-    content: '';
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 20px;
-    height: 20px;
-    background-color: white;
-    border-radius: 50%;
-    transition: transform 0.3s ease;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-  }
-
-  .toggle-label input:checked + .toggle-switch {
-    background-color: var(--color-primary, #10b981);
-  }
-
-  .toggle-label input:checked + .toggle-switch::after {
-    transform: translateX(20px);
-  }
-
-  .toggle-text {
-    font-size: 0.9rem;
-    font-weight: 500;
-    color: var(--color-text-main, #333);
-  }
-
-  /* Info and Clear Button */
-  .filter-info {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    font-size: 0.9rem;
-  }
-
-  .trees-count {
-    color: var(--color-text-muted, #666);
-    font-weight: 500;
-  }
-
-  .btn-clear {
-    background: none;
-    border: none;
-    color: var(--color-danger, #ef4444);
-    font-size: 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
-    padding: 0.2rem 0.5rem;
-    border-radius: 4px;
-    transition: background-color 0.2s;
-  }
-
-  .btn-clear:hover {
-    background-color: #fee2e2;
-  }
-
-  /* Map Container */
-  .map-wrapper {
-    position: relative;
-    border-radius: 12px;
+    border-radius: 16px;
     overflow: hidden;
-    flex-grow: 1;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   }
 
-  .no-trees-message {
+  /* Minimal Empty Toast (Centered near the bottom, never obscuring the map) */
+  .minimal-empty-toast {
     position: absolute;
-    top: 20px;
+    bottom: 24px;
     left: 50%;
     transform: translateX(-50%);
-    background-color: rgba(255, 255, 255, 0.95);
-    padding: 1rem 1.5rem;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    text-align: center;
-    z-index: 800;
+    background: rgba(15, 23, 42, 0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    color: #f8fafc;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 8px 16px;
+    border-radius: 999px;
+    font-size: 0.85rem;
     font-weight: 500;
-    color: var(--color-text-main);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    z-index: 20;
+    animation: fadeInToast 0.3s ease;
+  }
+
+  .empty-icon {
+    font-size: 14px;
+  }
+
+  .toast-reset-link {
+    background: #10b981;
+    color: #ffffff;
+    border: none;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s ease;
+    margin-left: 4px;
+  }
+
+  .toast-reset-link:hover {
+    background: #059669;
+  }
+
+  @keyframes fadeInToast {
+    from {
+      opacity: 0;
+      transform: translate(-50%, 10px);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
   }
 
   @media (max-width: 768px) {
-    .secondary-filters {
+    .toolbar-primary-row {
       flex-direction: column;
-      align-items: flex-start;
+      align-items: stretch;
     }
-    
-    .filter-info {
+    .segmented-filters {
+      width: 100%;
+      justify-content: flex-start;
+      overflow-x: auto;
+    }
+    .toolbar-tools {
       width: 100%;
       justify-content: space-between;
-      border-top: 1px solid var(--color-border);
-      padding-top: 1rem;
+    }
+    .minimal-search-input {
+      width: 150px;
     }
   }
 </style>
 
 <script>
   document.addEventListener('astro:page-load', () => {
-    // Fase 1 limpieza: fuente única — lee markers del data-attribute del mapa
     const mapElement = document.getElementById('main-observations-map');
     if (!mapElement) return;
 
@@ -295,70 +432,86 @@ try {
     } catch {
       allTrees = [];
     }
-    
-    // UI Elements
-    const categoryCheckboxes = document.querySelectorAll('.category-checkbox');
-    const verifiedCheckbox = document.getElementById('verified-only');
-    const countDisplay = document.getElementById('trees-count-display');
+
+    // UI Controls
+    const segmentButtons = document.querySelectorAll('.segment-btn');
+    const microCategoryChips = document.querySelectorAll('.micro-category-chip');
+    const searchInput = document.getElementById('tree-search-input') as HTMLInputElement | null;
+    const counterText = document.getElementById('counter-text');
     const clearBtn = document.getElementById('clear-filters-btn');
     const noTreesMsg = document.getElementById('no-trees-message');
+    const toastResetBtn = document.getElementById('toast-reset-btn');
 
-    function calculateCenter(trees) {
-      if (trees.length === 0) return [11.5448, -72.9068]; // La Guajira
+    let currentFilterType = 'all'; // 'all' | 'invasive' | 'native' | 'verified'
+    let selectedCategoryId: string | null = null;
+    let searchQuery = '';
+
+    function calculateCenter(treesList) {
+      if (!treesList || treesList.length === 0) return [-72.9068, 11.5448]; // La Guajira
       
-      const lats = trees.map(t => parseFloat(t.latitude)).filter(n => !isNaN(n));
-      const lngs = trees.map(t => parseFloat(t.longitude)).filter(n => !isNaN(n));
+      const lats = treesList.map(t => parseFloat(t.latitude)).filter(n => !isNaN(n));
+      const lngs = treesList.map(t => parseFloat(t.longitude)).filter(n => !isNaN(n));
       
-      if (lats.length === 0 || lngs.length === 0) return [11.5448, -72.9068];
+      if (lats.length === 0 || lngs.length === 0) return [-72.9068, 11.5448];
       
       const avgLat = lats.reduce((a, b) => a + b, 0) / lats.length;
       const avgLng = lngs.reduce((a, b) => a + b, 0) / lngs.length;
       
-      return [avgLng, avgLat]; // maplibre uses [lng, lat] for flyTo center usually
+      return [avgLng, avgLat];
     }
 
     function applyFilters() {
-      // Get selected categories
-      const selectedCategories = Array.from(categoryCheckboxes)
-        .filter(cb => (cb as HTMLInputElement).checked)
-        .map(cb => (cb as HTMLInputElement).value);
-
-      // Get verified
-      const onlyVerified = verifiedCheckbox ? (verifiedCheckbox as HTMLInputElement).checked : false;
-
-      // Filter
       const filteredTrees = allTrees.filter(tree => {
         let pass = true;
 
-        if (selectedCategories.length > 0) {
-          if (!tree.species?.categoryId || !selectedCategories.includes(tree.species.categoryId)) {
+        // Categoría botánica
+        if (selectedCategoryId) {
+          if (!tree.species?.categoryId || tree.species.categoryId !== selectedCategoryId) {
             pass = false;
           }
         }
 
-        if (pass && onlyVerified) {
-          if (!tree.isVerified) pass = false;
+        // Tipo de filtro
+        const rawName = (
+          (tree.species?.name || "") + " " +
+          (tree.species?.scientificName || "") + " " +
+          (tree.species?.commonName || "") + " " +
+          (tree.name || "")
+        ).toLowerCase();
+        const isNeem = rawName.includes("neem") || rawName.includes("nim") || rawName.includes("azadirachta");
+
+        if (currentFilterType === 'invasive' && !isNeem) pass = false;
+        if (currentFilterType === 'native' && isNeem) pass = false;
+        if (currentFilterType === 'verified' && !tree.isVerified) pass = false;
+
+        // Búsqueda de texto
+        if (searchQuery.trim().length > 0) {
+          const q = searchQuery.toLowerCase().trim();
+          const matches = rawName.includes(q) || (tree.municipio && tree.municipio.toLowerCase().includes(q));
+          if (!matches) pass = false;
         }
 
         return pass;
       });
 
-      // Update UI
-      if (filteredTrees.length !== allTrees.length) {
-        countDisplay.textContent = `Mostrando ${filteredTrees.length} de ${allTrees.length} árboles`;
-        if (clearBtn) clearBtn.style.display = 'inline-block';
-      } else {
-        countDisplay.textContent = `Mostrando ${allTrees.length} árboles`;
-        if (clearBtn) clearBtn.style.display = 'none';
+      // Update UI Counter
+      if (counterText) {
+        counterText.textContent = `${filteredTrees.length} visibles`;
       }
 
+      const hasActiveFilters = currentFilterType !== 'all' || selectedCategoryId !== null || searchQuery.trim().length > 0;
+      if (clearBtn) {
+        clearBtn.style.display = hasActiveFilters ? 'inline-block' : 'none';
+      }
+
+      // Empty State Toast
       if (filteredTrees.length === 0) {
-        if (noTreesMsg) noTreesMsg.style.display = 'block';
+        if (noTreesMsg) noTreesMsg.style.display = 'flex';
       } else {
         if (noTreesMsg) noTreesMsg.style.display = 'none';
       }
 
-      // Dispatch to map component
+      // Dispatch to MapComponent
       const newCenter = calculateCenter(filteredTrees);
       mapElement.dispatchEvent(new CustomEvent('update-markers', {
         detail: {
@@ -368,23 +521,61 @@ try {
       }));
     }
 
-    // Attach listeners
-    categoryCheckboxes.forEach(cb => cb.addEventListener('change', applyFilters));
-    if (verifiedCheckbox) verifiedCheckbox.addEventListener('change', applyFilters);
+    // Segment Filter Buttons
+    segmentButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        segmentButtons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentFilterType = btn.getAttribute('data-filter') || 'all';
+        applyFilters();
+      });
+    });
 
-    if (clearBtn) {
-      clearBtn.addEventListener('click', () => {
-        categoryCheckboxes.forEach(cb => (cb as HTMLInputElement).checked = false);
-        if (verifiedCheckbox) (verifiedCheckbox as HTMLInputElement).checked = false;
+    // Micro Category Chips
+    microCategoryChips.forEach(chip => {
+      chip.addEventListener('click', () => {
+        const catId = chip.getAttribute('data-category-id');
+        if (selectedCategoryId === catId) {
+          selectedCategoryId = null;
+          chip.classList.remove('active');
+        } else {
+          microCategoryChips.forEach(c => c.classList.remove('active'));
+          chip.classList.add('active');
+          selectedCategoryId = catId;
+        }
+        applyFilters();
+      });
+    });
+
+    // Search Input Listener
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        searchQuery = (e.target as HTMLInputElement).value;
         applyFilters();
       });
     }
 
-    // Apply initial filters if any were set via props (like initialFilterCategory)
-    const container = document.querySelector('.observations-map');
-    if (container && container.getAttribute('data-initial-category')) {
-      // already checked by default in HTML, just run filter
+    // Reset Function
+    function resetAllFilters() {
+      currentFilterType = 'all';
+      selectedCategoryId = null;
+      searchQuery = '';
+      
+      segmentButtons.forEach(b => {
+        if (b.getAttribute('data-filter') === 'all') {
+          b.classList.add('active');
+        } else {
+          b.classList.remove('active');
+        }
+      });
+
+      microCategoryChips.forEach(c => c.classList.remove('active'));
+      if (searchInput) searchInput.value = '';
+
       applyFilters();
     }
+
+    if (clearBtn) clearBtn.addEventListener('click', resetAllFilters);
+    if (toastResetBtn) toastResetBtn.addEventListener('click', resetAllFilters);
   });
 </script>

@@ -2,6 +2,7 @@
 services:
   db:
     image: postgis/postgis:16-3.4
+    command: postgres -c shared_buffers=256MB -c max_connections=100 -c work_mem=8MB -c effective_cache_size=1GB -c log_min_duration_statement=1000
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-ecoraices}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ecoraices_dev}
@@ -15,6 +16,11 @@ services:
       timeout: 5s
       retries: 12
     restart: unless-stopped
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 768M }
+        reservations: { cpus: "0.25", memory: 256M }
+    logging: { driver: json-file, options: { "max-size": "10m", "max-file": "3" } }
 
   frontend:
     build: ./frontend
@@ -27,9 +33,10 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: production
-      NODE_OPTIONS: "--dns-result-order=ipv4first"
+      NODE_OPTIONS: "--dns-result-order=ipv4first --max-old-space-size=512"
       HOST: 0.0.0.0
       PORT: 8080
+      PROXY_TIMEOUT_MS: ${PROXY_TIMEOUT_MS:-5000}
       BACKEND_URL: ${BACKEND_URL:-http://backend:8000}
       DATABASE_URL: postgresql://${POSTGRES_USER:-ecoraices}:${POSTGRES_PASSWORD:-ecoraices_dev}@db:5432/${POSTGRES_DB:-ecoraices}
       POSTGIS_URL: postgresql://${POSTGRES_USER:-ecoraices}:${POSTGRES_PASSWORD:-ecoraices_dev}@db:5432/${POSTGRES_DB:-ecoraices}
@@ -54,6 +61,11 @@ services:
       retries: 3
       start_period: 15s
     restart: unless-stopped
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 768M }
+        reservations: { cpus: "0.25", memory: 256M }
+    logging: { driver: json-file, options: { "max-size": "10m", "max-file": "3" } }
 
   backend:
     build: ./backend
@@ -66,19 +78,54 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-yeifran67@gmail.com}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      POSTGIS_URL: postgresql://${POSTGRES_USER:-ecoraices}:${POSTGRES_PASSWORD:-ecoraices_dev}@db:5432/${POSTGRES_DB:-ecoraices}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-5}
+      DB_POOL_MAX_OVERFLOW: ${DB_POOL_MAX_OVERFLOW:-10}
+      DB_POOL_TIMEOUT: ${DB_POOL_TIMEOUT:-30}
     ports:
       - "${BACKEND_PORT:-48000}:8000"
     volumes:
       - uploads_data:/app/public/uploads
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=5)"]
       interval: 5s
       timeout: 5s
       retries: 12
       start_period: 15s
     restart: unless-stopped
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 768M }
+        reservations: { cpus: "0.25", memory: 256M }
+    logging: { driver: json-file, options: { "max-size": "10m", "max-file": "3" } }
+
+  sync-service:
+    build: ./services/sync-service
+    restart: unless-stopped
+    environment:
+      PORT: 8080
+      UPLOADS_DIR: /data/uploads
+      GOMEMLIMIT: 256MiB
+      GOMAXPROCS: "2"
+      MAX_CONCURRENT_UPLOADS: ${MAX_CONCURRENT_UPLOADS:-8}
+      BACKEND_URL: http://backend:8000
+      APP_DOMAIN: ${APP_DOMAIN:-ecoraices.neuraljira.tech}
+    ports:
+      - "${SYNC_PORT:-48085}:8080"
+    volumes:
+      - uploads_data:/data/uploads
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/api/sync/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 512M }
+        reservations: { cpus: "0.1", memory: 128M }
+    logging: { driver: json-file, options: { "max-size": "10m", "max-file": "3" } }
 
 volumes:
   pgdata:
   uploads_data:
-

@@ -6,72 +6,70 @@ import ObservationsMap from '../../components/observations/ObservationsMap.astro
 const { searchParams } = Astro.url;
 const categoryId = searchParams.get('categoria') || null;
 
-// Título de la página
-const title = "Inventario de Árboles Nativos - EcoRaíces";
+const title = "Explorador Territorial de Especies - EcoRaíces";
 ---
 
-
 <Layout title={title}>
-  <div class="observations-page">
-    <div class="page-header">
-      <h1>Inventario de Árboles Nativos</h1>
-      <p class="page-description">
-        Explora los árboles registrados por nuestra comunidad. Utiliza los
-        filtros para encontrar especies específicas, árboles verificados o
-        limitar por rango de fechas.
-      </p>
-    </div>
+  <div class="observations-page-container">
+    <!-- Header Minimalista y Funcional -->
+    <header class="explorer-header">
+      <div class="header-titles">
+        <div class="header-badge">
+          <span class="live-dot"></span>
+          <span>SIG Territorial · La Guajira</span>
+        </div>
+        <h1 class="main-title">Explorador Forestal</h1>
+        <p class="subtitle">
+          Cartografía botánica comunitaria: monitoreo de flora nativa resiliente y alerta temprana contra especies invasoras (Neem).
+        </p>
+      </div>
 
-    <div class="actions">
-      <a href="/observaciones/nueva" class="btn btn-primary"
-        >Registrar Nuevo Árbol</a
-      >
-    </div>
+      <div class="header-actions">
+        <a href="/observaciones/nueva" class="btn-register-tree">
+          <span class="plus-icon">+</span>
+          <span>Registrar Árbol</span>
+        </a>
+      </div>
+    </header>
 
-    <div class="map-container">
+    <!-- Map Section -->
+    <main class="map-showcase-section">
       <ObservationsMap
         initialFilterCategory={categoryId}
         showFilters={true}
       />
-    </div>
+    </main>
 
-    <section class="how-to">
-      <h2>¿Cómo contribuir al inventario forestal?</h2>
-      <div class="steps">
-        <div class="step">
-          <span class="step-number">1</span>
-          <h3>Crea una cuenta</h3>
-          <p>
-            Regístrate para poder empezar a documentar y compartir tus registros
-            de árboles.
-          </p>
+    <!-- Guía Rápida Minimalista -->
+    <section class="minimal-contribution-guide">
+      <div class="guide-header">
+        <h2>¿Cómo participar en el censo arbóreo?</h2>
+        <p>Tu registro aporta datos científicos para restaurar el bosque seco guajiro.</p>
+      </div>
+
+      <div class="guide-steps-grid">
+        <div class="guide-card">
+          <span class="guide-num">1</span>
+          <h3>Identifica</h3>
+          <p>Localiza un árbol en tu sector (árbol nativo o foco de Neem).</p>
         </div>
 
-        <div class="step">
-          <span class="step-number">2</span>
-          <h3>Identifica árboles</h3>
-          <p>
-            Encuentra un árbol nativo en tu entorno e identifícalo utilizando
-            nuestra guía de especies.
-          </p>
+        <div class="guide-card">
+          <span class="guide-num">2</span>
+          <h3>Geolocaliza</h3>
+          <p>Captura las coordenadas precisas con el GPS de tu dispositivo.</p>
         </div>
 
-        <div class="step">
-          <span class="step-number">3</span>
-          <h3>Documenta y comparte</h3>
-          <p>
-            Toma fotos del árbol, su corteza, hojas y flores, registra la
-            ubicación exacta y comparte tu descubrimiento.
-          </p>
+        <div class="guide-card">
+          <span class="guide-num">3</span>
+          <h3>Documenta</h3>
+          <p>Sube fotos de hojas, corteza y flores para verificación botánica.</p>
         </div>
 
-        <div class="step">
-          <span class="step-number">4</span>
-          <h3>Contribuye a la conservación</h3>
-          <p>
-            Tus datos ayudan a forestales, investigadores y conservacionistas a
-            proteger nuestro patrimonio arbóreo.
-          </p>
+        <div class="guide-card">
+          <span class="guide-num">4</span>
+          <h3>Acción Territorial</h3>
+          <p>Promueve la conservación o solicita jornadas de sustitución ecológica.</p>
         </div>
       </div>
     </section>
@@ -79,125 +77,186 @@ const title = "Inventario de Árboles Nativos - EcoRaíces";
 </Layout>
 
 <style>
-  .observations-page {
-    max-width: 1200px;
+  .observations-page-container {
+    max-width: 1400px;
     margin: 0 auto;
-    padding: 0 1rem;
+    padding: 0 1.25rem 3rem;
   }
 
-  .page-header {
-    text-align: center;
-    margin-bottom: 2rem;
-  }
-
-  .page-header h1 {
-    font-size: 2.5rem;
-    color: var(--color-primary);
-    margin-bottom: 1rem;
-  }
-
-  .page-description {
-    max-width: 800px;
-    margin: 0 auto 1.5rem;
-    font-size: 1.1rem;
-    color: var(--color-text);
-  }
-
-  .actions {
+  /* Header Minimalista */
+  .explorer-header {
     display: flex;
-    justify-content: flex-end;
-    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1.5rem;
+    margin: 1.25rem 0 1.5rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--color-border, #e2e8f0);
   }
 
-  .map-container {
-    border-radius: 8px;
-    overflow: hidden;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    margin-bottom: 3rem;
+  .header-titles {
+    max-width: 780px;
   }
 
-  /* Sección de cómo contribuir */
-  .how-to {
-    background-color: var(--color-background);
-    padding: 2rem;
-    border-radius: 8px;
-    margin-bottom: 2rem;
+  .header-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(16, 185, 129, 0.12);
+    color: #065f46;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    margin-bottom: 0.5rem;
+    border: 1px solid rgba(16, 185, 129, 0.25);
   }
 
-  .how-to h2 {
+  .live-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: #10b981;
+    box-shadow: 0 0 6px #10b981;
+  }
+
+  .main-title {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--color-text-main, #0f172a);
+    margin: 0 0 0.4rem 0;
+    line-height: 1.15;
+  }
+
+  .subtitle {
+    font-size: 0.95rem;
+    color: var(--color-text-muted, #64748b);
+    margin: 0;
+    line-height: 1.45;
+  }
+
+  .btn-register-tree {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #047857;
+    color: #ffffff;
+    font-size: 0.9rem;
+    font-weight: 700;
+    padding: 9px 18px;
+    border-radius: 10px;
+    text-decoration: none;
+    box-shadow: 0 4px 12px rgba(4, 120, 87, 0.25);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    white-space: nowrap;
+  }
+
+  .btn-register-tree:hover {
+    background: #065f46;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(4, 120, 87, 0.35);
+  }
+
+  .plus-icon {
+    font-size: 1.2rem;
+    line-height: 1;
+  }
+
+  /* Sección Principal del Mapa */
+  .map-showcase-section {
+    margin-bottom: 2.5rem;
+  }
+
+  /* Guía de Contribución Minimalista */
+  .minimal-contribution-guide {
+    background: var(--color-card, #ffffff);
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 14px;
+    padding: 1.75rem 2rem;
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.03);
+  }
+
+  .guide-header {
     text-align: center;
-    font-size: 1.8rem;
-    color: var(--color-primary);
-    margin-bottom: 2rem;
+    margin-bottom: 1.75rem;
   }
 
-  .steps {
+  .guide-header h2 {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--color-text-main, #0f172a);
+    margin: 0 0 0.35rem 0;
+  }
+
+  .guide-header p {
+    font-size: 0.88rem;
+    color: var(--color-text-muted, #64748b);
+    margin: 0;
+  }
+
+  .guide-steps-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 2rem;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.25rem;
   }
 
-  .step {
-    background-color: white;
-    padding: 1.5rem;
-    border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+  .guide-card {
+    background: var(--color-bg-secondary, #f8fafc);
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 10px;
+    padding: 1.25rem;
     position: relative;
-    padding-top: 2.5rem;
+    transition: transform 0.2s ease;
   }
 
-  .step-number {
-    position: absolute;
-    top: -1rem;
-    left: 1.5rem;
-    background-color: var(--color-primary);
-    color: white;
-    width: 2.5rem;
-    height: 2.5rem;
-    display: flex;
+  .guide-card:hover {
+    transform: translateY(-2px);
+  }
+
+  .guide-num {
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: 50%;
-    font-weight: bold;
-    font-size: 1.2rem;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    background: #10b981;
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 800;
+    margin-bottom: 0.75rem;
   }
 
-  .step h3 {
-    margin-bottom: 1rem;
-    color: var(--color-primary);
-    font-size: 1.3rem;
+  .guide-card h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--color-text-main, #0f172a);
+    margin: 0 0 0.35rem 0;
   }
 
-  /* Botones */
-  .btn {
-    display: inline-block;
-    padding: 0.8rem 1.6rem;
-    border-radius: 4px;
-    font-weight: 500;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    border: none;
-    text-decoration: none;
+  .guide-card p {
+    font-size: 0.82rem;
+    color: var(--color-text-muted, #64748b);
+    margin: 0;
+    line-height: 1.4;
   }
 
-  .btn-primary {
-    background-color: var(--color-primary);
-    color: white;
-  }
-
-  .btn-primary:hover {
-    background-color: #1b5e20;
-  }
-
-  /* Responsive */
   @media (max-width: 768px) {
-    .page-header h1 {
-      font-size: 2rem;
+    .explorer-header {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 1rem;
     }
-
-    .actions {
+    .btn-register-tree {
       justify-content: center;
+    }
+    .main-title {
+      font-size: 1.6rem;
+    }
+    .minimal-contribution-guide {
+      padding: 1.25rem;
     }
   }
 </style>

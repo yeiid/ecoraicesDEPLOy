@@ -237,7 +237,7 @@ const mainImageUrl = mainPhoto?.url || especie.imageUrl || IMAGE_FALLBACK;
   .breadcrumbs {
     margin-bottom: 2rem;
     font-size: 0.9rem;
-    color: #666;
+    color: var(--color-text-muted);
   }
 
   .breadcrumbs a {
@@ -518,11 +518,11 @@ const mainImageUrl = mainPhoto?.url || especie.imageUrl || IMAGE_FALLBACK;
   }
 
   .observation-card {
-    background: white;
+    background: var(--color-card);
     border-radius: 8px;
     overflow: hidden;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04);
-    border: 1px solid #eef2f0;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--color-border);
     transition: transform 0.2s;
   }
 
@@ -547,12 +547,12 @@ const mainImageUrl = mainPhoto?.url || especie.imageUrl || IMAGE_FALLBACK;
     display: flex;
     justify-content: space-between;
     font-size: 0.85rem;
-    color: #666;
+    color: var(--color-text-muted);
   }
 
   .obs-notes {
     font-size: 0.95rem;
-    color: #2d3748;
+    color: var(--color-text-main);
     margin: 0.25rem 0;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -586,9 +586,9 @@ const mainImageUrl = mainPhoto?.url || especie.imageUrl || IMAGE_FALLBACK;
   .no-observations-card {
     text-align: center;
     padding: 3rem 2rem;
-    background-color: #fcfdfd;
+    background-color: var(--color-gray-50);
     border-radius: 12px;
-    border: 2px dashed #e2e8f0;
+    border: 2px dashed var(--color-border);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -598,11 +598,11 @@ const mainImageUrl = mainPhoto?.url || especie.imageUrl || IMAGE_FALLBACK;
   .empty-icon {
     width: 48px;
     height: 48px;
-    color: #94a3b8;
+    color: var(--color-text-muted);
   }
 
   .no-observations-card p {
-    color: #64748b;
+    color: var(--color-text-muted);
     margin: 0;
   }
 
@@ -610,7 +610,7 @@ const mainImageUrl = mainPhoto?.url || especie.imageUrl || IMAGE_FALLBACK;
   .related-section {
     margin-top: 4rem;
     padding-top: 3rem;
-    border-top: 1px solid #eef2f0;
+    border-top: 1px solid var(--color-border);
   }
 
   .related-section h2 {
@@ -626,11 +626,11 @@ const mainImageUrl = mainPhoto?.url || especie.imageUrl || IMAGE_FALLBACK;
   }
 
   .related-card {
-    background: white;
+    background: var(--color-card);
     border-radius: 8px;
     overflow: hidden;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
-    border: 1px solid #eef2f0;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--color-border);
     text-decoration: none;
     color: inherit;
     transition: transform 0.2s;
@@ -660,12 +660,12 @@ const mainImageUrl = mainPhoto?.url || especie.imageUrl || IMAGE_FALLBACK;
   .related-content h3 {
     margin: 0.25rem 0;
     font-size: 1.1rem;
-    color: #1a202c;
+    color: var(--color-text-main);
   }
 
   .related-scientific {
     font-size: 0.9rem;
-    color: #718096;
+    color: var(--color-text-muted);
     margin: 0;
   }
 

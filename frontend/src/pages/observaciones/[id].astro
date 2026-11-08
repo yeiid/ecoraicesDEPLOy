@@ -377,7 +377,7 @@ const mapMarker = observation
   .scientific-name {
     font-style: italic;
     font-size: 1.2rem;
-    color: #666;
+    color: var(--color-text-muted);
     margin-top: 0;
     margin-bottom: 1rem;
   }
@@ -385,8 +385,9 @@ const mapMarker = observation
   .verification-badge {
     display: inline-flex;
     align-items: center;
-    background-color: #e8f5e9;
-    color: #2e7d32;
+    background-color: var(--color-success-bg);
+    color: var(--color-success);
+    border: 1px solid var(--color-success);
     padding: 0.5rem 0.8rem;
     border-radius: 4px;
     font-weight: 500;
@@ -408,7 +409,8 @@ const mapMarker = observation
   .observation-image {
     border-radius: 8px;
     overflow: hidden;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--color-border);
   }
 
   .main-image {
@@ -419,13 +421,15 @@ const mapMarker = observation
   }
 
   .no-image {
-    background-color: #f0f0f0;
+    background-color: var(--color-card);
+    border: 2px dashed var(--color-border);
     height: 400px;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #666;
+    color: var(--color-text-muted);
     font-size: 1.1rem;
+    border-radius: 8px;
   }
 
   .observation-info {
@@ -435,10 +439,11 @@ const mapMarker = observation
   }
 
   .info-card {
-    background-color: white;
+    background-color: var(--color-card);
+    border: 1px solid var(--color-border);
     border-radius: 8px;
     padding: 1.5rem;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow-sm);
   }
 
   .info-card h2 {
@@ -447,7 +452,7 @@ const mapMarker = observation
     margin-top: 0;
     margin-bottom: 1rem;
     padding-bottom: 0.5rem;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--color-border);
   }
 
   .info-grid {
@@ -464,12 +469,24 @@ const mapMarker = observation
     display: block;
     font-weight: 500;
     font-size: 0.9rem;
-    color: #666;
+    color: var(--color-text-muted);
     margin-bottom: 0.3rem;
   }
 
   .value {
     font-size: 1rem;
+    color: var(--color-text-main);
+    font-weight: 500;
+  }
+
+  .value a {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-weight: 600;
+  }
+
+  .value a:hover {
+    text-decoration: underline;
   }
 
   .user-info {
@@ -591,14 +608,14 @@ const mapMarker = observation
     margin-bottom: 1.25rem;
   }
   .validation-status-box.pending {
-    background: #fefce8;
-    border: 1px solid #fef08a;
-    color: #854d0e;
+    background: var(--color-warning-bg);
+    border: 1px solid var(--color-warning);
+    color: var(--color-warning);
   }
   .validation-status-box.approved {
-    background: #ecfdf5;
-    border: 1px solid #a7f3d0;
-    color: #065f46;
+    background: var(--color-success-bg);
+    border: 1px solid var(--color-success);
+    color: var(--color-success-dark, var(--color-success));
   }
   .validation-status-box strong {
     display: block;
@@ -609,6 +626,7 @@ const mapMarker = observation
     margin: 0;
     font-size: 0.85rem;
     line-height: 1.4;
+    color: var(--color-text-main);
   }
   .status-icon {
     font-size: 1.5rem;
@@ -616,8 +634,8 @@ const mapMarker = observation
   }
 
   .field-notes-box {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
+    background: var(--color-gray-50);
+    border: 1px solid var(--color-border);
     border-radius: 8px;
     padding: 0.85rem;
     margin-bottom: 1.25rem;
@@ -625,7 +643,7 @@ const mapMarker = observation
   .field-notes-title {
     font-size: 0.8rem;
     font-weight: 700;
-    color: #475569;
+    color: var(--color-text-muted);
     display: block;
     margin-bottom: 0.35rem;
   }
@@ -633,24 +651,24 @@ const mapMarker = observation
     margin: 0;
     font-family: inherit;
     font-size: 0.85rem;
-    color: #334155;
+    color: var(--color-text-main);
     white-space: pre-wrap;
   }
 
   .validate-action-box {
-    background: #f0fdf4;
-    border: 1px dashed #86efac;
+    background: var(--color-success-bg);
+    border: 1px dashed var(--color-primary);
     border-radius: 8px;
     padding: 1.15rem;
   }
   .validate-action-box h3 {
     margin: 0 0 0.25rem 0;
     font-size: 1.05rem;
-    color: #14532d;
+    color: var(--color-primary);
   }
   .validate-sub {
     font-size: 0.84rem;
-    color: #475569;
+    color: var(--color-text-muted);
     margin: 0 0 1rem 0;
     line-height: 1.4;
   }
@@ -667,17 +685,19 @@ const mapMarker = observation
   .val-input-group label {
     font-size: 0.82rem;
     font-weight: 600;
-    color: #1e293b;
+    color: var(--color-text-main);
   }
   .val-input {
     padding: 0.5rem 0.75rem;
-    border: 1px solid #cbd5e1;
+    background-color: var(--color-card);
+    color: var(--color-text-main);
+    border: 1px solid var(--color-border);
     border-radius: 6px;
     font-size: 0.9rem;
     outline: none;
   }
   .val-input:focus, .val-textarea:focus {
-    border-color: #10b981;
+    border-color: var(--color-primary);
     box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
   }
   .italic-input {
@@ -685,7 +705,9 @@ const mapMarker = observation
   }
   .val-textarea {
     padding: 0.5rem 0.75rem;
-    border: 1px solid #cbd5e1;
+    background-color: var(--color-card);
+    color: var(--color-text-main);
+    border: 1px solid var(--color-border);
     border-radius: 6px;
     font-size: 0.88rem;
     resize: vertical;
@@ -698,12 +720,14 @@ const mapMarker = observation
     font-weight: 600;
   }
   .val-feedback.success {
-    background: #dcfce7;
-    color: #15803d;
+    background: var(--color-success-bg);
+    color: var(--color-success);
+    border: 1px solid var(--color-success);
   }
   .val-feedback.error {
-    background: #fee2e2;
-    color: #b91c1c;
+    background: var(--color-danger-bg);
+    color: var(--color-danger);
+    border: 1px solid var(--color-danger);
   }
 
   /* Responsive */

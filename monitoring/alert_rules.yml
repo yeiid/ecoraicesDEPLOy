@@ -1,0 +1,23 @@
+# Alertas — EcoRaíces
+# Cargar en Prometheus: alert_rules.yml -> rule_files
+groups:
+  - name: ecoraices
+    rules:
+      - alert: HighMemory
+        expr: container_memory_working_set_bytes / container_spec_memory_limit_bytes > 0.8
+        for: 2m
+        labels: {severity: warning}
+        annotations: {summary: "Memoria >80% en {{ $labels.container }}"}
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[2m]) / rate(http_requests_total[2m]) > 0.01
+        for: 2m
+        labels: {severity: critical}
+        annotations: {summary: "Error rate >1%"}
+      - alert: DiskFilling
+        expr: (1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)) > 0.85
+        for: 5m
+        labels: {severity: warning}
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels: {severity: critical}
