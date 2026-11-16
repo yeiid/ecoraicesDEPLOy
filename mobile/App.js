@@ -625,32 +625,6 @@ export default function App() {
             {/* Título de la Página */}
             <Text style={styles.webPageTitle}>Formulario de Registro de Especies</Text>
 
-            {/* Barra de sincronización offline */}
-            <View style={styles.webOfflineSyncBar}>
-              <View style={styles.webOfflineBarContent}>
-                <Text style={styles.webOfflineIcon}>📶</Text>
-                <Text style={styles.webOfflineBarText} numberOfLines={1}>
-                  {stats.pending > 0
-                    ? `${stats.pending} árbol(es) guardado(s) en SQLite (sin conexión)`
-                    : '0 árboles pendientes por sincronizar'}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={[
-                  styles.webBtnSyncOffline,
-                  (isSyncing || stats.pending === 0) && { opacity: 0.6 }
-                ]}
-                onPress={handleStartSync}
-                disabled={isSyncing || stats.pending === 0}
-              >
-                {isSyncing ? (
-                  <ActivityIndicator size="small" color="#ffffff" />
-                ) : (
-                  <Text style={styles.webBtnSyncOfflineText}>Sincronizar ahora</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-
             {/* Alertas de Éxito / Error */}
             {saveSuccessBanner && (
               <View style={styles.webAlertSuccess}>
@@ -1643,44 +1617,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
     marginBottom: 16
   },
-  webOfflineSyncBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#eff6ff',
-    borderWidth: 1,
-    borderColor: '#bfdbfe',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 14
-  },
-  webOfflineBarContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flex: 1
-  },
-  webOfflineIcon: {
-    fontSize: 15
-  },
-  webOfflineBarText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#1d4ed8',
-    flex: 1
-  },
-  webBtnSyncOffline: {
-    backgroundColor: '#2563eb',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6
-  },
-  webBtnSyncOfflineText: {
-    color: '#ffffff',
-    fontSize: 11,
-    fontWeight: '800'
-  },
+
   webAlertSuccess: {
     backgroundColor: '#dcfce7',
     borderWidth: 1,
