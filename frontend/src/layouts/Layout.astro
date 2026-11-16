@@ -216,7 +216,9 @@ const user = await getSessionUser({ cookies: Astro.cookies, request: Astro.reque
 
       <!-- Panel de Contenido Principal -->
       <main class="main-container">
-        <slot />
+        <div class="main-content-slot">
+          <slot />
+        </div>
 
         <!-- Footer Global -->
         <footer class="site-footer">
@@ -619,6 +621,12 @@ const user = await getSessionUser({ cookies: Astro.cookies, request: Astro.reque
     background-color: var(--color-main-bg);
   }
 
+  .main-content-slot {
+    flex: 1 0 auto;
+    width: 100%;
+    min-width: 0;
+  }
+
   @media (max-width: 1280px) and (min-width: 1025px) {
     .main-container {
       padding: 1.75rem 1.5rem;
@@ -634,7 +642,7 @@ const user = await getSessionUser({ cookies: Astro.cookies, request: Astro.reque
       left: 0;
       right: 0;
       width: 100%;
-      max-width: 100vw;
+      max-width: 100%;
       box-sizing: border-box;
       height: 60px;
       background: var(--color-sidebar-bg);
@@ -647,7 +655,7 @@ const user = await getSessionUser({ cookies: Astro.cookies, request: Astro.reque
       justify-content: space-between;
       padding: 0 0.85rem;
       box-shadow: 0 2px 10px rgba(15, 23, 42, 0.02);
-      overflow-x: hidden;
+      overflow-x: clip;
     }
 
     .mobile-toggle {
@@ -715,10 +723,10 @@ const user = await getSessionUser({ cookies: Astro.cookies, request: Astro.reque
     .main-container {
       margin-left: 0;
       width: 100%;
-      max-width: 100vw;
+      max-width: 100%;
       box-sizing: border-box;
       padding: 4.5rem 0.85rem 1.5rem 0.85rem;
-      overflow-x: hidden;
+      overflow-x: clip;
     }
   }
 

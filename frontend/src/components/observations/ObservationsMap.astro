@@ -79,17 +79,19 @@ try {
 
       <!-- Category Micro-Chips (Optional) -->
       {categories.length > 0 && (
-        <div class="category-micro-scroll" id="category-micro-filters">
+        <div class="category-micro-row">
           <span class="micro-label">Categorías:</span>
-          {categories.map((cat) => (
-            <button 
-              type="button" 
-              class="micro-category-chip" 
-              data-category-id={cat.id}
-            >
-              {cat.name}
-            </button>
-          ))}
+          <div class="category-micro-scroll" id="category-micro-filters">
+            {categories.map((cat) => (
+              <button 
+                type="button" 
+                class="micro-category-chip" 
+                data-category-id={cat.id}
+              >
+                {cat.name}
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -121,6 +123,7 @@ try {
     flex-direction: column;
     gap: 0.85rem;
     width: 100%;
+    min-width: 0;
   }
 
   /* Minimalist Toolbar Card in Light Theme */
@@ -133,6 +136,8 @@ try {
     display: flex;
     flex-direction: column;
     gap: 0.65rem;
+    width: 100%;
+    min-width: 0;
     transition: all 0.2s ease;
   }
 
@@ -142,23 +147,29 @@ try {
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
+    width: 100%;
+    min-width: 0;
   }
 
   /* Segmented Filter Pills */
   .segmented-filters {
     display: inline-flex;
     flex-wrap: wrap;
+    flex-wrap: balance;
     align-items: center;
     gap: 6px;
     background: #f1f5f9;
     padding: 4px;
     border-radius: 10px;
     border: 1px solid #e2e8f0;
+    max-width: 100%;
+    min-width: 0;
   }
 
   .segment-btn {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 5px;
     background: transparent;
     border: 1px solid transparent;
@@ -170,6 +181,7 @@ try {
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     user-select: none;
+    white-space: nowrap;
   }
 
   .segment-btn:hover {
@@ -223,12 +235,14 @@ try {
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
+    min-width: 0;
   }
 
   .search-input-wrapper {
     position: relative;
     display: flex;
     align-items: center;
+    min-width: 0;
   }
 
   .search-icon {
@@ -248,14 +262,16 @@ try {
     color: #0f172a;
     outline: none;
     transition: all 0.2s ease;
-    width: 200px;
+    width: 230px;
+    max-width: 100%;
+    min-width: 0;
   }
 
   .minimal-search-input:focus {
     background: #ffffff;
     border-color: #10b981;
     box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
-    width: 230px;
+    width: 256px;
   }
 
   .visible-counter-badge {
@@ -269,6 +285,8 @@ try {
     padding: 5px 10px;
     border-radius: 8px;
     border: 1px solid #e2e8f0;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .pulse-status-dot {
@@ -277,6 +295,7 @@ try {
     border-radius: 50%;
     background-color: #10b981;
     box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+    flex-shrink: 0;
   }
 
   .btn-reset-filters {
@@ -289,6 +308,8 @@ try {
     border-radius: 6px;
     cursor: pointer;
     transition: all 0.2s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .btn-reset-filters:hover {
@@ -297,21 +318,73 @@ try {
   }
 
   /* Micro-Category Chips */
+  .category-micro-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    padding-top: 6px;
+    border-top: 1px solid #f1f5f9;
+  }
+
   .category-micro-scroll {
     display: flex;
     align-items: center;
     gap: 6px;
+    flex: 1 1 auto;
+    min-width: 0;
     overflow-x: auto;
-    padding-top: 4px;
-    border-top: 1px solid #f1f5f9;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    scroll-padding-inline: 2rem;
+    --fade-size: 2rem;
+    mask:
+      linear-gradient(black, black) no-clip subtract,
+      linear-gradient(to right, black, transparent) 0 0 / var(--fade-start) 100% no-repeat no-clip,
+      linear-gradient(to right, transparent, black) 100% 0 / var(--fade-end) 100% no-repeat no-clip;
+    animation: reveal-fade-start linear both, hide-fade-end linear both;
+    animation-timeline: scroll(self inline);
+    animation-range: 0 var(--fade-size), calc(100% - var(--fade-size)) 100%;
+  }
+
+  .category-micro-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  @keyframes reveal-fade-start {
+    to {
+      --fade-start: var(--fade-size);
+    }
+  }
+
+  @keyframes hide-fade-end {
+    from {
+      --fade-end: var(--fade-size);
+    }
+  }
+
+  @supports not (animation-timeline: scroll()) {
+    .category-micro-scroll {
+      transition: --fade-start 0.2s, --fade-end 0.2s;
+    }
+    .category-micro-scroll.more-start {
+      --fade-start: var(--fade-size);
+    }
+    .category-micro-scroll.more-end {
+      --fade-end: var(--fade-size);
+    }
   }
 
   .micro-label {
     font-size: 0.75rem;
     font-weight: 600;
     color: #64748b;
-    margin-right: 4px;
+    margin-right: 2px;
     white-space: nowrap;
+    flex: none;
   }
 
   .micro-category-chip {
@@ -324,6 +397,7 @@ try {
     color: #475569;
     cursor: pointer;
     white-space: nowrap;
+    flex: none;
     transition: all 0.2s ease;
   }
 
@@ -342,6 +416,8 @@ try {
   /* Map Frame Wrapper */
   .map-frame-wrapper {
     position: relative;
+    width: 100%;
+    min-width: 0;
     border-radius: 16px;
     overflow: hidden;
   }
@@ -349,9 +425,10 @@ try {
   /* Minimal Empty Toast (Centered near the bottom, never obscuring the map) */
   .minimal-empty-toast {
     position: absolute;
-    bottom: 24px;
+    bottom: 34px;
     left: 50%;
     transform: translateX(-50%);
+    max-width: calc(100% - 24px);
     background: rgba(15, 23, 42, 0.92);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
@@ -363,6 +440,7 @@ try {
     font-weight: 500;
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
     z-index: 20;
@@ -384,6 +462,7 @@ try {
     cursor: pointer;
     transition: background 0.2s ease;
     margin-left: 4px;
+    white-space: nowrap;
   }
 
   .toast-reset-link:hover {
@@ -402,22 +481,64 @@ try {
   }
 
   @media (max-width: 768px) {
+    .minimal-toolbar-card {
+      padding: 0.7rem 0.75rem;
+    }
     .toolbar-primary-row {
       flex-direction: column;
       align-items: stretch;
+      gap: 0.65rem;
     }
     .segmented-filters {
+      display: flex;
       width: 100%;
       justify-content: flex-start;
-      overflow-x: auto;
+    }
+    .segment-btn {
+      flex: 1 1 auto;
+      padding: 6px 9px;
+      font-size: 0.79rem;
     }
     .toolbar-tools {
       width: 100%;
       justify-content: space-between;
+      gap: 8px;
     }
-    .minimal-search-input {
-      width: 150px;
+    .search-input-wrapper {
+      flex: 1 1 140px;
+      min-width: 0;
     }
+    .minimal-search-input,
+    .minimal-search-input:focus {
+      width: 100%;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .minimal-empty-toast {
+      width: max-content;
+      max-width: calc(100% - 20px);
+      bottom: 42px;
+      padding: 8px 12px;
+      border-radius: 14px;
+      font-size: 0.78rem;
+      flex-wrap: wrap;
+      text-align: center;
+    }
+  }
+</style>
+
+<style is:global>
+  @property --fade-start {
+    syntax: "<length>";
+    inherits: false;
+    initial-value: 0px;
+  }
+
+  @property --fade-end {
+    syntax: "<length>";
+    inherits: false;
+    initial-value: 0px;
   }
 </style>
 
@@ -436,6 +557,7 @@ try {
     // UI Controls
     const segmentButtons = document.querySelectorAll('.segment-btn');
     const microCategoryChips = document.querySelectorAll('.micro-category-chip');
+    const categoryScroller = document.getElementById('category-micro-filters');
     const searchInput = document.getElementById('tree-search-input') as HTMLInputElement | null;
     const counterText = document.getElementById('counter-text');
     const clearBtn = document.getElementById('clear-filters-btn');
@@ -445,6 +567,22 @@ try {
     let currentFilterType = 'all'; // 'all' | 'invasive' | 'native' | 'verified'
     let selectedCategoryId: string | null = null;
     let searchQuery = '';
+
+    // Edge-fade fallback for browsers without scroll-driven animations
+    if (categoryScroller && categoryScroller.firstElementChild && categoryScroller.lastElementChild) {
+      if (!CSS.supports('animation-timeline', 'scroll()')) {
+        const first = categoryScroller.firstElementChild;
+        const last = categoryScroller.lastElementChild;
+        const observer = new IntersectionObserver((entries) => {
+          for (const { target, intersectionRatio } of entries) {
+            if (target === first) categoryScroller.classList.toggle('more-start', intersectionRatio < 1);
+            if (target === last) categoryScroller.classList.toggle('more-end', intersectionRatio < 1);
+          }
+        }, { root: categoryScroller, threshold: 1, rootMargin: '1px' });
+        observer.observe(first);
+        if (last !== first) observer.observe(last);
+      }
+    }
 
     function calculateCenter(treesList) {
       if (!treesList || treesList.length === 0) return [-72.9068, 11.5448]; // La Guajira
@@ -543,6 +681,7 @@ try {
           chip.classList.add('active');
           selectedCategoryId = catId;
         }
+        chip.scrollIntoView({ block: 'nearest', inline: 'nearest' });
         applyFilters();
       });
     });

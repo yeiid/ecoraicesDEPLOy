@@ -12,12 +12,11 @@ const {
 } = Astro.props;
 ---
 
-<div class="map-system-container light-theme-map" style={`position: relative; width: 100%; height: 100%; min-height: ${height};`}>
+<div class="map-system-container light-theme-map" style={`--map-height: ${height};`}>
   <!-- Map Canvas -->
   <div 
     id={id} 
     class="astro-map"
-    style={`width: 100%; height: 100%; min-height: ${height}; border-radius: 16px; overflow: hidden;`}
     data-center={JSON.stringify(center)}
     data-zoom={zoom}
     data-markers={JSON.stringify(markers)}
@@ -92,11 +91,25 @@ const {
 
 <style>
   .map-system-container {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+    min-height: var(--map-height, 560px);
     isolation: isolate;
     background: #f8fafc;
     border: 1px solid var(--color-border, #e2e8f0);
     border-radius: 16px;
+    overflow: hidden;
     box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.08);
+  }
+
+  .astro-map {
+    width: 100%;
+    height: 100%;
+    min-height: var(--map-height, 560px);
+    border-radius: 16px;
+    overflow: hidden;
   }
 
   /* Top Right 2D/3D Switcher */
@@ -108,6 +121,7 @@ const {
     display: flex;
     gap: 8px;
     align-items: center;
+    max-width: calc(100% - 70px);
   }
 
   .map-perspective-btn {
@@ -161,9 +175,10 @@ const {
   /* Bottom Right Minimalist Collapsible Legend */
   .map-floating-legend-container {
     position: absolute;
-    bottom: 14px;
-    right: 14px;
+    bottom: 34px;
+    right: 12px;
     z-index: 10;
+    max-width: calc(100% - 24px);
   }
 
   .legend-panel-minimal {
@@ -178,7 +193,7 @@ const {
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
     padding: 6px;
     transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    max-width: 90vw;
+    max-width: 100%;
   }
 
   .legend-toggle-btn {
@@ -254,8 +269,9 @@ const {
   /* Coords Display (Bottom Left) */
   .map-coords-badge {
     position: absolute;
-    bottom: 14px;
-    left: 14px;
+    bottom: 34px;
+    left: 12px;
+    max-width: calc(100% - 24px);
     background: rgba(255, 255, 255, 0.94);
     color: #0f172a;
     padding: 5px 10px;
@@ -269,18 +285,35 @@ const {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   }
 
+  @media (max-width: 768px) {
+    .map-system-container,
+    .astro-map {
+      min-height: min(var(--map-height, 560px), 62dvh);
+    }
+  }
+
   @media (max-width: 640px) {
     .map-floating-top-controls {
       right: 48px;
       top: 10px;
+      max-width: calc(100% - 58px);
     }
     .map-perspective-btn {
       padding: 5px 10px;
       font-size: 11px;
     }
-    .legend-panel-minimal {
-      bottom: 10px;
+    .map-floating-legend-container {
+      bottom: 32px;
       right: 10px;
+      max-width: calc(100% - 20px);
+    }
+    .legend-chip {
+      white-space: normal;
+    }
+    .map-coords-badge {
+      bottom: 32px;
+      left: 10px;
+      font-size: 10px;
     }
   }
 </style>
@@ -433,7 +466,7 @@ const {
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15) !important;
     border: 1px solid #e2e8f0 !important;
     overflow: hidden;
-    max-width: 320px;
+    max-width: min(320px, calc(100vw - 48px));
     font-family: inherit;
   }
 

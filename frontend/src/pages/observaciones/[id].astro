@@ -335,7 +335,9 @@ const mapMarker = observation
 
 <style>
   .observation-detail-page {
+    width: 100%;
     max-width: 1200px;
+    min-width: 0;
     margin: 0 auto;
     padding: 0 1rem;
   }
@@ -738,6 +740,10 @@ const mapMarker = observation
 
     .info-grid {
       grid-template-columns: 1fr;
+    }
+
+    .map-wrapper {
+      height: auto;
     }
 
     h1 {
