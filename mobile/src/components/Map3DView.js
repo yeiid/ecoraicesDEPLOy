@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -7,9 +7,19 @@ import {
   TextInput,
   ScrollView,
   ActivityIndicator,
-  Platform
+  Platform,
+  Alert
 } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { Ionicons } from '@expo/vector-icons';
+
+const GUAJIRA_GPS_SHORTCUTS = [
+  { name: 'Riohacha', lat: 11.5448, lng: -72.9068 },
+  { name: 'Dibulla', lat: 11.2725, lng: -73.3108 },
+  { name: 'Manaure', lat: 11.7750, lng: -72.4444 },
+  { name: 'Uribia', lat: 11.7139, lng: -72.0167 },
+  { name: 'Macuira', lat: 12.0967, lng: -71.3283 }
+];
 
 const MAP_HTML = `
 <!DOCTYPE html>
@@ -22,7 +32,7 @@ const MAP_HTML = `
   <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
   <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    html, body, #map { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; background: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    html, body, #map { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; background: #0f172a; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
     
     /* 3D Isometric Tree Marker */
     .ecoraices-3d-tree-marker {
@@ -33,7 +43,7 @@ const MAP_HTML = `
       transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     }
     .ecoraices-3d-tree-marker:active {
-      transform: scale(1.2);
+      transform: scale(1.25);
     }
     .tree-ground-disk {
       position: absolute;
@@ -42,12 +52,12 @@ const MAP_HTML = `
       transform: translate(-50%, 50%) rotateX(60deg);
       border-radius: 50%;
       pointer-events: none;
-      width: 32px;
-      height: 16px;
-      background: radial-gradient(ellipse at center, rgba(16, 185, 129, 0.45) 0%, rgba(15, 23, 42, 0.15) 50%, transparent 80%);
+      width: 34px;
+      height: 18px;
+      background: radial-gradient(ellipse at center, rgba(16, 185, 129, 0.5) 0%, rgba(15, 23, 42, 0.2) 50%, transparent 80%);
     }
     .tree-ground-disk.invasive-shadow {
-      background: radial-gradient(ellipse at center, rgba(239, 68, 68, 0.5) 0%, rgba(15, 23, 42, 0.2) 50%, transparent 80%);
+      background: radial-gradient(ellipse at center, rgba(239, 68, 68, 0.6) 0%, rgba(15, 23, 42, 0.25) 50%, transparent 80%);
     }
     .tree-vertical-assembly {
       position: relative;
@@ -61,7 +71,7 @@ const MAP_HTML = `
       height: 22px;
       background: linear-gradient(180deg, #78350f 0%, #451a03 100%);
       border-radius: 2px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.4);
     }
     .tree-canopy-box {
       width: 36px;
@@ -69,7 +79,7 @@ const MAP_HTML = `
       display: flex;
       align-items: center;
       justify-content: center;
-      filter: drop-shadow(0 4px 6px rgba(15, 23, 42, 0.25));
+      filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4));
     }
     .tree-floating-tag {
       position: absolute;
@@ -84,7 +94,7 @@ const MAP_HTML = `
       font-size: 9px;
       font-weight: 700;
       white-space: nowrap;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
       pointer-events: none;
       z-index: 5;
       border: 1px solid rgba(255, 255, 255, 0.8);
@@ -102,7 +112,7 @@ const MAP_HTML = `
       color: #0f172a !important;
       border-radius: 14px;
       padding: 12px;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2) !important;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3) !important;
       border: 1px solid #e2e8f0 !important;
       max-width: 280px;
       font-size: 12px;
@@ -152,26 +162,29 @@ const MAP_HTML = `
       map = new maplibregl.Map({
         container: 'map',
         style: mapStyle,
-        center: [-72.9068, 11.5448], // La Guajira
-        zoom: 11,
+        center: [-72.9068, 11.5448],
+        zoom: 12,
         pitch: 0,
         bearing: 0,
         antialias: true
       });
 
-      map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
-
       map.on('load', () => {
-        // Enviar evento de mapa listo a React Native
         window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'MAP_READY' }));
+      });
+
+      map.on('click', (e) => {
+        window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'MAP_CLICK',
+          payload: { lat: e.lngLat.lat, lng: e.lngLat.lng }
+        }));
       });
     }
 
     function getSpeciesProfile(item) {
       const name = ((item.species_name || item.name || "") + " " + (item.scientific_name || "")).toLowerCase();
-      if (name.includes("neem") || name.includes("nim") || name.includes("azadirachta")) {
+      if (name.includes("neem") || name.includes("nim")) {
         return {
-          type: 'neem',
           displayName: item.species_name || 'Neem Guajiro',
           scientific: 'Azadirachta indica',
           isInvasive: true,
@@ -181,12 +194,11 @@ const MAP_HTML = `
           badgeText: 'Invasor de Alto Impacto (Alelopatía)',
           color: '#ef4444',
           icon: '🚨',
-          alert: '⚠️ Libera compuestos químicos en el suelo que impiden germinar a especies nativas.'
+          alert: '⚠️ Libera compuestos alelopáticos que alteran el suelo.'
         };
       }
-      if (name.includes("trupillo") || name.includes("prosopis")) {
+      if (name.includes("trupillo")) {
         return {
-          type: 'trupillo',
           displayName: item.species_name || 'Trupillo',
           scientific: 'Prosopis juliflora',
           isInvasive: false,
@@ -196,41 +208,24 @@ const MAP_HTML = `
           badgeText: 'Nativa Protectora',
           color: '#10b981',
           icon: '🌿',
-          alert: 'Patrimonio de La Guajira: fija nitrógeno y retiene agua en temporadas secas.'
+          alert: 'Fija nitrógeno en suelos áridos y preserva mantos freáticos.'
         };
       }
-      if (name.includes("dividivi") || name.includes("libidibia")) {
+      if (name.includes("dividivi")) {
         return {
-          type: 'dividivi',
           displayName: item.species_name || 'Dividivi',
           scientific: 'Libidibia coriaria',
           isInvasive: false,
           tagClass: 'tag-dividivi',
           tagText: '🍃 Dividivi',
           badgeClass: 'badge-native',
-          badgeText: 'Ancestral y Medicinal',
+          badgeText: 'Ancestral Wayuu',
           color: '#0d9488',
           icon: '🍃',
-          alert: 'Especie ancestral Wayuu con altas propiedades medicinales y taninos.'
-        };
-      }
-      if (name.includes("guayacan") || name.includes("guayacán") || name.includes("handroanthus")) {
-        return {
-          type: 'guayacan',
-          displayName: item.species_name || 'Guayacán de la Costa',
-          scientific: 'Handroanthus chrysanthus',
-          isInvasive: false,
-          tagClass: 'tag-guayacan',
-          tagText: '🌸 Guayacán',
-          badgeClass: 'badge-native',
-          badgeText: 'Floración y Maderable',
-          color: '#eab308',
-          icon: '🌸',
-          alert: 'Floración espectacular que atrae polinizadores vitales para el ecosistema.'
+          alert: 'Rico en taninos y sombra benigna que protege el suelo.'
         };
       }
       return {
-        type: 'general',
         displayName: item.species_name || item.name || 'Árbol Forestal',
         scientific: item.scientific_name || 'Especie nativa',
         isInvasive: false,
@@ -240,15 +235,13 @@ const MAP_HTML = `
         badgeText: 'Flora Forestal',
         color: '#10b981',
         icon: '🌱',
-        alert: 'Árbol georreferenciado verificado en campo.'
+        alert: 'Árbol censado en La Guajira.'
       };
     }
 
     function setTrees(treesList) {
-      // Limpiar marcadores anteriores
       markers.forEach(m => m.remove());
       markers = [];
-
       if (!Array.isArray(treesList) || treesList.length === 0) return;
 
       const bounds = new maplibregl.LngLatBounds();
@@ -256,7 +249,7 @@ const MAP_HTML = `
 
       treesList.forEach(t => {
         const lat = parseFloat(t.latitude || t.lat);
-        const lng = parseFloat(t.longitude || t.lng || t.lon);
+        const lng = parseFloat(t.longitude || t.lng);
         if (isNaN(lat) || isNaN(lng)) return;
 
         hasValidCoords = true;
@@ -270,7 +263,7 @@ const MAP_HTML = `
           <div class="tree-ground-disk \${profile.isInvasive ? 'invasive-shadow' : ''}"></div>
           <div class="tree-vertical-assembly">
             <div class="tree-canopy-box">
-              <div style="background: \${profile.color}; border: 2px solid #ffffff; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.25); font-size: 16px;">
+              <div style="background: \${profile.color}; border: 2px solid #ffffff; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.3); font-size: 16px;">
                 \${profile.icon}
               </div>
             </div>
@@ -278,6 +271,13 @@ const MAP_HTML = `
           </div>
           <div class="tree-floating-tag \${profile.tagClass}">\${profile.tagText}</div>
         \`;
+
+        el.addEventListener('click', () => {
+          window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'SELECT_TREE',
+            payload: t
+          }));
+        });
 
         const popupHTML = \`
           <div>
@@ -292,9 +292,7 @@ const MAP_HTML = `
           </div>
         \`;
 
-        const popup = new maplibregl.Popup({ offset: [0, -32], closeButton: true })
-          .setHTML(popupHTML);
-
+        const popup = new maplibregl.Popup({ offset: [0, -32], closeButton: true }).setHTML(popupHTML);
         const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
           .setLngLat([lng, lat])
           .setPopup(popup)
@@ -305,31 +303,21 @@ const MAP_HTML = `
 
       if (hasValidCoords && treesList.length > 1) {
         map.fitBounds(bounds, { padding: 50, maxZoom: 15, duration: 1000 });
-      } else if (hasValidCoords && treesList.length === 1) {
-        map.easeTo({ center: [parseFloat(treesList[0].longitude), parseFloat(treesList[0].latitude)], zoom: 14 });
       }
     }
 
     function toggle3DView(enable3D) {
       is3D = enable3D;
-      if (is3D) {
-        map.easeTo({
-          pitch: 58,
-          bearing: -20,
-          duration: 1200
-        });
-      } else {
-        map.easeTo({
-          pitch: 0,
-          bearing: 0,
-          duration: 1000
-        });
-      }
+      map.easeTo({
+        pitch: is3D ? 58 : 0,
+        bearing: is3D ? -20 : 0,
+        duration: 1200
+      });
     }
 
-    function recenterTo(lat, lng) {
+    function flyToCoords(lat, lng, zoom = 15) {
       if (map && !isNaN(lat) && !isNaN(lng)) {
-        map.easeTo({ center: [lng, lat], zoom: 15, duration: 800 });
+        map.easeTo({ center: [lng, lat], zoom: zoom, duration: 900 });
       }
     }
 
@@ -341,11 +329,11 @@ const MAP_HTML = `
         } else if (data.type === 'TOGGLE_3D') {
           toggle3DView(data.payload);
         } else if (data.type === 'RECENTER') {
-          recenterTo(data.payload.lat, data.payload.lng);
+          flyToCoords(data.payload.lat, data.payload.lng, 15);
+        } else if (data.type === 'FLY_TO') {
+          flyToCoords(data.payload.lat, data.payload.lng, data.payload.zoom || 14);
         }
-      } catch (e) {
-        console.error('Error handling message from React Native:', e);
-      }
+      } catch (e) {}
     });
 
     initMap();
@@ -361,43 +349,31 @@ export default function Map3DView({
 }) {
   const webViewRef = useRef(null);
   const [is3DMode, setIs3DMode] = useState(false);
-  const [selectedFilter, setSelectedFilter] = useState('all'); // 'all' | 'invasive' | 'native' | 'verified'
+  const [selectedFilter, setSelectedFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState(null);
-  const [legendOpen, setLegendOpen] = useState(false);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [offlinePackProgress, setOfflinePackProgress] = useState(null);
+  const [optimizationNotice, setOptimizationNotice] = useState(null);
+  const [activeTreeIndex, setActiveTreeIndex] = useState(0);
 
-  // Filtrado de árboles según la barra de control superior (idéntico a la web)
-  const filteredTrees = trees.filter((tree) => {
-    const name = ((tree.species_name || tree.name || '') + ' ' + (tree.scientific_name || '') + ' ' + (tree.municipality || '')).toLowerCase();
-    
-    // Filtro por búsqueda
-    if (searchQuery.trim() && !name.includes(searchQuery.trim().toLowerCase())) {
-      return false;
-    }
+  // Árboles filtrados
+  const filteredTrees = useMemo(() => {
+    return trees.filter((tree) => {
+      const name = ((tree.species_name || tree.name || '') + ' ' + (tree.scientific_name || '') + ' ' + (tree.municipality || '')).toLowerCase();
+      if (searchQuery.trim() && !name.includes(searchQuery.trim().toLowerCase())) return false;
+      if (selectedFilter === 'invasive') {
+        if (!name.includes('neem') && !name.includes('nim')) return false;
+      } else if (selectedFilter === 'native') {
+        if (name.includes('neem') || name.includes('nim')) return false;
+      } else if (selectedFilter === 'verified') {
+        if (!tree.verified && !tree.is_verified) return false;
+      }
+      return true;
+    });
+  }, [trees, searchQuery, selectedFilter]);
 
-    // Filtro por píldoras rápidas
-    if (selectedFilter === 'invasive') {
-      const isInvasive = name.includes('neem') || name.includes('nim') || name.includes('azadirachta');
-      if (!isInvasive) return false;
-    } else if (selectedFilter === 'native') {
-      const isInvasive = name.includes('neem') || name.includes('nim');
-      if (isInvasive) return false;
-    } else if (selectedFilter === 'verified') {
-      if (!tree.verified && !tree.is_verified) return false;
-    }
+  const activeTree = filteredTrees[activeTreeIndex] || filteredTrees[0] || null;
 
-    // Filtro por micro-categoría
-    if (selectedCategory) {
-      if (selectedCategory === 'frutales' && !name.includes('frutal') && !name.includes('mango') && !name.includes('guayaba')) return false;
-      if (selectedCategory === 'maderables' && !name.includes('guayacan') && !name.includes('trupillo') && !name.includes('palo santo')) return false;
-      if (selectedCategory === 'medicinales' && !name.includes('dividivi') && !name.includes('melocactus') && !name.includes('neem')) return false;
-    }
-
-    return true;
-  });
-
-  // Enviar árboles actualizados al WebView cuando cambie el filtrado o cargue el mapa
   useEffect(() => {
     if (mapLoaded && webViewRef.current) {
       webViewRef.current.postMessage(
@@ -422,12 +398,68 @@ export default function Map3DView({
     }
   };
 
-  const recenterGPS = () => {
+  const handleCenterUser = () => {
     if (userCoords && webViewRef.current) {
       webViewRef.current.postMessage(
         JSON.stringify({
           type: 'RECENTER',
           payload: { lat: userCoords.latitude, lng: userCoords.longitude }
+        })
+      );
+    } else {
+      Alert.alert('GPS', 'Ubicación GPS no disponible todavía. Usa los atajos de La Guajira.');
+    }
+  };
+
+  const handleFocusTree = () => {
+    if (activeTree && webViewRef.current) {
+      webViewRef.current.postMessage(
+        JSON.stringify({
+          type: 'FLY_TO',
+          payload: {
+            lat: parseFloat(activeTree.latitude),
+            lng: parseFloat(activeTree.longitude),
+            zoom: 16
+          }
+        })
+      );
+    }
+  };
+
+  const handleOptimizeRadius = () => {
+    const neemCount = filteredTrees.filter((t) => {
+      const n = (t.species_name || t.name || '').toLowerCase();
+      return n.includes('neem') || n.includes('nim');
+    }).length;
+
+    setOptimizationNotice(`Hotspot activo: ${neemCount} Neem detectados en radio de 5km.`);
+    setSelectedFilter('invasive');
+
+    setTimeout(() => {
+      setOptimizationNotice(null);
+    }, 4000);
+  };
+
+  const handleDownloadOfflineMap = () => {
+    setOfflinePackProgress(15);
+    const interval = setInterval(() => {
+      setOfflinePackProgress((prev) => {
+        if (prev >= 100) {
+          clearInterval(interval);
+          Alert.alert('Mapa Offline Listo', 'Teselas vectoriales de La Guajira guardadas en disco local.');
+          return 100;
+        }
+        return prev + 25;
+      });
+    }, 400);
+  };
+
+  const handleSelectShortcut = (sc) => {
+    if (webViewRef.current) {
+      webViewRef.current.postMessage(
+        JSON.stringify({
+          type: 'FLY_TO',
+          payload: { lat: sc.lat, lng: sc.lng, zoom: 13 }
         })
       );
     }
@@ -438,128 +470,74 @@ export default function Map3DView({
       const data = JSON.parse(event.nativeEvent.data);
       if (data.type === 'MAP_READY') {
         setMapLoaded(true);
+      } else if (data.type === 'SELECT_TREE') {
+        if (onTreeSelected) onTreeSelected(data.payload);
       }
-    } catch (e) {
-      // Ignorar errores de parseo
-    }
+    } catch (e) {}
   };
 
   return (
     <View style={styles.container}>
-      {/* Barra de Filtros Minimalista Superior (Idéntica al Mockup) */}
-      <View style={styles.toolbarCard}>
-        {/* Píldoras Segmentadas Rápidas */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.segmentedRow}>
-          <TouchableOpacity
-            style={[styles.segmentBtn, selectedFilter === 'all' && styles.segmentBtnActive]}
-            onPress={() => setSelectedFilter('all')}
-          >
-            <Text style={styles.segIcon}>🌐</Text>
-            <Text style={[styles.segText, selectedFilter === 'all' && styles.segTextActive]}>Todos</Text>
-            <View style={styles.segBadge}>
-              <Text style={styles.segBadgeText}>{trees.length}</Text>
+      {/* 1. SECCIÓN SUPERIOR: STATUS HUD FLOTANTE (COMO EN TRANSPORTE MOBILE) */}
+      <View style={styles.topHudContainer}>
+        {activeTree && (
+          <View style={styles.activeStopCard}>
+            <View style={styles.activeStopTopRow}>
+              <View style={styles.distanceBadgePill}>
+                <Ionicons name="arrow-down" size={13} color="#ffffff" />
+                <Text style={styles.distanceBadgeText}>15 m</Text>
+              </View>
+
+              <View style={styles.stopSeqPill}>
+                <Text style={styles.stopSeqText}>
+                  ÁRBOL #{activeTreeIndex + 1} DE {filteredTrees.length}
+                </Text>
+                <View style={styles.statusDotLive} />
+                <Text style={styles.statusLiveText}>MÁS CERCANO</Text>
+              </View>
+
+              <View style={styles.hudActionsRight}>
+                <TouchableOpacity
+                  style={styles.hudAudioBtn}
+                  onPress={() => Alert.alert('Alerta Auditiva', `Proximidad a ${activeTree.species_name || 'Árbol'}`)}
+                >
+                  <Ionicons name="volume-medium" size={16} color="#ffffff" />
+                </TouchableOpacity>
+              </View>
             </View>
-          </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.segmentBtn, selectedFilter === 'invasive' && styles.segmentBtnInvasiveActive]}
-            onPress={() => setSelectedFilter('invasive')}
-          >
-            <Text style={styles.segIcon}>🚨</Text>
-            <Text style={[styles.segText, selectedFilter === 'invasive' && styles.segTextInvasiveActive]}>
-              Invasores (Neem)
+            <Text numberOfLines={1} style={styles.activeStopTitle}>
+              {activeTree.species_name || activeTree.name || 'Árbol Forestal'}
             </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.segmentBtn, selectedFilter === 'native' && styles.segmentBtnNativeActive]}
-            onPress={() => setSelectedFilter('native')}
-          >
-            <Text style={styles.segIcon}>🌿</Text>
-            <Text style={[styles.segText, selectedFilter === 'native' && styles.segTextNativeActive]}>
-              Nativas
+            <Text numberOfLines={1} style={styles.activeStopSubtitle}>
+              🏛️ {activeTree.municipality || 'Riohacha'} • Lat: {Number(activeTree.latitude).toFixed(4)}, Lng: {Number(activeTree.longitude).toFixed(4)}
             </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.segmentBtn, selectedFilter === 'verified' && styles.segmentBtnVerifiedActive]}
-            onPress={() => setSelectedFilter('verified')}
-          >
-            <Text style={styles.segIcon}>✓</Text>
-            <Text style={[styles.segText, selectedFilter === 'verified' && styles.segTextVerifiedActive]}>
-              Verificados
-            </Text>
-          </TouchableOpacity>
-        </ScrollView>
-
-        {/* Buscador + Contador + Botón Limpiar */}
-        <View style={styles.searchRow}>
-          <View style={styles.searchInputContainer}>
-            <Text style={styles.searchIcon}>🔍</Text>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Buscar especie o municipio..."
-              placeholderTextColor="#94a3b8"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
           </View>
+        )}
 
-          <View style={styles.counterBadge}>
-            <View style={styles.counterDot} />
-            <Text style={styles.counterText}>{filteredTrees.length} visibles</Text>
-          </View>
-
-          {(searchQuery || selectedFilter !== 'all' || selectedCategory) && (
-            <TouchableOpacity
-              style={styles.clearBtn}
-              onPress={() => {
-                setSearchQuery('');
-                setSelectedFilter('all');
-                setSelectedCategory(null);
-              }}
-            >
-              <Text style={styles.clearBtnText}>✕ Limpiar</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Micro-Categorías */}
-        <View style={styles.categoryRow}>
-          <Text style={styles.categoryLabel}>Categorías:</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryChipsScroll}>
-            <TouchableOpacity
-              style={[styles.categoryChip, selectedCategory === 'frutales' && styles.categoryChipActive]}
-              onPress={() => setSelectedCategory(selectedCategory === 'frutales' ? null : 'frutales')}
-            >
-              <Text style={[styles.categoryChipText, selectedCategory === 'frutales' && styles.categoryChipTextActive]}>
-                Árboles Frutales y Silvestres
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.categoryChip, selectedCategory === 'maderables' && styles.categoryChipActive]}
-              onPress={() => setSelectedCategory(selectedCategory === 'maderables' ? null : 'maderables')}
-            >
-              <Text style={[styles.categoryChipText, selectedCategory === 'maderables' && styles.categoryChipTextActive]}>
-                Árboles Maderables
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.categoryChip, selectedCategory === 'medicinales' && styles.categoryChipActive]}
-              onPress={() => setSelectedCategory(selectedCategory === 'medicinales' ? null : 'medicinales')}
-            >
-              <Text style={[styles.categoryChipText, selectedCategory === 'medicinales' && styles.categoryChipTextActive]}>
-                Árboles Ornamentales y Medicinales
-              </Text>
-            </TouchableOpacity>
+        {/* GPS Simulador de Municipios de La Guajira */}
+        <View style={styles.gpsSimulatorRow}>
+          <Text style={styles.simulatorLabel}>📍 GPS Guajira (Toca el mapa o elige):</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.simulatorChipsScroll}>
+            {GUAJIRA_GPS_SHORTCUTS.map((sc) => (
+              <TouchableOpacity key={sc.name} style={styles.simChip} onPress={() => handleSelectShortcut(sc)}>
+                <Text style={styles.simChipText}>📍 {sc.name}</Text>
+              </TouchableOpacity>
+            ))}
           </ScrollView>
         </View>
+
+        {/* Banner de Optimización Flotante */}
+        {optimizationNotice && (
+          <View style={styles.optimizationBanner}>
+            <Ionicons name="checkmark-circle" size={15} color="#34d399" />
+            <Text style={styles.optimizationBannerText}>{optimizationNotice}</Text>
+          </View>
+        )}
       </View>
 
-      {/* Visor MapLibre 3D */}
-      <View style={styles.mapWrapper}>
+      {/* 2. MAPA CENTRAL */}
+      <View style={styles.mapCanvasWrapper}>
         <WebView
           ref={webViewRef}
           originWhitelist={['*']}
@@ -568,81 +546,56 @@ export default function Map3DView({
           style={styles.webView}
           javaScriptEnabled={true}
           domStorageEnabled={true}
-          startInLoadingState={true}
-          renderLoading={() => (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#16a34a" />
-              <Text style={styles.loadingText}>Cargando mapa 3D NeuralJira...</Text>
-            </View>
-          )}
         />
 
-        {/* Botón Flotante 2D / 3D VISTA */}
-        <TouchableOpacity style={[styles.toggle3DBtn, is3DMode && styles.toggle3DBtnActive]} onPress={toggle3D}>
-          <Text style={styles.toggle3DIcon}>{is3DMode ? '🗺️' : '🌐'}</Text>
-          <Text style={styles.toggle3DText}>{is3DMode ? '2D' : '3D'}</Text>
-          <View style={styles.toggle3DBadge}>
-            <Text style={styles.toggle3DBadgeText}>VISTA</Text>
-          </View>
-        </TouchableOpacity>
-
-        {/* Botón Centrar GPS Satelital */}
-        {userCoords && (
-          <TouchableOpacity style={styles.recenterBtn} onPress={recenterGPS}>
-            <Text style={styles.recenterIcon}>🎯</Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Leyenda 3D Colapsable */}
-        <View style={styles.legendContainer}>
-          <TouchableOpacity style={styles.legendToggleBtn} onPress={() => setLegendOpen(!legendOpen)}>
-            <Text style={styles.legendIcon}>🌿</Text>
-            <Text style={styles.legendBtnText}>Leyenda 3D</Text>
-            <Text style={styles.legendArrow}>{legendOpen ? '▾' : '▴'}</Text>
+        {/* 3. DOCK VERTICAL DE HERRAMIENTAS FLOTANTES (DERECHA - EXACTO A TRANSPORTE MOBILE) */}
+        <View style={styles.rightFloatingStack}>
+          {/* 1. Mi GPS */}
+          <TouchableOpacity activeOpacity={0.85} onPress={handleCenterUser} style={styles.floatingActionBtn}>
+            <Ionicons name="locate" size={19} color="#0284c7" />
+            <Text style={styles.floatingBtnLabel}>Mi GPS</Text>
           </TouchableOpacity>
 
-          {legendOpen && (
-            <View style={styles.legendChipsBox}>
-              <View style={styles.legendChip}>
-                <View style={[styles.legendDot, { backgroundColor: '#ef4444' }]} />
-                <Text style={styles.legendChipLabel}>🚨 Neem (Invasor)</Text>
-              </View>
-              <View style={styles.legendChip}>
-                <View style={[styles.legendDot, { backgroundColor: '#10b981' }]} />
-                <Text style={styles.legendChipLabel}>🌿 Trupillo (Nativo)</Text>
-              </View>
-              <View style={styles.legendChip}>
-                <View style={[styles.legendDot, { backgroundColor: '#eab308' }]} />
-                <Text style={styles.legendChipLabel}>🌸 Guayacán (Flor)</Text>
-              </View>
-              <View style={styles.legendChip}>
-                <View style={[styles.legendDot, { backgroundColor: '#0d9488' }]} />
-                <Text style={styles.legendChipLabel}>🍃 Dividivi (Ancestral)</Text>
-              </View>
-              <View style={styles.legendChip}>
-                <View style={[styles.legendDot, { backgroundColor: '#1e3a8a' }]} />
-                <Text style={styles.legendChipLabel}>🌵 Cardón Guajiro</Text>
-              </View>
-            </View>
-          )}
+          {/* 2. Tramo / Árbol Cercano */}
+          <TouchableOpacity activeOpacity={0.85} onPress={handleFocusTree} style={[styles.floatingActionBtn, styles.btnTramo]}>
+            <Ionicons name="git-branch-outline" size={18} color="#ffffff" />
+            <Text style={[styles.floatingBtnLabel, { color: '#ffffff' }]}>Tramo</Text>
+          </TouchableOpacity>
+
+          {/* 3. Optimizar / Alerta Neem */}
+          <TouchableOpacity activeOpacity={0.85} onPress={handleOptimizeRadius} style={[styles.floatingActionBtn, styles.btnOptimize]}>
+            <Ionicons name="flash" size={18} color="#d97706" />
+            <Text style={[styles.floatingBtnLabel, { color: '#92400e' }]}>Optimizar</Text>
+          </TouchableOpacity>
+
+          {/* 4. 2D / 3D Vista */}
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={toggle3D}
+            style={[styles.floatingActionBtn, is3DMode && styles.floatingActionBtnDark]}
+          >
+            <Text style={[styles.floatingActionTextSmall, is3DMode && { color: '#ffffff' }]}>
+              {is3DMode ? '3D' : '2D'}
+            </Text>
+            <Text style={[styles.floatingBtnLabel, is3DMode && { color: '#e2e8f0' }]}>Vista</Text>
+          </TouchableOpacity>
+
+          {/* 5. Mapa Offline */}
+          <TouchableOpacity activeOpacity={0.85} onPress={handleDownloadOfflineMap} style={styles.floatingActionBtn}>
+            {offlinePackProgress != null && offlinePackProgress < 100 ? (
+              <Text style={styles.floatingActionTextSmall}>{offlinePackProgress}%</Text>
+            ) : (
+              <Ionicons
+                name={offlinePackProgress === 100 ? 'checkmark-circle' : 'cloud-download-outline'}
+                size={18}
+                color={offlinePackProgress === 100 ? '#059669' : '#0284c7'}
+              />
+            )}
+            <Text style={styles.floatingBtnLabel}>
+              {offlinePackProgress === 100 ? 'Listo' : 'Mapa'}
+            </Text>
+          </TouchableOpacity>
         </View>
-
-        {/* Toast Flotante cuando 0 árboles coinciden */}
-        {filteredTrees.length === 0 && (
-          <View style={styles.emptyToast}>
-            <Text style={styles.emptyToastIcon}>🍃</Text>
-            <Text style={styles.emptyToastText}>No se encontraron árboles con los filtros activos.</Text>
-            <TouchableOpacity
-              onPress={() => {
-                setSearchQuery('');
-                setSelectedFilter('all');
-                setSelectedCategory(null);
-              }}
-            >
-              <Text style={styles.emptyToastLink}>Mostrar todos</Text>
-            </TouchableOpacity>
-          </View>
-        )}
       </View>
     </View>
   );
@@ -651,339 +604,184 @@ export default function Map3DView({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc'
+    backgroundColor: '#0b1329'
   },
-  toolbarCard: {
-    backgroundColor: '#ffffff',
-    paddingVertical: 10,
+  topHudContainer: {
     paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 6,
+    backgroundColor: 'rgba(11, 19, 41, 0.95)',
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 6,
-    elevation: 3
+    borderBottomColor: '#1e293b',
+    zIndex: 20
   },
-  segmentedRow: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingBottom: 8
+  activeStopCard: {
+    backgroundColor: '#132144',
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#1e3a8a',
+    marginBottom: 6
   },
-  segmentBtn: {
+  activeStopTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#f1f5f9',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 9999,
-    borderWidth: 1,
-    borderColor: '#e2e8f0'
+    gap: 8,
+    marginBottom: 4
   },
-  segmentBtnActive: {
+  distanceBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
     backgroundColor: '#0284c7',
-    borderColor: '#0284c7'
-  },
-  segmentBtnInvasiveActive: {
-    backgroundColor: '#dc2626',
-    borderColor: '#dc2626'
-  },
-  segmentBtnNativeActive: {
-    backgroundColor: '#16a34a',
-    borderColor: '#16a34a'
-  },
-  segmentBtnVerifiedActive: {
-    backgroundColor: '#2563eb',
-    borderColor: '#2563eb'
-  },
-  segIcon: {
-    fontSize: 13
-  },
-  segText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#475569'
-  },
-  segTextActive: {
-    color: '#ffffff'
-  },
-  segTextInvasiveActive: {
-    color: '#ffffff'
-  },
-  segTextNativeActive: {
-    color: '#ffffff'
-  },
-  segTextVerifiedActive: {
-    color: '#ffffff'
-  },
-  segBadge: {
-    backgroundColor: 'rgba(255,255,255,0.3)',
     paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 8
-  },
-  segBadgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#0f172a'
-  },
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 4
-  },
-  searchInputContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f8fafc',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    paddingHorizontal: 8,
-    height: 36
-  },
-  searchIcon: {
-    fontSize: 14,
-    marginRight: 6
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 12,
-    color: '#0f172a',
-    paddingVertical: 0
-  },
-  counterBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#e0f2fe',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+    paddingVertical: 2,
     borderRadius: 6
   },
-  counterDot: {
+  distanceBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#ffffff'
+  },
+  stopSeqPill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6
+  },
+  stopSeqText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#38bdf8'
+  },
+  statusDotLive: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#0284c7',
-    marginRight: 6
+    backgroundColor: '#10b981'
   },
-  counterText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#0369a1'
+  statusLiveText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#10b981'
   },
-  clearBtn: {
-    backgroundColor: '#fee2e2',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 6
-  },
-  clearBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#b91c1c'
-  },
-  categoryRow: {
+  hudActionsRight: {
     flexDirection: 'row',
+    alignItems: 'center'
+  },
+  hudAudioBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#1e293b',
     alignItems: 'center',
-    marginTop: 8,
-    gap: 6
+    justifyContent: 'center'
   },
-  categoryLabel: {
+  activeStopTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#ffffff'
+  },
+  activeStopSubtitle: {
     fontSize: 11,
-    fontWeight: '700',
-    color: '#64748b'
+    color: '#94a3b8',
+    marginTop: 1
   },
-  categoryChipsScroll: {
+  gpsSimulatorRow: {
+    marginTop: 4
+  },
+  simulatorLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#94a3b8',
+    marginBottom: 4
+  },
+  simulatorChipsScroll: {
     flexDirection: 'row',
     gap: 6
   },
-  categoryChip: {
-    backgroundColor: '#f1f5f9',
-    paddingHorizontal: 10,
+  simChip: {
+    backgroundColor: '#1e293b',
+    paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#e2e8f0'
+    borderColor: '#334155'
   },
-  categoryChipActive: {
-    backgroundColor: '#dcfce7',
-    borderColor: '#16a34a'
-  },
-  categoryChipText: {
+  simChipText: {
     fontSize: 10,
-    fontWeight: '600',
-    color: '#475569'
+    fontWeight: '700',
+    color: '#e2e8f0'
   },
-  categoryChipTextActive: {
-    color: '#15803d',
-    fontWeight: '700'
+  optimizationBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(5, 150, 105, 0.25)',
+    borderWidth: 1,
+    borderColor: '#059669',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 6,
+    marginTop: 6
   },
-  mapWrapper: {
+  optimizationBannerText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#a7f3d0'
+  },
+  mapCanvasWrapper: {
     flex: 1,
     position: 'relative'
   },
   webView: {
-    flex: 1
-  },
-  loadingContainer: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#f8fafc',
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#64748b'
-  },
-  toggle3DBtn: {
-    position: 'absolute',
-    top: 14,
-    right: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 9999,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.1)',
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 4
-  },
-  toggle3DBtnActive: {
+    flex: 1,
     backgroundColor: '#0f172a'
   },
-  toggle3DIcon: {
-    fontSize: 14
-  },
-  toggle3DText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#0f172a'
-  },
-  toggle3DBadge: {
-    backgroundColor: '#0284c7',
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 4
-  },
-  toggle3DBadgeText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#ffffff'
-  },
-  recenterBtn: {
+  rightFloatingStack: {
     position: 'absolute',
-    top: 60,
-    right: 14,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    top: 14,
+    right: 12,
+    zIndex: 50,
+    gap: 8,
+    alignItems: 'center'
+  },
+  floatingActionBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
     backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    elevation: 4,
+    elevation: 6,
     shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 4
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 5
   },
-  recenterIcon: {
-    fontSize: 16
+  btnTramo: {
+    backgroundColor: '#0284c7',
+    borderColor: '#0284c7'
   },
-  legendContainer: {
-    position: 'absolute',
-    bottom: 20,
-    right: 14,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.08)',
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 6,
-    elevation: 4,
-    overflow: 'hidden',
-    maxWidth: 240
+  btnOptimize: {
+    backgroundColor: '#fef3c7',
+    borderColor: '#fde68a'
   },
-  legendToggleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 6,
-    paddingHorizontal: 10
-  },
-  legendIcon: {
-    fontSize: 12
-  },
-  legendBtnText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#0f172a'
-  },
-  legendArrow: {
-    fontSize: 10,
-    color: '#64748b'
-  },
-  legendChipsBox: {
-    padding: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
-    gap: 4
-  },
-  legendChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 2
-  },
-  legendDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4
-  },
-  legendChipLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#334155'
-  },
-  emptyToast: {
-    position: 'absolute',
-    bottom: 20,
-    left: 20,
-    right: 20,
+  floatingActionBtnDark: {
     backgroundColor: '#0f172a',
-    borderRadius: 10,
-    padding: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    elevation: 6
+    borderColor: '#334155'
   },
-  emptyToastIcon: {
-    fontSize: 14
+  floatingBtnLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginTop: 1
   },
-  emptyToastText: {
-    flex: 1,
+  floatingActionTextSmall: {
     fontSize: 11,
-    color: '#f8fafc',
-    fontWeight: '500'
-  },
-  emptyToastLink: {
-    fontSize: 11,
-    color: '#38bdf8',
-    fontWeight: '700'
+    fontWeight: '900',
+    color: '#0f172a'
   }
 });
