@@ -11,8 +11,8 @@ import {
   ActivityIndicator,
   SafeAreaView,
   StatusBar,
-  Switch,
-  Modal
+  Modal,
+  Platform
 } from 'react-native';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
@@ -21,7 +21,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   GUAJIRA_MUNICIPIOS,
   GUAJIRA_ESPECIES_NATIVAS,
+  GUAJIRA_COMUNIDADES,
   ESTADOS_FITOSANITARIOS,
+  CONOCE_ECORAICES,
   DEFAULT_API_BASE_URL
 } from './src/constants/guajira';
 import {
@@ -33,56 +35,71 @@ import {
 } from './src/services/db';
 import { persistTreePhoto } from './src/services/storage';
 import { syncOfflineOutbox } from './src/services/sync';
+import Map3DView from './src/components/Map3DView';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('capture'); // 'capture' | 'outbox' | 'catalog' | 'settings'
+  // Navigation Tabs: 'home' | 'map3d' | 'capture' | 'catalog' | 'communities' | 'profile'
+  const [activeTab, setActiveTab] = useState('home');
 
   // GPS State
   const [coords, setCoords] = useState(null);
   const [gpsAccuracy, setGpsAccuracy] = useState(null);
   const [isLocating, setIsLocating] = useState(false);
 
-  // Form State
+  // Field Capture Form State
   const [speciesName, setSpeciesName] = useState('Trupillo');
   const [municipio, setMunicipio] = useState('Riohacha');
   const [healthState, setHealthState] = useState('Sano y vigoroso');
+  const [heightMeters, setHeightMeters] = useState('4.5');
+  const [diameterCm, setDiameterCm] = useState('25');
   const [notes, setNotes] = useState('');
   const [photoUri, setPhotoUri] = useState(null);
-  const [continuousMode, setContinuousMode] = useState(true);
 
-  // Outbox / Sync State
+  // Outbox / Offline Sync State
   const [stats, setStats] = useState({ total: 0, pending: 0, synced: 0 });
   const [outboxTrees, setOutboxTrees] = useState([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState(null);
 
-  // Settings State
+  // Profile & Settings State
   const [serverUrl, setServerUrl] = useState(DEFAULT_API_BASE_URL);
-  const [userLocation, setUserLocation] = useState('Riohacha');
+  const [userName, setUserName] = useState('Yelfran David Hernández Iguaran');
+  const [userEmail, setUserEmail] = useState('yelfrandavid@gmail.com');
+  const [userTerritory, setUserTerritory] = useState('Riohacha');
   const [token, setToken] = useState('');
+  const [remoteTrees, setRemoteTrees] = useState([]);
+
+  // Modal Ficha Botánica Detallada (Panel 5 del mockup)
+  const [selectedSpeciesDetail, setSelectedSpeciesDetail] = useState(null);
 
   useEffect(() => {
-    // Inicializar SQLite
+    // 1. Inicializar SQLite
     getDB().then(() => {
       refreshStats();
     });
 
-    // Cargar configuraciones guardadas
+    // 2. Cargar preferencias persistidas
     AsyncStorage.getItem('ecoraices_server_url').then((val) => {
       if (val) setServerUrl(val);
     });
     AsyncStorage.getItem('ecoraices_user_territory').then((val) => {
       if (val) {
-        setUserLocation(val);
+        setUserTerritory(val);
         setMunicipio(val);
       }
     });
     AsyncStorage.getItem('ecoraices_auth_token').then((val) => {
       if (val) setToken(val);
     });
+    AsyncStorage.getItem('ecoraices_user_name').then((val) => {
+      if (val) setUserName(val);
+    });
 
-    // Iniciar GPS
+    // 3. Obtener ubicación GPS al abrir
     fetchCurrentLocation(true);
+
+    // 4. Intentar precargar observaciones remotas
+    fetchRemoteObservations();
   }, []);
 
   const refreshStats = async () => {
@@ -93,6 +110,20 @@ export default function App() {
       setOutboxTrees(list);
     } catch (err) {
       console.warn('Error cargando stats:', err);
+    }
+  };
+
+  const fetchRemoteObservations = async () => {
+    try {
+      const response = await fetch(`${serverUrl}/api/observations`);
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data)) {
+          setRemoteTrees(data);
+        }
+      }
+    } catch (e) {
+      console.log('Modo offline / Servidor no accesible:', e.message);
     }
   };
 
@@ -144,472 +175,797 @@ export default function App() {
     }
   };
 
+  const pickImageFromGallery = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        quality: 0.8,
+        allowsEditing: false
+      });
+      if (!result.canceled && result.assets && result.assets[0]) {
+        setPhotoUri(result.assets[0].uri);
+      }
+    } catch (err) {
+      Alert.alert('Error Galería', err.message);
+    }
+  };
+
   const handleSaveTree = async () => {
     if (!speciesName.trim()) {
-      Alert.alert('Falta especie', 'Indica el nombre de la especie o nombre común.');
+      Alert.alert('Falta especie', 'Indica el nombre de la especie.');
       return;
     }
-    if (!municipio.trim()) {
-      Alert.alert('Falta municipio', 'Selecciona el municipio o sector.');
-      return;
-    }
+
     if (!coords) {
-      Alert.alert('GPS Requerido', 'Obtén la ubicación actual con el botón GPS antes de guardar.');
+      Alert.alert('Sin GPS', 'Presiona "Actualizar GPS" para georreferenciar el árbol.');
       return;
     }
 
     try {
-      let permanentPhotoUri = null;
+      let localPhotoPath = null;
       if (photoUri) {
-        permanentPhotoUri = await persistTreePhoto(photoUri);
+        localPhotoPath = await persistTreePhoto(photoUri);
       }
 
-      const clientId = await saveOfflineTree({
-        speciesName: speciesName.trim(),
-        municipio: municipio.trim(),
+      const clientUuid = 'tree-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
+
+      await saveOfflineTree({
+        client_uuid: clientUuid,
+        species_name: speciesName,
+        scientific_name: getScientificFor(speciesName),
+        municipality: municipio,
         latitude: coords.latitude,
         longitude: coords.longitude,
-        altitude: coords.altitude,
-        accuracy: gpsAccuracy,
-        healthState,
+        accuracy_meters: gpsAccuracy || 10,
+        height_meters: parseFloat(heightMeters) || null,
+        diameter_cm: parseFloat(diameterCm) || null,
+        health_state: healthState,
         notes: notes.trim(),
-        localImagePath: permanentPhotoUri
+        local_photo_path: localPhotoPath
       });
 
-      await refreshStats();
+      Alert.alert(
+        '🌳 Guardado Offline',
+        `El árbol "${speciesName}" se guardó en la base de datos interna SQLite. No se perderá aunque estés sin señal.`,
+        [{ text: 'Entendido' }]
+      );
 
-      if (continuousMode) {
-        Alert.alert(
-          '🌲 Árbol Guardado',
-          `"${speciesName}" registrado en SQLite local (${municipio}). ¡Listo para el siguiente!`,
-          [{ text: 'Continuar' }]
-        );
-        // Limpiar para siguiente árbol manteniendo GPS y municipio
-        setPhotoUri(null);
-        setNotes('');
-        fetchCurrentLocation(true);
-      } else {
-        Alert.alert('✓ Guardado', 'Árbol guardado con éxito en la cola de campo.', [
-          { text: 'Ver cola', onPress: () => setActiveTab('outbox') }
-        ]);
-        setPhotoUri(null);
-        setNotes('');
-      }
+      // Limpiar formulario para la siguiente captura
+      setNotes('');
+      setPhotoUri(null);
+      refreshStats();
+      fetchCurrentLocation(true);
     } catch (err) {
       Alert.alert('Error al guardar', err.message);
     }
   };
 
-  const handleSyncNow = async () => {
+  const handleStartSync = async () => {
+    if (stats.pending === 0) {
+      Alert.alert('Al día', 'No hay registros pendientes de sincronizar en tu cola.');
+      return;
+    }
+
     setIsSyncing(true);
-    setSyncProgress('Iniciando sincronización con EcoRaíces...');
+    setSyncProgress({ current: 0, total: stats.pending });
 
-    const result = await syncOfflineOutbox((prog) => {
-      setSyncProgress(`Subiendo árbol ${prog.current} de ${prog.total} (${prog.tree.speciesName})...`);
-    });
+    try {
+      const res = await syncOfflineOutbox({
+        apiBaseUrl: serverUrl,
+        token: token || null,
+        onProgress: (p) => setSyncProgress(p)
+      });
 
-    setIsSyncing(false);
-    setSyncProgress(null);
-    await refreshStats();
-
-    if (result.success) {
-      Alert.alert('🎉 Sincronización Exitosa', `Se han sincronizado ${result.synced} árboles con el servidor.`);
-    } else {
       Alert.alert(
-        '⚠️ Sincronización Parcial',
-        `Subidos: ${result.synced} | Fallidos: ${result.failed}\nLos árboles fallidos permanecen guardados en tu teléfono para el próximo intento.`
+        'Sincronización Completada',
+        `Se subieron exitosamente ${res.synced} árboles a Dokploy/FastAPI.${res.failed > 0 ? ` (${res.failed} con error)` : ''}`
       );
+      refreshStats();
+      fetchRemoteObservations();
+    } catch (err) {
+      Alert.alert('Error de sincronización', err.message);
+    } finally {
+      setIsSyncing(false);
+      setSyncProgress(null);
     }
   };
 
-  const handleSaveSettings = async () => {
-    await AsyncStorage.setItem('ecoraices_server_url', serverUrl.trim());
-    await AsyncStorage.setItem('ecoraices_user_territory', userLocation.trim());
-    if (token) {
-      await AsyncStorage.setItem('ecoraices_auth_token', token.trim());
-    } else {
-      await AsyncStorage.removeItem('ecoraices_auth_token');
-    }
-    setMunicipio(userLocation);
-    Alert.alert('Ajustes guardados', 'Configuración de servidor y territorio actualizada.');
+  const getScientificFor = (name) => {
+    const found = GUAJIRA_ESPECIES_NATIVAS.find((s) => s.name.toLowerCase() === name.toLowerCase());
+    return found ? found.scientific : 'Especie nativa';
   };
+
+  // Combinar árboles locales con remotos para el mapa 3D
+  const allMapTrees = [
+    ...outboxTrees.map((t) => ({
+      ...t,
+      name: t.species_name,
+      verified: t.sync_status === 'SYNCED'
+    })),
+    ...remoteTrees.map((rt) => ({
+      ...rt,
+      species_name: rt.species?.name || rt.name || 'Árbol',
+      scientific_name: rt.species?.scientificName || '',
+      municipality: rt.municipality || 'La Guajira',
+      verified: true
+    }))
+  ];
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#1a472a" />
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
-      {/* Header Principal */}
-      <View style={styles.header}>
+      {/* Barra de Cabecera Superior EcoRaíces */}
+      <View style={styles.topHeader}>
         <View style={styles.headerBrand}>
-          <Text style={styles.headerIcon}>🌿</Text>
+          <View style={styles.headerLogoBadge}>
+            <Text style={styles.headerLogoIcon}>🌳</Text>
+          </View>
           <View>
-            <Text style={styles.headerTitle}>EcoRaíces Campo</Text>
-            <Text style={styles.headerSubtitle}>La Guajira · 100% Offline</Text>
+            <Text style={styles.headerTitle}>EcoRaíces</Text>
+            <Text style={styles.headerSubtitle}>La Guajira • Ciencia Ciudadana</Text>
           </View>
         </View>
 
-        <TouchableOpacity
-          style={[styles.syncPill, stats.pending > 0 ? styles.syncPillPending : styles.syncPillOnline]}
-          onPress={() => setActiveTab('outbox')}
-        >
-          <View style={[styles.syncDot, stats.pending > 0 ? styles.syncDotPending : styles.syncDotOnline]} />
-          <Text style={styles.syncPillText}>
-            {stats.pending > 0 ? `${stats.pending} en espera` : 'Al día'}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={[styles.outboxPill, stats.pending > 0 && styles.outboxPillActive]}
+            onPress={() => setActiveTab('profile')}
+          >
+            <Text style={styles.outboxPillIcon}>☁️</Text>
+            <Text style={[styles.outboxPillText, stats.pending > 0 && styles.outboxPillTextActive]}>
+              {stats.pending > 0 ? `${stats.pending} en cola` : 'Al día'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Barra de pestañas */}
-      <View style={styles.tabBar}>
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'capture' && styles.tabItemActive]}
-          onPress={() => setActiveTab('capture')}
-        >
-          <Text style={[styles.tabText, activeTab === 'capture' && styles.tabTextActive]}>📸 Captura</Text>
-        </TouchableOpacity>
+      {/* Contenido Principal según Pestaña Activa */}
+      <View style={styles.contentArea}>
+        {/* ============================================================== */}
+        {/* 1. INICIO (PANELES 1 & 7: Hero, Métricas, Noticias y Misión)    */}
+        {/* ============================================================== */}
+        {activeTab === 'home' && (
+          <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.homeContent}>
+            {/* Hero Welcome Card */}
+            <View style={styles.welcomeHeroCard}>
+              <View style={styles.welcomeLogoBig}>
+                <Text style={{ fontSize: 32 }}>🌳</Text>
+              </View>
+              <Text style={styles.welcomeTitle}>¡Bienvenidos a EcoRaíces!</Text>
+              <Text style={styles.welcomeDesc}>
+                Plataforma de ciencia ciudadana para observar, georreferenciar y proteger la biodiversidad del Bosque Seco Tropical en La Guajira.
+              </Text>
 
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'outbox' && styles.tabItemActive]}
-          onPress={() => setActiveTab('outbox')}
-        >
-          <Text style={[styles.tabText, activeTab === 'outbox' && styles.tabTextActive]}>
-            📦 Cola ({stats.pending})
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'catalog' && styles.tabItemActive]}
-          onPress={() => setActiveTab('catalog')}
-        >
-          <Text style={[styles.tabText, activeTab === 'catalog' && styles.tabTextActive]}>🌿 Catálogo</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tabItem, activeTab === 'settings' && styles.tabItemActive]}
-          onPress={() => setActiveTab('settings')}
-        >
-          <Text style={[styles.tabText, activeTab === 'settings' && styles.tabTextActive]}>⚙️ Ajustes</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Contenido según pestaña */}
-      <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
-        {activeTab === 'capture' && (
-          <View style={styles.sectionContainer}>
-            {/* Tarjeta GPS */}
-            <View style={styles.card}>
-              <View style={styles.cardHeader}>
-                <Text style={styles.cardTitle}>📍 Posición GNSS / Satelital</Text>
+              {/* Acciones Rápidas */}
+              <View style={styles.heroQuickActions}>
                 <TouchableOpacity
-                  style={styles.btnSmallGps}
-                  onPress={() => fetchCurrentLocation(false)}
-                  disabled={isLocating}
+                  style={[styles.heroActionBtn, { backgroundColor: '#15803d' }]}
+                  onPress={() => setActiveTab('capture')}
                 >
-                  {isLocating ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Text style={styles.btnSmallGpsText}>Actualizar</Text>
-                  )}
+                  <Text style={styles.heroActionBtnText}>➕ Registrar Árbol</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.heroActionBtn, { backgroundColor: '#0284c7' }]}
+                  onPress={() => setActiveTab('map3d')}
+                >
+                  <Text style={styles.heroActionBtnText}>🗺️ Explorar Mapa 3D</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.heroActionBtn, { backgroundColor: '#475569' }]}
+                  onPress={() => setActiveTab('communities')}
+                >
+                  <Text style={styles.heroActionBtnText}>👥 Comunidades</Text>
                 </TouchableOpacity>
               </View>
 
-              {coords ? (
-                <View style={styles.coordsRow}>
-                  <View style={styles.coordBox}>
-                    <Text style={styles.coordLabel}>Latitud:</Text>
-                    <Text style={styles.coordVal}>{coords.latitude.toFixed(6)}</Text>
-                  </View>
-                  <View style={styles.coordBox}>
-                    <Text style={styles.coordLabel}>Longitud:</Text>
-                    <Text style={styles.coordVal}>{coords.longitude.toFixed(6)}</Text>
-                  </View>
-                  {gpsAccuracy !== null && (
-                    <Text style={styles.accuracyTag}>Precisión: ±{Math.round(gpsAccuracy)}m</Text>
-                  )}
+              {/* Indicadores Clave de Desempeño (KPIs) */}
+              <View style={styles.kpiRow}>
+                <View style={styles.kpiCard}>
+                  <Text style={styles.kpiNumber}>{GUAJIRA_ESPECIES_NATIVAS.length}</Text>
+                  <Text style={styles.kpiLabel}>Especies</Text>
                 </View>
-              ) : (
-                <Text style={styles.noCoordsText}>
-                  {isLocating ? 'Conectando con satélites GPS...' : 'Sin coordenadas GPS'}
-                </Text>
-              )}
-            </View>
-
-            {/* Tarjeta Especie de La Guajira */}
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>🌱 Especie o Nombre Común</Text>
-              <TextInput
-                style={styles.input}
-                value={speciesName}
-                onChangeText={setSpeciesName}
-                placeholder="Ej. Trupillo, Neem, Melocactus, Dividivi..."
-              />
-
-              <Text style={styles.subLabel}>Presets nativos de La Guajira:</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsRow}>
-                {GUAJIRA_ESPECIES_NATIVAS.map((sp) => (
-                  <TouchableOpacity
-                    key={sp.name}
-                    style={[styles.chip, speciesName === sp.name && styles.chipActive]}
-                    onPress={() => setSpeciesName(sp.name)}
-                  >
-                    <Text style={[styles.chipText, speciesName === sp.name && styles.chipTextActive]}>
-                      {sp.icon} {sp.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-
-            {/* Tarjeta Municipio / Territorio */}
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>📍 Municipio / Territorio</Text>
-              <TextInput
-                style={styles.input}
-                value={municipio}
-                onChangeText={setMunicipio}
-                placeholder="Ej. Riohacha, Dibulla, Uribia..."
-              />
-
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsRow}>
-                {GUAJIRA_MUNICIPIOS.map((m) => (
-                  <TouchableOpacity
-                    key={m}
-                    style={[styles.chip, municipio === m && styles.chipActive]}
-                    onPress={() => setMunicipio(m)}
-                  >
-                    <Text style={[styles.chipText, municipio === m && styles.chipTextActive]}>{m}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-
-            {/* Condición de Salud */}
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>🌿 Estado Fitosanitario</Text>
-              <View style={styles.healthGrid}>
-                {ESTADOS_FITOSANITARIOS.map((h) => (
-                  <TouchableOpacity
-                    key={h.id}
-                    style={[
-                      styles.healthChip,
-                      healthState === h.id && { backgroundColor: h.color, borderColor: h.color }
-                    ]}
-                    onPress={() => setHealthState(h.id)}
-                  >
-                    <Text
-                      style={[
-                        styles.healthChipText,
-                        healthState === h.id && { color: '#ffffff', fontWeight: 'bold' }
-                      ]}
-                    >
-                      {h.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                <View style={styles.kpiCard}>
+                  <Text style={[styles.kpiNumber, { color: '#15803d' }]}>
+                    {61 + outboxTrees.length}
+                  </Text>
+                  <Text style={styles.kpiLabel}>Árboles Registrados</Text>
+                </View>
+                <View style={styles.kpiCard}>
+                  <Text style={[styles.kpiNumber, { color: '#0284c7' }]}>
+                    {GUAJIRA_COMUNIDADES.length}
+                  </Text>
+                  <Text style={styles.kpiLabel}>Comunidades</Text>
+                </View>
               </View>
             </View>
 
-            {/* Cámara y Fotografía */}
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>📷 Fotografía del Árbol</Text>
-              {photoUri ? (
-                <View style={styles.photoPreviewContainer}>
-                  <Image source={{ uri: photoUri }} style={styles.photoPreview} />
-                  <TouchableOpacity style={styles.btnRemovePhoto} onPress={() => setPhotoUri(null)}>
-                    <Text style={styles.btnRemovePhotoText}>✕ Cambiar foto</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <TouchableOpacity style={styles.btnCamera} onPress={takePhoto}>
-                  <Text style={styles.btnCameraIcon}>📸</Text>
-                  <Text style={styles.btnCameraText}>Tomar foto de campo</Text>
-                </TouchableOpacity>
-              )}
+            {/* Ahora de Noticias & Foro Global */}
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionHeading}>Foro de Noticias & Comunidad</Text>
+              <Text style={styles.sectionTag}>Tiempo Real</Text>
             </View>
 
-            {/* Notas opcionales */}
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>📝 Notas de Campo</Text>
-              <TextInput
-                style={[styles.input, styles.inputMultiline]}
-                value={notes}
-                onChangeText={setNotes}
-                placeholder="Ej. Árbol de 6m, cerca de arroyo seco, floración abundante..."
-                multiline
-                numberOfLines={2}
-              />
-            </View>
-
-            {/* Modo Ráfaga */}
-            <View style={styles.continuousModeRow}>
-              <Switch
-                value={continuousMode}
-                onValueChange={setContinuousMode}
-                trackColor={{ false: '#767577', true: '#16a34a' }}
-              />
-              <Text style={styles.continuousModeText}>
-                ⚡ Modo Ráfaga (guardar y pasar al siguiente árbol)
+            <View style={styles.newsCard}>
+              <View style={styles.newsHeader}>
+                <Text style={styles.newsBadge}>🚨 Alerta Fitosanitaria</Text>
+                <Text style={styles.newsDate}>Hoy</Text>
+              </View>
+              <Text style={styles.newsTitle}>
+                Protocolo Prioritario de Control de Neem en Riohacha y Manaure
+              </Text>
+              <Text style={styles.newsSnippet}>
+                Se convoca a las comunidades Wayuu y comités locales a georreferenciar áreas invadidas para sustitución consciente con Trupillo y Dividivi.
               </Text>
             </View>
 
-            {/* Botón Principal Guardar */}
-            <TouchableOpacity style={styles.btnSave} onPress={handleSaveTree}>
-              <Text style={styles.btnSaveText}>💾 Guardar en Teléfono (Offline)</Text>
-            </TouchableOpacity>
-          </View>
+            <View style={styles.newsCard}>
+              <View style={styles.newsHeader}>
+                <Text style={[styles.newsBadge, { backgroundColor: '#dcfce7', color: '#15803d' }]}>
+                  🌿 Floración Macuira
+                </Text>
+                <Text style={styles.newsDate}>Hace 2 días</Text>
+              </View>
+              <Text style={styles.newsTitle}>
+                Avistamiento récord de Guayacán en floración en Serranía de la Macuira
+              </Text>
+              <Text style={styles.newsSnippet}>
+                Las lluvias de transición activaron los polinizadores nativos en la Alta Guajira. 14 nuevos ejemplares censados con éxito.
+              </Text>
+            </View>
+
+            {/* Panel Conoce EcoRaíces (Panel 7) */}
+            <View style={styles.conoceCard}>
+              <Text style={styles.conoceTitle}>Conoce EcoRaíces</Text>
+              <Text style={styles.conoceSubtitle}>
+                Una iniciativa biocultural para la preservación de los bosques más resilientes del Caribe.
+              </Text>
+
+              <View style={styles.misionVisionGrid}>
+                <View style={styles.mvBox}>
+                  <Text style={styles.mvHeading}>Nuestra Misión</Text>
+                  <Text style={styles.mvText}>{CONOCE_ECORAICES.mision}</Text>
+                </View>
+                <View style={styles.mvBox}>
+                  <Text style={styles.mvHeading}>Nuestra Visión</Text>
+                  <Text style={styles.mvText}>{CONOCE_ECORAICES.vision}</Text>
+                </View>
+              </View>
+
+              {/* Banner Bosque Seco Tropical */}
+              <View style={styles.bosqueSecoCard}>
+                <Text style={styles.bosqueSecoTitle}>{CONOCE_ECORAICES.bosqueSeco.titulo}</Text>
+                <Text style={styles.bosqueSecoDesc}>{CONOCE_ECORAICES.bosqueSeco.descripcion}</Text>
+                {CONOCE_ECORAICES.bosqueSeco.puntos.map((pt, i) => (
+                  <View key={i} style={styles.bulletRow}>
+                    <Text style={styles.bulletDot}>🌱</Text>
+                    <Text style={styles.bulletText}>{pt}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* Pilares Técnicos */}
+              <Text style={styles.pilaresHeading}>Nuestros Pilares Técnicos</Text>
+              <View style={styles.pilaresGrid}>
+                {CONOCE_ECORAICES.pilares.map((pil, idx) => (
+                  <View key={idx} style={styles.pilarCard}>
+                    <Text style={styles.pilarIcon}>{pil.icon}</Text>
+                    <Text style={styles.pilarTitle}>{pil.title}</Text>
+                    <Text style={styles.pilarDesc}>{pil.desc}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </ScrollView>
         )}
 
-        {activeTab === 'outbox' && (
-          <View style={styles.sectionContainer}>
-            <View style={styles.statsCard}>
-              <View style={styles.statCol}>
-                <Text style={styles.statNum}>{stats.total}</Text>
-                <Text style={styles.statLabel}>Registrados</Text>
+        {/* ============================================================== */}
+        {/* 2. MAPA 3D (PANEL GRANDE: Edificios 3D, Isometría, Filtros)     */}
+        {/* ============================================================== */}
+        {activeTab === 'map3d' && (
+          <Map3DView
+            trees={allMapTrees}
+            userCoords={coords}
+            onTreeSelected={(tree) => {
+              Alert.alert('Árbol Seleccionado', `${tree.species_name} en ${tree.municipality}`);
+            }}
+          />
+        )}
+
+        {/* ============================================================== */}
+        {/* 3. CAPTURA DE CAMPO (PANEL 3: GPS Satelital, Foto, SQLite)     */}
+        {/* ============================================================== */}
+        {activeTab === 'capture' && (
+          <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.formContent}>
+            <View style={styles.formCard}>
+              <Text style={styles.formTitle}>Formulario de Registro de Especies</Text>
+              <Text style={styles.formSubtitle}>
+                Captura en campo 100% offline. Guarda en memoria interna y sincroniza cuando tengas señal.
+              </Text>
+
+              {/* GPS Satelital Status Box */}
+              <View style={styles.gpsCard}>
+                <View style={styles.gpsRow}>
+                  <Text style={styles.gpsIcon}>🛰️</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.gpsTitle}>Ubicación Satelital (GNSS)</Text>
+                    <Text style={styles.gpsCoordsText}>
+                      {coords
+                        ? `Lat: ${coords.latitude.toFixed(6)} | Lng: ${coords.longitude.toFixed(6)}`
+                        : 'Obteniendo coordenadas del hardware...'}
+                    </Text>
+                    {gpsAccuracy && (
+                      <Text style={styles.gpsAccuracyText}>
+                        Precisión: ±{gpsAccuracy.toFixed(1)} metros {gpsAccuracy <= 10 ? '🎯 Excelente' : '🟡 Aceptable'}
+                      </Text>
+                    )}
+                  </View>
+                  <TouchableOpacity
+                    style={styles.refreshGpsBtn}
+                    onPress={() => fetchCurrentLocation(false)}
+                    disabled={isLocating}
+                  >
+                    {isLocating ? (
+                      <ActivityIndicator size="small" color="#15803d" />
+                    ) : (
+                      <Text style={styles.refreshGpsBtnText}>🔄 Actualizar</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
               </View>
-              <View style={styles.statCol}>
-                <Text style={[styles.statNum, { color: '#ea580c' }]}>{stats.pending}</Text>
-                <Text style={styles.statLabel}>Pendientes</Text>
+
+              {/* Acceso Rápido a Especies Nativas Guajiras */}
+              <Text style={styles.fieldLabel}>Selecciona Especie Nativa:</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.speciesChipsRow}>
+                {GUAJIRA_ESPECIES_NATIVAS.map((sp) => {
+                  const isSelected = speciesName === sp.name;
+                  return (
+                    <TouchableOpacity
+                      key={sp.id}
+                      style={[
+                        styles.speciesChip,
+                        isSelected && styles.speciesChipActive,
+                        sp.isInvasive && styles.speciesChipInvasive
+                      ]}
+                      onPress={() => setSpeciesName(sp.name)}
+                    >
+                      <Text style={styles.speciesChipIcon}>{sp.icon}</Text>
+                      <View>
+                        <Text style={[styles.speciesChipName, isSelected && styles.speciesChipNameActive]}>
+                          {sp.name}
+                        </Text>
+                        <Text style={styles.speciesChipTag}>{sp.tag}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              {/* Nombre de la especie manual si se requiere */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.fieldLabel}>Nombre de la especie:</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={speciesName}
+                  onChangeText={setSpeciesName}
+                  placeholder="Ej: Trupillo, Dividivi, Neem..."
+                  placeholderTextColor="#94a3b8"
+                />
               </View>
-              <View style={styles.statCol}>
-                <Text style={[styles.statNum, { color: '#16a34a' }]}>{stats.synced}</Text>
-                <Text style={styles.statLabel}>Subidos</Text>
+
+              {/* Municipio de La Guajira */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.fieldLabel}>Municipio / Territorio:</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.muniScroll}>
+                  {GUAJIRA_MUNICIPIOS.map((mun) => (
+                    <TouchableOpacity
+                      key={mun}
+                      style={[styles.muniChip, municipio === mun && styles.muniChipActive]}
+                      onPress={() => setMunicipio(mun)}
+                    >
+                      <Text style={[styles.muniChipText, municipio === mun && styles.muniChipTextActive]}>
+                        📍 {mun}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+
+              {/* Estado Fitosanitario */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.fieldLabel}>Estado de Salud:</Text>
+                <View style={styles.healthGrid}>
+                  {ESTADOS_FITOSANITARIOS.map((st) => (
+                    <TouchableOpacity
+                      key={st.id}
+                      style={[styles.healthBtn, healthState === st.id && { borderColor: st.color, backgroundColor: '#f0fdf4' }]}
+                      onPress={() => setHealthState(st.id)}
+                    >
+                      <Text style={styles.healthBtnText}>{st.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Medidas (Altura y Diámetro) */}
+              <View style={styles.measureRow}>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.fieldLabel}>Altura est. (m):</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={heightMeters}
+                    onChangeText={setHeightMeters}
+                    keyboardType="numeric"
+                    placeholder="Ej: 4.5"
+                  />
+                </View>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.fieldLabel}>Diámetro (cm):</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={diameterCm}
+                    onChangeText={setDiameterCm}
+                    keyboardType="numeric"
+                    placeholder="Ej: 30"
+                  />
+                </View>
+              </View>
+
+              {/* Captura de Fotografía */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.fieldLabel}>Fotografía en Campo:</Text>
+                {photoUri ? (
+                  <View style={styles.photoPreviewBox}>
+                    <Image source={{ uri: photoUri }} style={styles.photoPreviewImage} />
+                    <TouchableOpacity style={styles.removePhotoBtn} onPress={() => setPhotoUri(null)}>
+                      <Text style={styles.removePhotoBtnText}>✕ Cambiar foto</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={styles.photoActionsRow}>
+                    <TouchableOpacity style={styles.photoActionBtn} onPress={takePhoto}>
+                      <Text style={styles.photoActionIcon}>📷</Text>
+                      <Text style={styles.photoActionText}>Tomar Foto</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.photoActionBtn, { backgroundColor: '#f1f5f9' }]} onPress={pickImageFromGallery}>
+                      <Text style={styles.photoActionIcon}>🖼️</Text>
+                      <Text style={[styles.photoActionText, { color: '#475569' }]}>Galería</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+
+              {/* Notas de Campo */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.fieldLabel}>Notas u observaciones ecológicas:</Text>
+                <TextInput
+                  style={[styles.textInput, { height: 70, textAlignVertical: 'top' }]}
+                  value={notes}
+                  onChangeText={setNotes}
+                  multiline={true}
+                  placeholder="Ej: Copa en floración, nidos de pájaros, suelo pedregoso..."
+                  placeholderTextColor="#94a3b8"
+                />
+              </View>
+
+              {/* Botón Principal Guardar Registro */}
+              <TouchableOpacity style={styles.submitBtn} onPress={handleSaveTree}>
+                <Text style={styles.submitBtnText}>💾 Guardar Registro (Offline)</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        )}
+
+        {/* ============================================================== */}
+        {/* 4. CATÁLOGO DE ESPECIES (PANELES 4 & 5: Cuadrícula & Ficha)     */}
+        {/* ============================================================== */}
+        {activeTab === 'catalog' && (
+          <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.catalogContent}>
+            <View style={styles.catalogHeaderCard}>
+              <Text style={styles.catalogTitle}>Catálogo de Especies Nativas</Text>
+              <Text style={styles.catalogSubtitle}>
+                Biodiversidad del bosque seco, especies xerofíticas y fichas botánicas detalladas de La Guajira.
+              </Text>
+            </View>
+
+            {/* Cuadrícula de Especies (Panel 4) */}
+            <View style={styles.speciesGrid}>
+              {GUAJIRA_ESPECIES_NATIVAS.map((sp) => (
+                <TouchableOpacity
+                  key={sp.id}
+                  style={styles.speciesGridCard}
+                  onPress={() => setSelectedSpeciesDetail(sp)}
+                >
+                  <Image source={{ uri: sp.photo }} style={styles.speciesCardImg} />
+                  <View style={styles.speciesCardBody}>
+                    <View style={styles.speciesBadgeRow}>
+                      <Text style={[styles.speciesTagBadge, sp.isInvasive && styles.speciesTagInvasive]}>
+                        {sp.tag}
+                      </Text>
+                    </View>
+                    <Text style={styles.speciesCardTitle}>{sp.name}</Text>
+                    <Text style={styles.speciesCardScientific}>{sp.scientific}</Text>
+                    <Text style={styles.speciesSightings}>📍 {sp.sightingsCount} avistamientos</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+        )}
+
+        {/* ============================================================== */}
+        {/* 5. COMUNIDADES (PANEL 6: Banners Guajiros, Miembros, Proyectos) */}
+        {/* ============================================================== */}
+        {activeTab === 'communities' && (
+          <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.communitiesContent}>
+            <View style={styles.communitiesHeaderCard}>
+              <Text style={styles.communitiesTitle}>Comunidades de La Guajira</Text>
+              <Text style={styles.communitiesSubtitle}>
+                Redes locales y colectivos Wayuu que lideran la protección forestal en cada municipio.
+              </Text>
+            </View>
+
+            {GUAJIRA_COMUNIDADES.map((com) => (
+              <View key={com.id} style={styles.communityCard}>
+                <Image source={{ uri: com.banner }} style={styles.communityBanner} />
+                <View style={styles.communityBody}>
+                  <View style={styles.communityLocationBadge}>
+                    <Text style={styles.communityLocationText}>📍 {com.municipality} • {com.territory}</Text>
+                  </View>
+                  <Text style={styles.communityName}>{com.name}</Text>
+                  <Text style={styles.communityDesc}>{com.description}</Text>
+
+                  <View style={styles.communityStatsRow}>
+                    <View style={styles.cStatItem}>
+                      <Text style={styles.cStatNum}>{com.membersCount}</Text>
+                      <Text style={styles.cStatLabel}>Miembros</Text>
+                    </View>
+                    <View style={styles.cStatItem}>
+                      <Text style={[styles.cStatNum, { color: '#15803d' }]}>{com.treesRegistered}</Text>
+                      <Text style={styles.cStatLabel}>Árboles Censados</Text>
+                    </View>
+                    <View style={styles.cStatItem}>
+                      <Text style={styles.cStatNum}>👑</Text>
+                      <Text style={styles.cStatLabel}>{com.leader.split(' ')[0]}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.communityTagsRow}>
+                    {com.tags.map((tag, tIdx) => (
+                      <View key={tIdx} style={styles.communityTag}>
+                        <Text style={styles.communityTagText}>#{tag}</Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.joinCommunityBtn}
+                    onPress={() => Alert.alert('Comunidad', `Te has vinculado al nodo de ${com.name}.`)}
+                  >
+                    <Text style={styles.joinCommunityBtnText}>Unirse a esta Comunidad</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+        )}
+
+        {/* ============================================================== */}
+        {/* 6. PERFIL (PANEL 8: Usuario, Territorio, Cola Outbox & Dokploy) */}
+        {/* ============================================================== */}
+        {activeTab === 'profile' && (
+          <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.profileContent}>
+            {/* Header del Perfil */}
+            <View style={styles.profileHeaderCard}>
+              <View style={styles.avatarCircle}>
+                <Text style={styles.avatarInitials}>
+                  {userName.split(' ').map((n) => n[0]).join('').substring(0, 2)}
+                </Text>
+              </View>
+              <Text style={styles.profileName}>{userName}</Text>
+              <Text style={styles.profileEmail}>{userEmail}</Text>
+              <View style={styles.profileTerritoryPill}>
+                <Text style={styles.profileTerritoryText}>📍 {userTerritory}, La Guajira</Text>
               </View>
             </View>
 
-            {/* Botón Sincronizar */}
-            <TouchableOpacity
-              style={[styles.btnSync, (isSyncing || stats.pending === 0) && styles.btnSyncDisabled]}
-              onPress={handleSyncNow}
-              disabled={isSyncing || stats.pending === 0}
-            >
-              {isSyncing ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.btnSyncText}>
-                  🚀 Sincronizar {stats.pending} árboles con EcoRaíces
-                </Text>
-              )}
-            </TouchableOpacity>
-
-            {syncProgress && <Text style={styles.syncProgressText}>{syncProgress}</Text>}
-
-            <Text style={styles.sectionSubtitle}>Lista de árboles en almacenamiento local:</Text>
-
-            {outboxTrees.length === 0 ? (
-              <View style={styles.emptyCard}>
-                <Text style={styles.emptyText}>No hay árboles registrados aún.</Text>
-                <TouchableOpacity onPress={() => setActiveTab('capture')}>
-                  <Text style={styles.emptyActionText}>Ir a registrar el primero →</Text>
+            {/* Cola de Sincronización Outbox */}
+            <View style={styles.outboxSectionCard}>
+              <View style={styles.outboxHeaderRow}>
+                <View>
+                  <Text style={styles.outboxTitle}>Cola de Sincronización Outbox</Text>
+                  <Text style={styles.outboxSubtitle}>
+                    {stats.pending} pendientes • {stats.synced} sincronizados en Dokploy
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.syncTriggerBtn, isSyncing && styles.syncTriggerBtnDisabled]}
+                  onPress={handleStartSync}
+                  disabled={isSyncing}
+                >
+                  {isSyncing ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <Text style={styles.syncTriggerBtnText}>⚡ Sincronizar</Text>
+                  )}
                 </TouchableOpacity>
               </View>
-            ) : (
-              outboxTrees.map((item) => (
-                <View key={item.clientId} style={styles.treeCard}>
-                  {item.localImagePath ? (
-                    <Image source={{ uri: item.localImagePath }} style={styles.treeThumb} />
-                  ) : (
-                    <View style={[styles.treeThumb, styles.treeThumbPlaceholder]}>
-                      <Text style={{ fontSize: 24 }}>🌳</Text>
+
+              {syncProgress && (
+                <View style={styles.syncProgressContainer}>
+                  <Text style={styles.syncProgressText}>
+                    Subiendo {syncProgress.current} de {syncProgress.total} árboles...
+                  </Text>
+                </View>
+              )}
+
+              {/* Lista de Registros Locales */}
+              {outboxTrees.length === 0 ? (
+                <View style={styles.emptyOutboxBox}>
+                  <Text style={styles.emptyOutboxText}>No hay árboles guardados en la base de datos local.</Text>
+                </View>
+              ) : (
+                outboxTrees.slice(0, 5).map((tree) => (
+                  <View key={tree.id} style={styles.treeOutboxItem}>
+                    <View style={styles.treeOutboxLeft}>
+                      <Text style={styles.treeOutboxName}>{tree.species_name}</Text>
+                      <Text style={styles.treeOutboxDetails}>
+                        📍 {tree.municipality} • Lat: {tree.latitude.toFixed(4)}, Lng: {tree.longitude.toFixed(4)}
+                      </Text>
                     </View>
-                  )}
-
-                  <View style={styles.treeInfo}>
-                    <Text style={styles.treeSpecies}>{item.speciesName}</Text>
-                    <Text style={styles.treeLocation}>
-                      📍 {item.municipio} ({item.latitude.toFixed(4)}, {item.longitude.toFixed(4)})
-                    </Text>
-                    <Text style={styles.treeDate}>
-                      {item.observationDate} · {item.healthState}
-                    </Text>
-                    {item.syncError && <Text style={styles.treeError}>{item.syncError}</Text>}
-                  </View>
-
-                  <View style={styles.treeStatusBadge}>
-                    <Text
+                    <View
                       style={[
-                        styles.treeStatusText,
-                        item.syncStatus === 'SYNCED' ? styles.statusSynced : styles.statusPending
+                        styles.treeStatusBadge,
+                        tree.sync_status === 'SYNCED' ? styles.statusSynced : styles.statusPending
                       ]}
                     >
-                      {item.syncStatus === 'SYNCED' ? '✓ Subido' : '⏳ Pendiente'}
-                    </Text>
+                      <Text
+                        style={[
+                          styles.treeStatusText,
+                          tree.sync_status === 'SYNCED' ? styles.statusTextSynced : styles.statusTextPending
+                        ]}
+                      >
+                        {tree.sync_status === 'SYNCED' ? '✓ Subido' : '⏳ En Cola'}
+                      </Text>
+                    </View>
                   </View>
-                </View>
-              ))
+                ))
+              )}
+            </View>
+
+            {/* Ajustes de Servidor Dokploy */}
+            <View style={styles.settingsSectionCard}>
+              <Text style={styles.settingsTitle}>Configuración de Conexión</Text>
+              
+              <View style={styles.inputGroup}>
+                <Text style={styles.fieldLabel}>URL del Servidor Dokploy:</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={serverUrl}
+                  onChangeText={(val) => {
+                    setServerUrl(val);
+                    AsyncStorage.setItem('ecoraices_server_url', val);
+                  }}
+                  placeholder="https://ecoraices.neuraljira.tech"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.fieldLabel}>Territorio Base:</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={userTerritory}
+                  onChangeText={(val) => {
+                    setUserTerritory(val);
+                    AsyncStorage.setItem('ecoraices_user_territory', val);
+                  }}
+                  placeholder="Riohacha"
+                />
+              </View>
+            </View>
+          </ScrollView>
+        )}
+      </View>
+
+      {/* Modal Ficha Botánica 3D (Panel 5 del mockup) */}
+      <Modal
+        visible={Boolean(selectedSpeciesDetail)}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setSelectedSpeciesDetail(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            {selectedSpeciesDetail && (
+              <>
+                <Image source={{ uri: selectedSpeciesDetail.photo }} style={styles.modalBannerImg} />
+                <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setSelectedSpeciesDetail(null)}>
+                  <Text style={styles.modalCloseBtnText}>✕</Text>
+                </TouchableOpacity>
+
+                <ScrollView contentContainerStyle={styles.modalBodyScroll}>
+                  <View style={styles.modalHeaderInfo}>
+                    <Text style={styles.modalSpeciesName}>{selectedSpeciesDetail.name}</Text>
+                    <Text style={styles.modalScientific}>{selectedSpeciesDetail.scientific}</Text>
+                    <View style={styles.modalBadgesRow}>
+                      <View style={styles.modalBadge}>
+                        <Text style={styles.modalBadgeText}>{selectedSpeciesDetail.family}</Text>
+                      </View>
+                      <View style={[styles.modalBadge, selectedSpeciesDetail.isInvasive && styles.modalBadgeInvasive]}>
+                        <Text style={styles.modalBadgeText}>{selectedSpeciesDetail.status}</Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={styles.modalSection}>
+                    <Text style={styles.modalSectionTitle}>📖 Descripción Botánica</Text>
+                    <Text style={styles.modalSectionText}>{selectedSpeciesDetail.botanicalDescription}</Text>
+                  </View>
+
+                  <View style={styles.modalSection}>
+                    <Text style={styles.modalSectionTitle}>🌿 Valor Ecológico en Bosque Seco</Text>
+                    <Text style={styles.modalSectionText}>{selectedSpeciesDetail.ecologicalValue}</Text>
+                  </View>
+
+                  <View style={styles.modalSection}>
+                    <Text style={styles.modalSectionTitle}>🍵 Usos Medicinales y Tradición Wayuu</Text>
+                    <Text style={styles.modalSectionText}>{selectedSpeciesDetail.medicinalUses}</Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.modalRegisterActionBtn}
+                    onPress={() => {
+                      setSpeciesName(selectedSpeciesDetail.name);
+                      setSelectedSpeciesDetail(null);
+                      setActiveTab('capture');
+                    }}
+                  >
+                    <Text style={styles.modalRegisterActionBtnText}>
+                      ➕ Registrar este árbol en campo
+                    </Text>
+                  </TouchableOpacity>
+                </ScrollView>
+              </>
             )}
           </View>
-        )}
+        </View>
+      </Modal>
 
-        {activeTab === 'catalog' && (
-          <View style={styles.sectionContainer}>
-            <Text style={styles.sectionTitle}>Especies Nativas de La Guajira</Text>
-            <Text style={styles.sectionDescription}>
-              Catálogo precargado para identificación rápida en zonas sin conectividad celular.
-            </Text>
+      {/* Barra de Navegación Inferior (Tabs Idénticos al Mockup) */}
+      <View style={styles.bottomTabBar}>
+        <TouchableOpacity style={styles.tabBtn} onPress={() => setActiveTab('home')}>
+          <Text style={[styles.tabIcon, activeTab === 'home' && styles.tabIconActive]}>🏠</Text>
+          <Text style={[styles.tabLabel, activeTab === 'home' && styles.tabLabelActive]}>Inicio</Text>
+        </TouchableOpacity>
 
-            {GUAJIRA_ESPECIES_NATIVAS.map((sp) => (
-              <TouchableOpacity
-                key={sp.name}
-                style={styles.catalogCard}
-                onPress={() => {
-                  setSpeciesName(sp.name);
-                  setActiveTab('capture');
-                }}
-              >
-                <Text style={styles.catalogIcon}>{sp.icon}</Text>
-                <View style={styles.catalogBody}>
-                  <Text style={styles.catalogName}>{sp.name}</Text>
-                  <Text style={styles.catalogScientific}>{sp.scientific}</Text>
-                  <Text style={styles.catalogTag}>{sp.tag}</Text>
-                </View>
-                <Text style={styles.catalogSelectText}>Seleccionar →</Text>
-              </TouchableOpacity>
-            ))}
+        <TouchableOpacity style={styles.tabBtn} onPress={() => setActiveTab('map3d')}>
+          <Text style={[styles.tabIcon, activeTab === 'map3d' && styles.tabIconActive]}>🗺️</Text>
+          <Text style={[styles.tabLabel, activeTab === 'map3d' && styles.tabLabelActive]}>Mapa 3D</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.tabBtnCenter} onPress={() => setActiveTab('capture')}>
+          <View style={styles.tabCenterCircle}>
+            <Text style={styles.tabCenterIcon}>➕</Text>
           </View>
-        )}
+          <Text style={[styles.tabLabel, activeTab === 'capture' && styles.tabLabelActive]}>Campo</Text>
+        </TouchableOpacity>
 
-        {activeTab === 'settings' && (
-          <View style={styles.sectionContainer}>
-            <Text style={styles.sectionTitle}>Configuración de Enlace</Text>
+        <TouchableOpacity style={styles.tabBtn} onPress={() => setActiveTab('catalog')}>
+          <Text style={[styles.tabIcon, activeTab === 'catalog' && styles.tabIconActive]}>🌿</Text>
+          <Text style={[styles.tabLabel, activeTab === 'catalog' && styles.tabLabelActive]}>Catálogo</Text>
+        </TouchableOpacity>
 
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>🌐 Servidor EcoRaíces</Text>
-              <TextInput
-                style={styles.input}
-                value={serverUrl}
-                onChangeText={setServerUrl}
-                placeholder="https://ecoraices.neuraljira.tech"
-                autoCapitalize="none"
-              />
-            </View>
+        <TouchableOpacity style={styles.tabBtn} onPress={() => setActiveTab('communities')}>
+          <Text style={[styles.tabIcon, activeTab === 'communities' && styles.tabIconActive]}>👥</Text>
+          <Text style={[styles.tabLabel, activeTab === 'communities' && styles.tabLabelActive]}>Comunidades</Text>
+        </TouchableOpacity>
 
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>📍 Mi Territorio / Municipio Habitual</Text>
-              <TextInput
-                style={styles.input}
-                value={userLocation}
-                onChangeText={setUserLocation}
-                placeholder="Ej. Riohacha, Dibulla, Uribia..."
-              />
-            </View>
-
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>🔑 Token JWT de Sesión (Opcional)</Text>
-              <TextInput
-                style={[styles.input, styles.inputMultiline]}
-                value={token}
-                onChangeText={setToken}
-                placeholder="Pega el token para asociar observaciones a tu cuenta"
-                multiline
-              />
-            </View>
-
-            <TouchableOpacity style={styles.btnSave} onPress={handleSaveSettings}>
-              <Text style={styles.btnSaveText}>Guardar Configuración</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </ScrollView>
+        <TouchableOpacity style={styles.tabBtn} onPress={() => setActiveTab('profile')}>
+          <Text style={[styles.tabIcon, activeTab === 'profile' && styles.tabIconActive]}>👤</Text>
+          <Text style={[styles.tabLabel, activeTab === 'profile' && styles.tabLabelActive]}>Perfil</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
@@ -617,462 +973,1069 @@ export default function App() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#1a472a'
+    backgroundColor: '#ffffff'
   },
-  header: {
+  topHeader: {
+    height: 56,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#1a472a'
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9'
   },
   headerBrand: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8
+    gap: 10
   },
-  headerIcon: {
-    fontSize: 26
+  headerLogoBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#dcfce7',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  headerLogoIcon: {
+    fontSize: 20
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#ffffff'
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#15803d',
+    letterSpacing: -0.3
   },
   headerSubtitle: {
-    fontSize: 11,
-    color: '#a7f3d0'
-  },
-  syncPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    gap: 6
-  },
-  syncPillOnline: {
-    backgroundColor: '#064e3b'
-  },
-  syncPillPending: {
-    backgroundColor: '#7c2d12'
-  },
-  syncDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4
-  },
-  syncDotOnline: {
-    backgroundColor: '#34d399'
-  },
-  syncDotPending: {
-    backgroundColor: '#fb923c'
-  },
-  syncPillText: {
-    color: '#ffffff',
-    fontSize: 11,
+    fontSize: 10,
+    color: '#64748b',
     fontWeight: '600'
   },
-  tabBar: {
+  headerActions: {
     flexDirection: 'row',
-    backgroundColor: '#143820',
-    borderBottomWidth: 1,
-    borderBottomColor: '#245937'
-  },
-  tabItem: {
-    flex: 1,
-    paddingVertical: 10,
     alignItems: 'center'
   },
-  tabItemActive: {
-    borderBottomWidth: 3,
-    borderBottomColor: '#34d399'
+  outboxPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 9999
   },
-  tabText: {
-    fontSize: 12,
-    color: '#9ca3af',
-    fontWeight: '600'
+  outboxPillActive: {
+    backgroundColor: '#fef3c7'
   },
-  tabTextActive: {
-    color: '#ffffff',
-    fontWeight: 'bold'
+  outboxPillIcon: {
+    fontSize: 12
   },
-  content: {
+  outboxPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748b'
+  },
+  outboxPillTextActive: {
+    color: '#b45309'
+  },
+  contentArea: {
     flex: 1,
-    backgroundColor: '#f3f4f6'
+    backgroundColor: '#f8fafc'
   },
-  sectionContainer: {
-    padding: 14,
-    paddingBottom: 40
+  scrollContainer: {
+    flex: 1
   },
-  card: {
+  homeContent: {
+    padding: 16,
+    paddingBottom: 32
+  },
+  welcomeHeroCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 10,
+    elevation: 2
+  },
+  welcomeLogoBig: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#dcfce7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12
+  },
+  welcomeTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#15803d',
+    textAlign: 'center'
+  },
+  welcomeDesc: {
+    fontSize: 13,
+    color: '#475569',
+    textAlign: 'center',
+    lineHeight: 18,
+    marginTop: 6
+  },
+  heroQuickActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 16,
+    width: '100%'
+  },
+  heroActionBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  heroActionBtnText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '800'
+  },
+  kpiRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 16,
+    width: '100%'
+  },
+  kpiCard: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e2e8f0'
+  },
+  kpiNumber: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#0f172a'
+  },
+  kpiLabel: {
+    fontSize: 10,
+    color: '#64748b',
+    fontWeight: '600',
+    marginTop: 2
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 20,
+    marginBottom: 10
+  },
+  sectionHeading: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0f172a'
+  },
+  sectionTag: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#15803d',
+    backgroundColor: '#dcfce7',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6
+  },
+  newsCard: {
     backgroundColor: '#ffffff',
     borderRadius: 12,
     padding: 14,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
-    elevation: 2
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0'
   },
-  cardHeader: {
+  newsHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8
-  },
-  cardTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#1f2937',
     marginBottom: 6
   },
-  subLabel: {
-    fontSize: 11,
-    color: '#6b7280',
-    marginTop: 8,
-    marginBottom: 4
+  newsBadge: {
+    fontSize: 10,
+    fontWeight: '800',
+    backgroundColor: '#fee2e2',
+    color: '#b91c1c',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4
   },
-  input: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+  newsDate: {
+    fontSize: 10,
+    color: '#94a3b8'
+  },
+  newsTitle: {
     fontSize: 14,
-    color: '#111827',
-    backgroundColor: '#f9fafb'
+    fontWeight: '700',
+    color: '#0f172a',
+    lineHeight: 18
   },
-  inputMultiline: {
-    minHeight: 50,
-    textAlignVertical: 'top'
+  newsSnippet: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 4,
+    lineHeight: 16
   },
-  btnSmallGps: {
-    backgroundColor: '#16a34a',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6
+  conoceCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0'
   },
-  btnSmallGpsText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: 'bold'
+  conoceTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#15803d',
+    textAlign: 'center'
   },
-  coordsRow: {
+  conoceSubtitle: {
+    fontSize: 12,
+    color: '#64748b',
+    textAlign: 'center',
+    marginTop: 4,
+    marginBottom: 14
+  },
+  misionVisionGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    alignItems: 'center'
+    gap: 10,
+    marginBottom: 14
   },
-  coordBox: {
+  mvBox: {
+    flex: 1,
     backgroundColor: '#f0fdf4',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
+    padding: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#bbf7d0'
   },
-  coordLabel: {
+  mvHeading: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#166534',
+    marginBottom: 4
+  },
+  mvText: {
+    fontSize: 11,
+    color: '#334155',
+    lineHeight: 15
+  },
+  bosqueSecoCard: {
+    backgroundColor: '#14532d',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 14
+  },
+  bosqueSecoTitle: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#ffffff',
+    marginBottom: 4
+  },
+  bosqueSecoDesc: {
+    fontSize: 11,
+    color: '#bbf7d0',
+    lineHeight: 15,
+    marginBottom: 8
+  },
+  bulletRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    marginBottom: 4
+  },
+  bulletDot: {
+    fontSize: 12
+  },
+  bulletText: {
+    flex: 1,
+    fontSize: 11,
+    color: '#f0fdf4',
+    lineHeight: 15
+  },
+  pilaresHeading: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginBottom: 8
+  },
+  pilaresGrid: {
+    gap: 8
+  },
+  pilarCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#f8fafc',
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0'
+  },
+  pilarIcon: {
+    fontSize: 20
+  },
+  pilarTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0f172a'
+  },
+  pilarDesc: {
+    fontSize: 10,
+    color: '#64748b'
+  },
+  formContent: {
+    padding: 16,
+    paddingBottom: 40
+  },
+  formCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0'
+  },
+  formTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#0f172a'
+  },
+  formSubtitle: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 4,
+    marginBottom: 14
+  },
+  gpsCard: {
+    backgroundColor: '#f0fdf4',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#86efac',
+    marginBottom: 14
+  },
+  gpsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10
+  },
+  gpsIcon: {
+    fontSize: 22
+  },
+  gpsTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#166534'
+  },
+  gpsCoordsText: {
+    fontSize: 11,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    color: '#0f172a',
+    marginTop: 2
+  },
+  gpsAccuracyText: {
     fontSize: 10,
     color: '#15803d',
-    fontWeight: 'bold'
+    fontWeight: '700',
+    marginTop: 2
   },
-  coordVal: {
-    fontSize: 13,
-    color: '#166534',
-    fontWeight: '600'
-  },
-  accuracyTag: {
-    fontSize: 11,
-    color: '#059669',
-    fontWeight: '600',
-    marginLeft: 4
-  },
-  noCoordsText: {
-    fontSize: 12,
-    color: '#9ca3af',
-    fontStyle: 'italic'
-  },
-  chipsRow: {
-    flexDirection: 'row',
-    marginTop: 4
-  },
-  chip: {
-    backgroundColor: '#f3f4f6',
+  refreshGpsBtn: {
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    marginRight: 6
+    borderColor: '#86efac'
   },
-  chipActive: {
-    backgroundColor: '#dcfce7',
-    borderColor: '#16a34a'
+  refreshGpsBtnText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#15803d'
   },
-  chipText: {
+  fieldLabel: {
     fontSize: 12,
-    color: '#4b5563'
+    fontWeight: '800',
+    color: '#334155',
+    marginBottom: 6
   },
-  chipTextActive: {
-    color: '#15803d',
-    fontWeight: 'bold'
+  speciesChipsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12
+  },
+  speciesChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0'
+  },
+  speciesChipActive: {
+    backgroundColor: '#dcfce7',
+    borderColor: '#15803d'
+  },
+  speciesChipInvasive: {
+    borderColor: '#fca5a5'
+  },
+  speciesChipIcon: {
+    fontSize: 18
+  },
+  speciesChipName: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0f172a'
+  },
+  speciesChipNameActive: {
+    color: '#15803d'
+  },
+  speciesChipTag: {
+    fontSize: 9,
+    color: '#64748b'
+  },
+  inputGroup: {
+    marginBottom: 12
+  },
+  textInput: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 13,
+    color: '#0f172a'
+  },
+  muniScroll: {
+    flexDirection: 'row',
+    gap: 6
+  },
+  muniChip: {
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0'
+  },
+  muniChipActive: {
+    backgroundColor: '#0284c7',
+    borderColor: '#0284c7'
+  },
+  muniChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569'
+  },
+  muniChipTextActive: {
+    color: '#ffffff'
   },
   healthGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6
   },
-  healthChip: {
+  healthBtn: {
+    flex: 1,
+    minWidth: '45%',
+    backgroundColor: '#f8fafc',
+    paddingVertical: 8,
     paddingHorizontal: 10,
-    paddingVertical: 6,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#f9fafb'
+    borderColor: '#e2e8f0',
+    alignItems: 'center'
   },
-  healthChipText: {
-    fontSize: 12,
-    color: '#374151'
+  healthBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#334155'
   },
-  btnCamera: {
-    borderWidth: 2,
-    borderColor: '#d1d5db',
-    borderStyle: 'dashed',
+  measureRow: {
+    flexDirection: 'row',
+    gap: 10
+  },
+  photoPreviewBox: {
     borderRadius: 10,
-    paddingVertical: 20,
-    alignItems: 'center',
-    backgroundColor: '#f9fafb'
-  },
-  btnCameraIcon: {
-    fontSize: 32,
-    marginBottom: 4
-  },
-  btnCameraText: {
-    fontSize: 13,
-    color: '#4b5563',
-    fontWeight: '600'
-  },
-  photoPreviewContainer: {
+    overflow: 'hidden',
     position: 'relative'
   },
-  photoPreview: {
+  photoPreviewImage: {
     width: '100%',
     height: 180,
-    borderRadius: 8
+    borderRadius: 10
   },
-  btnRemovePhoto: {
+  removePhotoBtn: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    bottom: 10,
+    right: 10,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 6
   },
-  btnRemovePhotoText: {
-    color: '#fff',
-    fontSize: 11
+  removePhotoBtnText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700'
   },
-  continuousModeRow: {
+  photoActionsRow: {
+    flexDirection: 'row',
+    gap: 10
+  },
+  photoActionBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginVertical: 8
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#dcfce7',
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#86efac'
   },
-  continuousModeText: {
+  photoActionIcon: {
+    fontSize: 18
+  },
+  photoActionText: {
     fontSize: 12,
-    color: '#374151',
-    fontWeight: '600',
-    flex: 1
+    fontWeight: '800',
+    color: '#15803d'
   },
-  btnSave: {
-    backgroundColor: '#16a34a',
-    borderRadius: 10,
+  submitBtn: {
+    backgroundColor: '#15803d',
     paddingVertical: 14,
+    borderRadius: 10,
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: 8,
     elevation: 3
   },
-  btnSaveText: {
+  submitBtnText: {
     color: '#ffffff',
-    fontSize: 15,
-    fontWeight: 'bold'
+    fontSize: 14,
+    fontWeight: '900'
   },
-  statsCard: {
+  catalogContent: {
+    padding: 16,
+    paddingBottom: 40
+  },
+  catalogHeaderCard: {
+    backgroundColor: '#ffffff',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 14
+  },
+  catalogTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#15803d'
+  },
+  catalogSubtitle: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 4
+  },
+  speciesGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12
+  },
+  speciesGridCard: {
+    width: '48%',
     backgroundColor: '#ffffff',
     borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
-    justifyContent: 'space-around',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
     elevation: 2
   },
-  statCol: {
-    alignItems: 'center'
+  speciesCardImg: {
+    width: '100%',
+    height: 110,
+    backgroundColor: '#e2e8f0'
   },
-  statNum: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#1f2937'
+  speciesCardBody: {
+    padding: 10
   },
-  statLabel: {
-    fontSize: 11,
-    color: '#6b7280',
-    marginTop: 2
-  },
-  btnSync: {
-    backgroundColor: '#0284c7',
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginBottom: 12
-  },
-  btnSyncDisabled: {
-    backgroundColor: '#9ca3af'
-  },
-  btnSyncText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold'
-  },
-  syncProgressText: {
-    textAlign: 'center',
-    fontSize: 12,
-    color: '#0284c7',
-    marginBottom: 8,
-    fontWeight: '600'
-  },
-  sectionSubtitle: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: '#374151',
-    marginBottom: 8
-  },
-  emptyCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 24,
-    alignItems: 'center'
-  },
-  emptyText: {
-    fontSize: 13,
-    color: '#6b7280',
-    marginBottom: 6
-  },
-  emptyActionText: {
-    fontSize: 13,
-    color: '#16a34a',
-    fontWeight: 'bold'
-  },
-  treeCard: {
-    flexDirection: 'row',
-    backgroundColor: '#ffffff',
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 8,
-    alignItems: 'center',
-    elevation: 1
-  },
-  treeThumb: {
-    width: 50,
-    height: 50,
-    borderRadius: 6
-  },
-  treeThumbPlaceholder: {
-    backgroundColor: '#dcfce7',
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  treeInfo: {
-    flex: 1,
-    marginLeft: 10
-  },
-  treeSpecies: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: '#111827'
-  },
-  treeLocation: {
-    fontSize: 11,
-    color: '#4b5563',
-    marginTop: 1
-  },
-  treeDate: {
-    fontSize: 10,
-    color: '#9ca3af',
-    marginTop: 1
-  },
-  treeError: {
-    fontSize: 10,
-    color: '#dc2626',
-    marginTop: 2
-  },
-  treeStatusBadge: {
-    paddingLeft: 6
-  },
-  treeStatusText: {
-    fontSize: 10,
-    fontWeight: 'bold'
-  },
-  statusSynced: {
-    color: '#16a34a'
-  },
-  statusPending: {
-    color: '#ea580c'
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#111827',
+  speciesBadgeRow: {
     marginBottom: 4
   },
-  sectionDescription: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginBottom: 12
-  },
-  catalogCard: {
-    flexDirection: 'row',
-    backgroundColor: '#ffffff',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 8,
-    alignItems: 'center',
-    elevation: 1
-  },
-  catalogIcon: {
-    fontSize: 28,
-    marginRight: 10
-  },
-  catalogBody: {
-    flex: 1
-  },
-  catalogName: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#1f2937'
-  },
-  catalogScientific: {
-    fontSize: 11,
-    fontStyle: 'italic',
-    color: '#6b7280'
-  },
-  catalogTag: {
-    fontSize: 10,
-    color: '#059669',
-    backgroundColor: '#ecfdf5',
-    alignSelf: 'flex-start',
+  speciesTagBadge: {
+    fontSize: 8,
+    fontWeight: '800',
+    backgroundColor: '#dcfce7',
+    color: '#15803d',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
-    marginTop: 4,
+    alignSelf: 'flex-start'
+  },
+  speciesTagInvasive: {
+    backgroundColor: '#fee2e2',
+    color: '#b91c1c'
+  },
+  speciesCardTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0f172a'
+  },
+  speciesCardScientific: {
+    fontSize: 10,
+    fontStyle: 'italic',
+    color: '#64748b',
+    marginTop: 1
+  },
+  speciesSightings: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#0284c7',
+    marginTop: 6
+  },
+  communitiesContent: {
+    padding: 16,
+    paddingBottom: 40
+  },
+  communitiesHeaderCard: {
+    backgroundColor: '#ffffff',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 14
+  },
+  communitiesTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#0f172a'
+  },
+  communitiesSubtitle: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 4
+  },
+  communityCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 14,
+    elevation: 2
+  },
+  communityBanner: {
+    width: '100%',
+    height: 120,
+    backgroundColor: '#cbd5e1'
+  },
+  communityBody: {
+    padding: 14
+  },
+  communityLocationBadge: {
+    backgroundColor: '#e0f2fe',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+    marginBottom: 6
+  },
+  communityLocationText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#0369a1'
+  },
+  communityName: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0f172a'
+  },
+  communityDesc: {
+    fontSize: 12,
+    color: '#475569',
+    lineHeight: 16,
+    marginTop: 4
+  },
+  communityStatsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginVertical: 12,
+    backgroundColor: '#f8fafc',
+    padding: 10,
+    borderRadius: 8
+  },
+  cStatItem: {
+    flex: 1,
+    alignItems: 'center'
+  },
+  cStatNum: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0f172a'
+  },
+  cStatLabel: {
+    fontSize: 9,
+    color: '#64748b',
+    marginTop: 2
+  },
+  communityTagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 12
+  },
+  communityTag: {
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4
+  },
+  communityTagText: {
+    fontSize: 10,
+    color: '#64748b',
     fontWeight: '600'
   },
-  catalogSelectText: {
+  joinCommunityBtn: {
+    backgroundColor: '#15803d',
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center'
+  },
+  joinCommunityBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '800'
+  },
+  profileContent: {
+    padding: 16,
+    paddingBottom: 40
+  },
+  profileHeaderCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 14
+  },
+  avatarCircle: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: '#dcfce7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: '#86efac',
+    marginBottom: 10
+  },
+  avatarInitials: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#15803d'
+  },
+  profileName: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0f172a'
+  },
+  profileEmail: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 2
+  },
+  profileTerritoryPill: {
+    backgroundColor: '#e0f2fe',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 9999,
+    marginTop: 8
+  },
+  profileTerritoryText: {
     fontSize: 11,
-    color: '#16a34a',
-    fontWeight: 'bold'
+    fontWeight: '700',
+    color: '#0369a1'
+  },
+  outboxSectionCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 14
+  },
+  outboxHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10
+  },
+  outboxTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0f172a'
+  },
+  outboxSubtitle: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 2
+  },
+  syncTriggerBtn: {
+    backgroundColor: '#0284c7',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8
+  },
+  syncTriggerBtnDisabled: {
+    opacity: 0.6
+  },
+  syncTriggerBtnText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '800'
+  },
+  syncProgressContainer: {
+    backgroundColor: '#f0fdf4',
+    padding: 8,
+    borderRadius: 6,
+    marginBottom: 10
+  },
+  syncProgressText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#15803d',
+    textAlign: 'center'
+  },
+  emptyOutboxBox: {
+    paddingVertical: 14,
+    alignItems: 'center'
+  },
+  emptyOutboxText: {
+    fontSize: 11,
+    color: '#94a3b8'
+  },
+  treeOutboxItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9'
+  },
+  treeOutboxLeft: {
+    flex: 1
+  },
+  treeOutboxName: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0f172a'
+  },
+  treeOutboxDetails: {
+    fontSize: 10,
+    color: '#64748b',
+    marginTop: 1
+  },
+  treeStatusBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4
+  },
+  statusPending: {
+    backgroundColor: '#fef3c7'
+  },
+  statusSynced: {
+    backgroundColor: '#dcfce7'
+  },
+  treeStatusText: {
+    fontSize: 10,
+    fontWeight: '700'
+  },
+  statusTextPending: {
+    color: '#b45309'
+  },
+  statusTextSynced: {
+    color: '#15803d'
+  },
+  settingsSectionCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0'
+  },
+  settingsTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginBottom: 10
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end'
+  },
+  modalCard: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '85%',
+    overflow: 'hidden'
+  },
+  modalBannerImg: {
+    width: '100%',
+    height: 180,
+    backgroundColor: '#e2e8f0'
+  },
+  modalCloseBtn: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10
+  },
+  modalCloseBtnText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '800'
+  },
+  modalBodyScroll: {
+    padding: 16,
+    paddingBottom: 40
+  },
+  modalHeaderInfo: {
+    marginBottom: 14
+  },
+  modalSpeciesName: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#0f172a'
+  },
+  modalScientific: {
+    fontSize: 14,
+    fontStyle: 'italic',
+    color: '#64748b',
+    marginTop: 2
+  },
+  modalBadgesRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8
+  },
+  modalBadge: {
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6
+  },
+  modalBadgeInvasive: {
+    backgroundColor: '#fee2e2'
+  },
+  modalBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569'
+  },
+  modalSection: {
+    marginBottom: 12
+  },
+  modalSectionTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#15803d',
+    marginBottom: 4
+  },
+  modalSectionText: {
+    fontSize: 12,
+    color: '#334155',
+    lineHeight: 18
+  },
+  modalRegisterActionBtn: {
+    backgroundColor: '#15803d',
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 10
+  },
+  modalRegisterActionBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '800'
+  },
+  bottomTabBar: {
+    height: 64,
+    flexDirection: 'row',
+    backgroundColor: '#ffffff',
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+    paddingBottom: Platform.OS === 'ios' ? 12 : 6,
+    paddingTop: 6
+  },
+  tabBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  tabBtnCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -14
+  },
+  tabCenterCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#15803d',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#15803d',
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4
+  },
+  tabCenterIcon: {
+    fontSize: 20,
+    color: '#ffffff'
+  },
+  tabIcon: {
+    fontSize: 18,
+    color: '#94a3b8'
+  },
+  tabIconActive: {
+    color: '#15803d'
+  },
+  tabLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#64748b',
+    marginTop: 2
+  },
+  tabLabelActive: {
+    color: '#15803d'
   }
 });
