@@ -33,3 +33,6 @@ venv/
 
 # Raw media folder
 eco/
+
+# Expo
+.expo/
