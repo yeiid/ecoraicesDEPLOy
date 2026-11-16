@@ -94,9 +94,15 @@ export default function App() {
   const [serverUrl, setServerUrl] = useState(DEFAULT_API_BASE_URL);
   const [userName, setUserName] = useState('Yelfran David Hernández Iguaran');
   const [userEmail, setUserEmail] = useState('yelfrandavid@gmail.com');
+  const [userUsername, setUserUsername] = useState('yelfrandavid');
+  const [userRole, setUserRole] = useState('Guardabosques Comunitario');
   const [userTerritory, setUserTerritory] = useState('Riohacha');
+  const [userBio, setUserBio] = useState('Comprometido con la reforestación y conservación del Bosque Seco Tropical en La Guajira.');
   const [token, setToken] = useState('');
   const [remoteTrees, setRemoteTrees] = useState([]);
+  const [showTerritoryModal, setShowTerritoryModal] = useState(false);
+  const [profileSaveBanner, setProfileSaveBanner] = useState(null);
+  const [profileSubTab, setProfileSubTab] = useState('datos'); // 'datos' | 'arboles' | 'medallas' | 'outbox'
 
   // Modal Ficha Botánica Detallada
   const [selectedSpeciesDetail, setSelectedSpeciesDetail] = useState(null);
@@ -110,6 +116,21 @@ export default function App() {
     // 2. Cargar preferencias persistidas
     AsyncStorage.getItem('ecoraices_server_url').then((val) => {
       if (val) setServerUrl(val);
+    });
+    AsyncStorage.getItem('ecoraices_user_name').then((val) => {
+      if (val) setUserName(val);
+    });
+    AsyncStorage.getItem('ecoraices_user_email').then((val) => {
+      if (val) setUserEmail(val);
+    });
+    AsyncStorage.getItem('ecoraices_user_username').then((val) => {
+      if (val) setUserUsername(val);
+    });
+    AsyncStorage.getItem('ecoraices_user_role').then((val) => {
+      if (val) setUserRole(val);
+    });
+    AsyncStorage.getItem('ecoraices_user_bio').then((val) => {
+      if (val) setUserBio(val);
     });
     AsyncStorage.getItem('ecoraices_user_territory').then((val) => {
       if (val) {
@@ -128,6 +149,24 @@ export default function App() {
     loadLiveSpeciesCatalog();
     fetchRemoteObservations();
   }, []);
+
+  const handleSaveProfile = async () => {
+    try {
+      await AsyncStorage.multiSet([
+        ['ecoraices_user_name', userName],
+        ['ecoraices_user_email', userEmail],
+        ['ecoraices_user_username', userUsername],
+        ['ecoraices_user_territory', userTerritory],
+        ['ecoraices_user_bio', userBio],
+        ['ecoraices_user_role', userRole]
+      ]);
+      setMunicipio(userTerritory);
+      setProfileSaveBanner('✓ Perfil y territorio de La Guajira actualizados exitosamente');
+      setTimeout(() => setProfileSaveBanner(null), 3500);
+    } catch (err) {
+      console.warn('Error guardando perfil:', err);
+    }
+  };
 
   const refreshStats = async () => {
     try {
@@ -501,10 +540,10 @@ export default function App() {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.heroActionBtn, { backgroundColor: '#334155' }]}
-                  onPress={() => setActiveTab('communities')}
+                  style={[styles.heroActionBtn, { backgroundColor: '#0f766e' }]}
+                  onPress={() => setActiveTab('about')}
                 >
-                  <Text style={styles.heroActionBtnText}>👥 Comunidades</Text>
+                  <Text style={styles.heroActionBtnText}>🌿 Sobre Nosotros</Text>
                 </TouchableOpacity>
               </View>
 
@@ -599,6 +638,148 @@ export default function App() {
                 <Text style={styles.bosqueSecoTitle}>{CONOCE_ECORAICES.bosqueSeco.titulo}</Text>
                 <Text style={styles.bosqueSecoDesc}>{CONOCE_ECORAICES.bosqueSeco.descripcion}</Text>
               </View>
+
+              <TouchableOpacity
+                style={styles.conoceVerMasBtn}
+                onPress={() => setActiveTab('about')}
+              >
+                <Text style={styles.conoceVerMasBtnText}>Conoce más sobre nuestra misión y visión →</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        )}
+
+        {/* ============================================================== */}
+        {/* SOBRE NOSOTROS (MIRROR OFICIAL DE nosotros.astro EN MOBILE)    */}
+        {/* ============================================================== */}
+        {activeTab === 'about' && (
+          <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.aboutContent}>
+            {/* Botón Volver al Inicio */}
+            <TouchableOpacity style={styles.aboutBackBtn} onPress={() => setActiveTab('home')}>
+              <Ionicons name="arrow-back" size={18} color="#15803d" />
+              <Text style={styles.aboutBackBtnText}>Volver al Inicio</Text>
+            </TouchableOpacity>
+
+            {/* Hero Header */}
+            <View style={styles.aboutHeroHeader}>
+              <View style={styles.aboutSubBadge}>
+                <Text style={styles.aboutSubBadgeText}>NUESTRA ORGANIZACIÓN</Text>
+              </View>
+              <Text style={styles.aboutTitle}>
+                Conoce <Text style={{ color: '#15803d' }}>EcoRaíces</Text>
+              </Text>
+              <Text style={styles.aboutTagline}>
+                Uniendo tecnología geoespacial y ciencia comunitaria para proteger el bosque seco tropical guajiro.
+              </Text>
+            </View>
+
+            {/* Misión y Visión */}
+            <View style={styles.aboutMissionCards}>
+              <View style={styles.aboutInfoCard}>
+                <View style={[styles.aboutCardIconBox, { backgroundColor: '#dcfce7' }]}>
+                  <Text style={{ fontSize: 24 }}>🌍</Text>
+                </View>
+                <Text style={styles.aboutCardTitle}>Nuestra Misión</Text>
+                <Text style={styles.aboutCardText}>
+                  Geolocalizar, catalogar y documentar las especies arbóreas de las plazas, calles y veredas de los municipios de La Guajira, empoderando a las comunidades mediante herramientas digitales de ciencia ciudadana para combatir el cambio climático y valorar nuestra biodiversidad local.
+                </Text>
+              </View>
+
+              <View style={styles.aboutInfoCard}>
+                <View style={[styles.aboutCardIconBox, { backgroundColor: '#e0f2fe' }]}>
+                  <Text style={{ fontSize: 24 }}>🔭</Text>
+                </View>
+                <Text style={styles.aboutCardTitle}>Nuestra Visión</Text>
+                <Text style={styles.aboutCardText}>
+                  Convertirnos para el 2030 en el inventario forestal urbano colaborativo y abierto más grande del Caribe colombiano, sirviendo de base científica para planes de ordenamiento territorial, reforestación estratégica y educación ambiental escolar en toda la península.
+                </Text>
+              </View>
+            </View>
+
+            {/* Spotlight: El Tesoro del Bosque Seco Tropical */}
+            <View style={styles.aboutSpotlightCard}>
+              <Image
+                source={require('./assets/guajira-banner.webp')}
+                style={styles.aboutSpotlightBanner}
+                resizeMode="cover"
+              />
+              <View style={styles.aboutSpotlightBody}>
+                <View style={styles.aboutSpotlightBadge}>
+                  <Text style={styles.aboutSpotlightBadgeText}>EL DESAFÍO ECOLÓGICO</Text>
+                </View>
+                <Text style={styles.aboutSpotlightTitle}>El Tesoro del Bosque Seco Tropical</Text>
+                <Text style={styles.aboutSpotlightDesc}>
+                  La Guajira alberga el amenazado ecosistema del Bosque Seco Tropical (Bs-T). Especies majestuosas y extremadamente resistentes como el Cují, el Guayacán y la Ceiba Bonga son verdaderos reguladores térmicos urbanos. Cada árbol mapeado en nuestra plataforma aporta datos críticos sobre su salud botánica.
+                </Text>
+
+                <View style={styles.aboutBulletList}>
+                  <View style={styles.aboutBulletItem}>
+                    <Text style={styles.aboutBulletCheck}>✓</Text>
+                    <Text style={styles.aboutBulletText}>
+                      <Text style={{ fontWeight: '800', color: '#0f172a' }}>Termorregulación: </Text>
+                      Disminución del efecto isla de calor urbana en Riohacha, Maicao y Uribia.
+                    </Text>
+                  </View>
+
+                  <View style={styles.aboutBulletItem}>
+                    <Text style={styles.aboutBulletCheck}>✓</Text>
+                    <Text style={styles.aboutBulletText}>
+                      <Text style={{ fontWeight: '800', color: '#0f172a' }}>Cultura Wayuu: </Text>
+                      Valoración de especies de alto interés etnobotánico tradicional.
+                    </Text>
+                  </View>
+
+                  <View style={styles.aboutBulletItem}>
+                    <Text style={styles.aboutBulletCheck}>✓</Text>
+                    <Text style={styles.aboutBulletText}>
+                      <Text style={{ fontWeight: '800', color: '#0f172a' }}>Monitoreo de Amenazas: </Text>
+                      Detección temprana de plagas o talas indebidas en zonas públicas.
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            {/* Pilares Técnicos */}
+            <Text style={styles.aboutSectionTitle}>Nuestros Pilares Técnicos</Text>
+            <View style={styles.aboutPillarsList}>
+              <View style={styles.aboutPillarItem}>
+                <Text style={styles.aboutPillarNum}>01</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.aboutPillarHead}>Georreferenciación de Precisión</Text>
+                  <Text style={styles.aboutPillarText}>
+                    Utilizamos el GPS integrado en dispositivos móviles para ubicar cada ejemplar con precisión submétrica y base de datos SQLite local offline.
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.aboutPillarItem}>
+                <Text style={styles.aboutPillarNum}>02</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.aboutPillarHead}>Mapeo 3D Dinámico</Text>
+                  <Text style={styles.aboutPillarText}>
+                    Renderizamos volumetrías tridimensionales de copas arbóreas mediante teselas vectoriales servidas desde infraestructura propia.
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.aboutPillarItem}>
+                <Text style={styles.aboutPillarNum}>03</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.aboutPillarHead}>Curaduría Científica & Comunidad</Text>
+                  <Text style={styles.aboutPillarText}>
+                    Validación comunitaria en articulación con sabedores tradicionales Wayuu y autoridades botánicas territoriales.
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Footer institucional */}
+            <View style={styles.aboutFooter}>
+              <Image source={require('./assets/eco.png')} style={{ width: 40, height: 40, marginBottom: 8 }} resizeMode="contain" />
+              <Text style={styles.aboutFooterTitle}>ECORAÍCES GUAJIRA</Text>
+              <Text style={styles.aboutFooterText}>Plataforma de Ciencia Ciudadana y Monitoreo Biocultural</Text>
+              <Text style={styles.aboutFooterCopy}>© 2026 NeuralJira Tech • Riohacha, Colombia</Text>
             </View>
           </ScrollView>
         )}
@@ -994,6 +1175,9 @@ export default function App() {
         {/* ============================================================== */}
         {/* 6. PERFIL Y SISTEMA COMPLETO DE MEDALLAS (PANEL 8)             */}
         {/* ============================================================== */}
+        {/* ============================================================== */}
+        {/* 6. PERFIL Y SISTEMA COMPLETO DE MEDALLAS (MIRROR DE LA WEB)   */}
+        {/* ============================================================== */}
         {activeTab === 'profile' && (
           <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.profileContent}>
             {/* Header del Perfil */}
@@ -1003,135 +1187,385 @@ export default function App() {
                   {userName.split(' ').map((n) => n[0]).join('').substring(0, 2)}
                 </Text>
               </View>
-              <Text style={styles.profileName}>{userName}</Text>
-              <Text style={styles.profileEmail}>{userEmail}</Text>
-              <View style={styles.profileTerritoryPill}>
-                <Text style={styles.profileTerritoryText}>📍 {userTerritory}, La Guajira</Text>
-              </View>
-            </View>
-
-            {/* SECCIÓN DE MEDALLAS Y LOGROS GAMIFICADOS */}
-            <View style={styles.medalsFullCard}>
-              <View style={styles.medalsCardHeader}>
-                <Ionicons name="trophy" size={20} color="#d97706" />
-                <Text style={styles.medalsCardTitle}>Sistema de Medallas & Logros</Text>
-              </View>
-              <Text style={styles.medalsCardSubtitle}>
-                {gamification.unlockedCount} de {gamification.totalMedals} desbloqueadas • Rango: {gamification.currentRank.titulo}
-              </Text>
-
-              {/* Tarjetas de Medallas en Cuadrícula */}
-              <View style={styles.medalsGrid}>
-                {gamification.medals.map((m) => (
-                  <View key={m.id} style={[styles.medalGridItem, !m.unlocked && styles.medalGridItemLocked]}>
-                    <Text style={styles.medalGridIcon}>{m.unlocked ? m.icon : '🔒'}</Text>
-                    <Text style={[styles.medalGridTitle, !m.unlocked && { color: '#94a3b8' }]}>{m.title}</Text>
-                    <Text style={styles.medalGridDesc}>{m.description}</Text>
-                    <View style={styles.medalPointsTag}>
-                      <Text style={styles.medalPointsText}>+{m.points} pts</Text>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            </View>
-
-            {/* Impacto Ambiental Estimado */}
-            <View style={styles.ecoImpactCard}>
-              <Text style={styles.ecoImpactTitle}>🌱 Tu Impacto Ambiental Acumulado</Text>
-              <View style={styles.ecoImpactRow}>
-                <View style={styles.ecoImpactItem}>
-                  <Text style={styles.ecoImpactNum}>{gamification.environmentalImpact.co2AbsorbedKg} kg</Text>
-                  <Text style={styles.ecoImpactLabel}>CO2 Estimado Fijado</Text>
-                </View>
-                <View style={styles.ecoImpactItem}>
-                  <Text style={[styles.ecoImpactNum, { color: '#0284c7' }]}>
-                    {gamification.environmentalImpact.waterProtectedLitres} L
-                  </Text>
-                  <Text style={styles.ecoImpactLabel}>Agua Protegida en Suelo</Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Cola de Sincronización Outbox */}
-            <View style={styles.outboxSectionCard}>
-              <View style={styles.outboxHeaderRow}>
-                <View>
-                  <Text style={styles.outboxTitle}>Cola de Sincronización Outbox</Text>
-                  <Text style={styles.outboxSubtitle}>
-                    {stats.pending} pendientes • {stats.synced} subidos a Dokploy
-                  </Text>
-                </View>
+              <View style={styles.profileHeaderInfo}>
+                <Text style={styles.profileName}>{userName}</Text>
+                <Text style={styles.profileSubtitle}>
+                  @{userUsername} • {userRole}
+                </Text>
                 <TouchableOpacity
-                  style={[styles.syncTriggerBtn, isSyncing && styles.syncTriggerBtnDisabled]}
-                  onPress={handleStartSync}
-                  disabled={isSyncing}
+                  style={styles.profileTerritoryPill}
+                  onPress={() => setShowTerritoryModal(true)}
                 >
-                  {isSyncing ? (
-                    <ActivityIndicator size="small" color="#ffffff" />
-                  ) : (
-                    <Text style={styles.syncTriggerBtnText}>⚡ Sincronizar</Text>
-                  )}
+                  <Text style={styles.profileTerritoryText}>📍 {userTerritory}, La Guajira</Text>
+                  <Ionicons name="create-outline" size={14} color="#15803d" style={{ marginLeft: 4 }} />
                 </TouchableOpacity>
               </View>
+            </View>
 
-              {syncProgress && (
-                <View style={styles.syncProgressContainer}>
-                  <Text style={styles.syncProgressText}>
-                    Subiendo {syncProgress.current} de {syncProgress.total} árboles...
+            {/* Sub-Tabs de Navegación de Perfil */}
+            <View style={styles.profileSubTabsBar}>
+              <TouchableOpacity
+                style={[styles.profileSubTabBtn, profileSubTab === 'datos' && styles.profileSubTabActive]}
+                onPress={() => setProfileSubTab('datos')}
+              >
+                <Text style={[styles.profileSubTabText, profileSubTab === 'datos' && styles.profileSubTabTextActive]}>
+                  👤 Datos
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.profileSubTabBtn, profileSubTab === 'arboles' && styles.profileSubTabActive]}
+                onPress={() => setProfileSubTab('arboles')}
+              >
+                <Text style={[styles.profileSubTabText, profileSubTab === 'arboles' && styles.profileSubTabTextActive]}>
+                  🌳 Árboles ({outboxTrees.length + remoteTrees.length})
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.profileSubTabBtn, profileSubTab === 'medallas' && styles.profileSubTabActive]}
+                onPress={() => setProfileSubTab('medallas')}
+              >
+                <Text style={[styles.profileSubTabText, profileSubTab === 'medallas' && styles.profileSubTabTextActive]}>
+                  🏆 Logros
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.profileSubTabBtn, profileSubTab === 'outbox' && styles.profileSubTabActive]}
+                onPress={() => setProfileSubTab('outbox')}
+              >
+                <Text style={[styles.profileSubTabText, profileSubTab === 'outbox' && styles.profileSubTabTextActive]}>
+                  ⚙️ Sync ({stats.pending})
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Banner de confirmación al guardar perfil */}
+            {profileSaveBanner && (
+              <View style={styles.profileSaveAlertBox}>
+                <Text style={styles.profileSaveAlertText}>{profileSaveBanner}</Text>
+              </View>
+            )}
+
+            {/* PESTAÑA 1: DATOS & TERRITORIO (ESTILO WEB perfil/index.astro) */}
+            {profileSubTab === 'datos' && (
+              <View style={styles.profileFormCard}>
+                <View style={styles.profileSectionHead}>
+                  <Text style={styles.profileSectionTitle}>Editar Perfil & Territorio</Text>
+                  <Text style={styles.profileSectionSubtitle}>
+                    Personaliza tus datos de guardabosques e integración comunitaria.
                   </Text>
                 </View>
-              )}
 
-              {outboxTrees.length === 0 ? (
-                <View style={styles.emptyOutboxBox}>
-                  <Text style={styles.emptyOutboxText}>No hay árboles pendientes en la base de datos local.</Text>
+                {/* Campo: Nombre */}
+                <View style={styles.formFieldGroup}>
+                  <Text style={styles.formFieldLabel}>Nombre Completo</Text>
+                  <TextInput
+                    style={styles.formFieldInput}
+                    value={userName}
+                    onChangeText={setUserName}
+                    placeholder="Tu nombre completo"
+                    placeholderTextColor="#94a3b8"
+                  />
                 </View>
-              ) : (
-                outboxTrees.slice(0, 5).map((tree) => (
-                  <View key={tree.id} style={styles.treeOutboxItem}>
-                    <View style={styles.treeOutboxLeft}>
-                      <Text style={styles.treeOutboxName}>{tree.species_name}</Text>
-                      <Text style={styles.treeOutboxDetails}>
-                        📍 {tree.municipality} • Lat: {tree.latitude.toFixed(4)}, Lng: {tree.longitude.toFixed(4)}
-                      </Text>
+
+                {/* Campo: Usuario */}
+                <View style={styles.formFieldGroup}>
+                  <Text style={styles.formFieldLabel}>Nombre de Usuario</Text>
+                  <View style={styles.formFieldInputPrefixBox}>
+                    <Text style={styles.formFieldPrefixText}>@</Text>
+                    <TextInput
+                      style={styles.formFieldInputWithPrefix}
+                      value={userUsername}
+                      onChangeText={setUserUsername}
+                      placeholder="usuario"
+                      placeholderTextColor="#94a3b8"
+                      autoCapitalize="none"
+                    />
+                  </View>
+                </View>
+
+                {/* Campo: Correo */}
+                <View style={styles.formFieldGroup}>
+                  <Text style={styles.formFieldLabel}>Correo Electrónico</Text>
+                  <TextInput
+                    style={styles.formFieldInput}
+                    value={userEmail}
+                    onChangeText={setUserEmail}
+                    placeholder="correo@ejemplo.com"
+                    placeholderTextColor="#94a3b8"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                </View>
+
+                {/* Campo: Municipio / Territorio (La Guajira) */}
+                <View style={styles.formFieldGroup}>
+                  <Text style={styles.formFieldLabel}>Municipio / Territorio (La Guajira)</Text>
+                  <TouchableOpacity
+                    style={styles.territorySelectorBtn}
+                    onPress={() => setShowTerritoryModal(true)}
+                  >
+                    <View style={styles.territorySelectorContent}>
+                      <Text style={{ fontSize: 18 }}>📍</Text>
+                      <Text style={styles.territorySelectorValue}>{userTerritory}</Text>
                     </View>
-                    <View
-                      style={[
-                        styles.treeStatusBadge,
-                        tree.sync_status === 'SYNCED' ? styles.statusSynced : styles.statusPending
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.treeStatusText,
-                          tree.sync_status === 'SYNCED' ? styles.statusTextSynced : styles.statusTextPending
-                        ]}
-                      >
-                        {tree.sync_status === 'SYNCED' ? '✓ Subido' : '⏳ En Cola'}
+                    <Ionicons name="chevron-down" size={18} color="#64748b" />
+                  </TouchableOpacity>
+                  <Text style={styles.territoryHelperText}>
+                    Tu territorio nos permite conectarte con las comunidades locales y observaciones de tu zona.
+                  </Text>
+                </View>
+
+                {/* Campo: Rol */}
+                <View style={styles.formFieldGroup}>
+                  <Text style={styles.formFieldLabel}>Rol / Ocupación Comunitaria</Text>
+                  <TextInput
+                    style={styles.formFieldInput}
+                    value={userRole}
+                    onChangeText={setUserRole}
+                    placeholder="Ej. Guardabosques, Investigador, Líder Comunitario"
+                    placeholderTextColor="#94a3b8"
+                  />
+                </View>
+
+                {/* Campo: Biografía */}
+                <View style={styles.formFieldGroup}>
+                  <Text style={styles.formFieldLabel}>Biografía</Text>
+                  <TextInput
+                    style={[styles.formFieldInput, styles.formFieldTextarea]}
+                    value={userBio}
+                    onChangeText={setUserBio}
+                    placeholder="Cuéntanos sobre tu labor de conservación en territorio..."
+                    placeholderTextColor="#94a3b8"
+                    multiline
+                    numberOfLines={3}
+                  />
+                </View>
+
+                {/* Botón Guardar Cambios */}
+                <TouchableOpacity style={styles.btnSaveProfile} onPress={handleSaveProfile}>
+                  <Ionicons name="checkmark-circle" size={18} color="#ffffff" style={{ marginRight: 6 }} />
+                  <Text style={styles.btnSaveProfileText}>Guardar Cambios de Perfil</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* PESTAÑA 2: MIS ÁRBOLES CENSADOS */}
+            {profileSubTab === 'arboles' && (
+              <View style={styles.profileObservationsCard}>
+                <View style={styles.profileObsHeaderRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.profileSectionTitle}>Mis Árboles Registrados</Text>
+                    <Text style={styles.profileSectionSubtitle}>
+                      {outboxTrees.length + remoteTrees.length} árboles censados en La Guajira
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.btnNuevaObsMini}
+                    onPress={() => setActiveTab('capture')}
+                  >
+                    <Text style={styles.btnNuevaObsMiniText}>+ Censar Árbol</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {outboxTrees.length === 0 && remoteTrees.length === 0 ? (
+                  <View style={styles.emptyObsBox}>
+                    <Text style={styles.emptyObsIcon}>🌿</Text>
+                    <Text style={styles.emptyObsTitle}>Aún no has registrado árboles</Text>
+                    <Text style={styles.emptyObsText}>
+                      Usa la pestaña Campo para georreferenciar tu primer árbol en La Guajira.
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.obsItemsList}>
+                    {/* Árboles locales pendientes en SQLite */}
+                    {outboxTrees.map((tree) => (
+                      <View key={`outbox-${tree.id}`} style={styles.obsItemRow}>
+                        <View style={styles.obsThumbBox}>
+                          <Text style={{ fontSize: 22 }}>🌳</Text>
+                        </View>
+                        <View style={styles.obsInfoBox}>
+                          <Text style={styles.obsSpeciesName}>{tree.species_name}</Text>
+                          <Text style={styles.obsLocationText}>
+                            📍 {tree.municipality} • Lat: {tree.latitude.toFixed(4)}, Lng: {tree.longitude.toFixed(4)}
+                          </Text>
+                          <Text style={styles.obsDateText}>
+                            {new Date(tree.created_at || Date.now()).toLocaleDateString('es-CO')}
+                          </Text>
+                        </View>
+                        <View
+                          style={[
+                            styles.obsStatusBadge,
+                            tree.sync_status === 'SYNCED' ? styles.statusSynced : styles.statusPending
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.obsStatusBadgeText,
+                              tree.sync_status === 'SYNCED' ? styles.statusTextSynced : styles.statusTextPending
+                            ]}
+                          >
+                            {tree.sync_status === 'SYNCED' ? '✓ Subido' : '⏳ SQLite'}
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+
+                    {/* Árboles remotos del servidor */}
+                    {remoteTrees.map((rt) => (
+                      <View key={`remote-${rt.id}`} style={styles.obsItemRow}>
+                        <View style={styles.obsThumbBox}>
+                          <Text style={{ fontSize: 22 }}>🌿</Text>
+                        </View>
+                        <View style={styles.obsInfoBox}>
+                          <Text style={styles.obsSpeciesName}>{rt.species_name}</Text>
+                          <Text style={styles.obsLocationText}>
+                            📍 {rt.municipality} • Lat: {rt.latitude.toFixed(4)}, Lng: {rt.longitude.toFixed(4)}
+                          </Text>
+                          <Text style={styles.obsDateText}>
+                            {rt.created_at ? new Date(rt.created_at).toLocaleDateString('es-CO') : 'Verificado'}
+                          </Text>
+                        </View>
+                        <View style={[styles.obsStatusBadge, styles.statusSynced]}>
+                          <Text style={[styles.obsStatusBadgeText, styles.statusTextSynced]}>✓ Aprobada</Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* PESTAÑA 3: MEDALLAS & GAMIFICACIÓN */}
+            {profileSubTab === 'medallas' && (
+              <>
+                <View style={styles.medalsFullCard}>
+                  <View style={styles.medalsCardHeader}>
+                    <Ionicons name="trophy" size={20} color="#d97706" />
+                    <Text style={styles.medalsCardTitle}>Sistema de Medallas & Logros</Text>
+                  </View>
+                  <Text style={styles.medalsCardSubtitle}>
+                    {gamification.unlockedCount} de {gamification.totalMedals} desbloqueadas • Rango: {gamification.currentRank.titulo}
+                  </Text>
+
+                  <View style={styles.medalsGrid}>
+                    {gamification.medals.map((m) => (
+                      <View key={m.id} style={[styles.medalGridItem, !m.unlocked && styles.medalGridItemLocked]}>
+                        <Text style={styles.medalGridIcon}>{m.unlocked ? m.icon : '🔒'}</Text>
+                        <Text style={[styles.medalGridTitle, !m.unlocked && { color: '#94a3b8' }]}>{m.title}</Text>
+                        <Text style={styles.medalGridDesc}>{m.description}</Text>
+                        <View style={styles.medalPointsTag}>
+                          <Text style={styles.medalPointsText}>+{m.points} pts</Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Impacto Ambiental Estimado */}
+                <View style={styles.ecoImpactCard}>
+                  <Text style={styles.ecoImpactTitle}>🌱 Tu Impacto Ambiental Acumulado</Text>
+                  <View style={styles.ecoImpactRow}>
+                    <View style={styles.ecoImpactItem}>
+                      <Text style={styles.ecoImpactNum}>{gamification.environmentalImpact.co2AbsorbedKg} kg</Text>
+                      <Text style={styles.ecoImpactLabel}>CO2 Estimado Fijado</Text>
+                    </View>
+                    <View style={styles.ecoImpactItem}>
+                      <Text style={[styles.ecoImpactNum, { color: '#0284c7' }]}>
+                        {gamification.environmentalImpact.waterProtectedLitres} L
                       </Text>
+                      <Text style={styles.ecoImpactLabel}>Agua Protegida en Suelo</Text>
                     </View>
                   </View>
-                ))
-              )}
-            </View>
+                </View>
+              </>
+            )}
 
-            {/* Ajustes de Servidor */}
-            <View style={styles.settingsSectionCard}>
-              <Text style={styles.settingsTitle}>Configuración de Conexión</Text>
-              
-              <View style={styles.inputGroup}>
-                <Text style={styles.fieldLabel}>URL del Servidor Dokploy:</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={serverUrl}
-                  onChangeText={(val) => {
-                    setServerUrl(val);
-                    AsyncStorage.setItem('ecoraices_server_url', val);
-                  }}
-                  placeholder="https://ecoraices.neuraljira.tech"
-                />
-              </View>
-            </View>
+            {/* PESTAÑA 4: SINCRONIZACIÓN OUTBOX & SERVIDOR DOKPLOY */}
+            {profileSubTab === 'outbox' && (
+              <>
+                <View style={styles.outboxSectionCard}>
+                  <View style={styles.outboxHeaderRow}>
+                    <View>
+                      <Text style={styles.outboxTitle}>Cola de Sincronización Outbox</Text>
+                      <Text style={styles.outboxSubtitle}>
+                        {stats.pending} pendientes • {stats.synced} subidos a Dokploy
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.syncTriggerBtn, isSyncing && styles.syncTriggerBtnDisabled]}
+                      onPress={handleStartSync}
+                      disabled={isSyncing}
+                    >
+                      {isSyncing ? (
+                        <ActivityIndicator size="small" color="#ffffff" />
+                      ) : (
+                        <Text style={styles.syncTriggerBtnText}>⚡ Sincronizar</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+
+                  {syncProgress && (
+                    <View style={styles.syncProgressContainer}>
+                      <Text style={styles.syncProgressText}>
+                        Subiendo {syncProgress.current} de {syncProgress.total} árboles...
+                      </Text>
+                    </View>
+                  )}
+
+                  {outboxTrees.length === 0 ? (
+                    <View style={styles.emptyOutboxBox}>
+                      <Text style={styles.emptyOutboxText}>No hay árboles pendientes en la base de datos local SQLite.</Text>
+                    </View>
+                  ) : (
+                    outboxTrees.slice(0, 5).map((tree) => (
+                      <View key={tree.id} style={styles.treeOutboxItem}>
+                        <View style={styles.treeOutboxLeft}>
+                          <Text style={styles.treeOutboxName}>{tree.species_name}</Text>
+                          <Text style={styles.treeOutboxDetails}>
+                            📍 {tree.municipality} • Lat: {tree.latitude.toFixed(4)}, Lng: {tree.longitude.toFixed(4)}
+                          </Text>
+                        </View>
+                        <View
+                          style={[
+                            styles.treeStatusBadge,
+                            tree.sync_status === 'SYNCED' ? styles.statusSynced : styles.statusPending
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.treeStatusText,
+                              tree.sync_status === 'SYNCED' ? styles.statusTextSynced : styles.statusTextPending
+                            ]}
+                          >
+                            {tree.sync_status === 'SYNCED' ? '✓ Subido' : '⏳ En Cola'}
+                          </Text>
+                        </View>
+                      </View>
+                    ))
+                  )}
+                </View>
+
+                {/* Ajustes de Servidor */}
+                <View style={styles.settingsSectionCard}>
+                  <Text style={styles.settingsTitle}>Configuración de Conexión</Text>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.fieldLabel}>URL del Servidor Dokploy:</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={serverUrl}
+                      onChangeText={(val) => {
+                        setServerUrl(val);
+                        AsyncStorage.setItem('ecoraices_server_url', val);
+                      }}
+                      placeholder="https://ecoraices.neuraljira.tech"
+                    />
+                  </View>
+                </View>
+              </>
+            )}
           </ScrollView>
         )}
       </View>
@@ -1200,11 +1634,74 @@ export default function App() {
         </View>
       </Modal>
 
+      {/* Modal Selector de Municipio / Territorio de La Guajira */}
+      <Modal
+        visible={showTerritoryModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowTerritoryModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.territoryModalCard}>
+            <View style={styles.territoryModalHeader}>
+              <View>
+                <Text style={styles.territoryModalTitle}>Selecciona tu Territorio</Text>
+                <Text style={styles.territoryModalSubtitle}>Municipios y sectores de La Guajira</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.modalCloseBtn}
+                onPress={() => setShowTerritoryModal(false)}
+              >
+                <Text style={styles.modalCloseBtnText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.territoryModalList} showsVerticalScrollIndicator={true}>
+              {GUAJIRA_MUNICIPIOS.map((m) => {
+                const isSelected = userTerritory === m;
+                return (
+                  <TouchableOpacity
+                    key={m}
+                    style={[styles.territoryModalItem, isSelected && styles.territoryModalItemSelected]}
+                    onPress={() => {
+                      setUserTerritory(m);
+                      setMunicipio(m);
+                      setShowTerritoryModal(false);
+                    }}
+                  >
+                    <View style={styles.territoryItemLeft}>
+                      <Text style={{ fontSize: 16 }}>📍</Text>
+                      <Text style={[styles.territoryItemText, isSelected && styles.territoryItemTextSelected]}>
+                        {m}
+                      </Text>
+                    </View>
+                    {isSelected && (
+                      <Ionicons name="checkmark-circle" size={20} color="#15803d" />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       {/* Barra de Navegación Inferior Cockpit */}
       <View style={styles.bottomTabBar}>
         <TouchableOpacity style={styles.tabBtn} onPress={() => setActiveTab('home')}>
-          <Ionicons name="home" size={20} color={activeTab === 'home' ? '#10b981' : '#64748b'} />
-          <Text style={[styles.tabLabel, activeTab === 'home' && styles.tabLabelActive]}>Inicio</Text>
+          <Ionicons
+            name="home"
+            size={20}
+            color={(activeTab === 'home' || activeTab === 'about') ? '#10b981' : '#64748b'}
+          />
+          <Text
+            style={[
+              styles.tabLabel,
+              (activeTab === 'home' || activeTab === 'about') && styles.tabLabelActive
+            ]}
+          >
+            Inicio
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.tabBtn} onPress={() => setActiveTab('map3d')}>
@@ -2604,5 +3101,567 @@ const styles = StyleSheet.create({
   },
   tabLabelActive: {
     color: '#10b981'
+  },
+
+  // ==========================================
+  // ESTILOS: SOBRE NOSOTROS (nosotros.astro)
+  // ==========================================
+  conoceVerMasBtn: {
+    marginTop: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: '#f0fdf4',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+    alignItems: 'center'
+  },
+  conoceVerMasBtnText: {
+    color: '#15803d',
+    fontSize: 12,
+    fontWeight: '800'
+  },
+  aboutContent: {
+    padding: 16,
+    paddingBottom: 40
+  },
+  aboutBackBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginBottom: 16
+  },
+  aboutBackBtnText: {
+    color: '#15803d',
+    fontSize: 12,
+    fontWeight: '700'
+  },
+  aboutHeroHeader: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2
+  },
+  aboutSubBadge: {
+    backgroundColor: '#dcfce7',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 8
+  },
+  aboutSubBadgeText: {
+    color: '#15803d',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.5
+  },
+  aboutTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#0f172a',
+    textAlign: 'center',
+    marginBottom: 8
+  },
+  aboutTagline: {
+    fontSize: 13,
+    color: '#64748b',
+    textAlign: 'center',
+    lineHeight: 19
+  },
+  aboutMissionCards: {
+    gap: 12,
+    marginBottom: 16
+  },
+  aboutInfoCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1
+  },
+  aboutCardIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10
+  },
+  aboutCardTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginBottom: 6
+  },
+  aboutCardText: {
+    fontSize: 12,
+    color: '#475569',
+    lineHeight: 18
+  },
+  aboutSpotlightCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 20
+  },
+  aboutSpotlightBanner: {
+    width: '100%',
+    height: 150
+  },
+  aboutSpotlightBody: {
+    padding: 16
+  },
+  aboutSpotlightBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#ffedd5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginBottom: 8
+  },
+  aboutSpotlightBadgeText: {
+    color: '#c2410c',
+    fontSize: 9,
+    fontWeight: '900'
+  },
+  aboutSpotlightTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0f172a',
+    marginBottom: 8
+  },
+  aboutSpotlightDesc: {
+    fontSize: 12,
+    color: '#475569',
+    lineHeight: 18,
+    marginBottom: 12
+  },
+  aboutBulletList: {
+    gap: 10
+  },
+  aboutBulletItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8
+  },
+  aboutBulletCheck: {
+    color: '#15803d',
+    fontWeight: '900',
+    fontSize: 13
+  },
+  aboutBulletText: {
+    fontSize: 11,
+    color: '#475569',
+    flex: 1,
+    lineHeight: 16
+  },
+  aboutSectionTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0f172a',
+    marginBottom: 12
+  },
+  aboutPillarsList: {
+    gap: 10,
+    marginBottom: 24
+  },
+  aboutPillarItem: {
+    flexDirection: 'row',
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    gap: 12,
+    alignItems: 'center'
+  },
+  aboutPillarNum: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#15803d'
+  },
+  aboutPillarHead: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginBottom: 2
+  },
+  aboutPillarText: {
+    fontSize: 11,
+    color: '#64748b',
+    lineHeight: 15
+  },
+  aboutFooter: {
+    alignItems: 'center',
+    paddingVertical: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+    marginTop: 10
+  },
+  aboutFooterTitle: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#15803d',
+    letterSpacing: 0.5
+  },
+  aboutFooterText: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 2
+  },
+  aboutFooterCopy: {
+    fontSize: 10,
+    color: '#94a3b8',
+    marginTop: 6
+  },
+
+  // ==========================================
+  // ESTILOS: PERFIL REDISEÑADO & TERRITORIO
+  // ==========================================
+  profileHeaderInfo: {
+    alignItems: 'center',
+    marginTop: 6
+  },
+  profileSubtitle: {
+    fontSize: 12,
+    color: '#64748b',
+    fontWeight: '600',
+    marginTop: 2
+  },
+  profileSubTabsBar: {
+    flexDirection: 'row',
+    backgroundColor: '#f1f5f9',
+    borderRadius: 10,
+    padding: 3,
+    marginBottom: 16
+  },
+  profileSubTabBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 8
+  },
+  profileSubTabActive: {
+    backgroundColor: '#ffffff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 2
+  },
+  profileSubTabText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748b'
+  },
+  profileSubTabTextActive: {
+    color: '#15803d',
+    fontWeight: '900'
+  },
+  profileSaveAlertBox: {
+    backgroundColor: '#dcfce7',
+    borderWidth: 1,
+    borderColor: '#86efac',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 14,
+    alignItems: 'center'
+  },
+  profileSaveAlertText: {
+    color: '#15803d',
+    fontSize: 12,
+    fontWeight: '800',
+    textAlign: 'center'
+  },
+  profileFormCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 16
+  },
+  profileSectionHead: {
+    marginBottom: 14,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9'
+  },
+  profileSectionTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0f172a'
+  },
+  profileSectionSubtitle: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 2
+  },
+  formFieldGroup: {
+    marginBottom: 14
+  },
+  formFieldLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
+    marginBottom: 5
+  },
+  formFieldInput: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    fontSize: 13,
+    color: '#0f172a'
+  },
+  formFieldInputPrefixBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 8,
+    paddingHorizontal: 10
+  },
+  formFieldPrefixText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#64748b',
+    marginRight: 4
+  },
+  formFieldInputWithPrefix: {
+    flex: 1,
+    paddingVertical: 9,
+    fontSize: 13,
+    color: '#0f172a'
+  },
+  territorySelectorBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: '#86efac',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10
+  },
+  territorySelectorContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8
+  },
+  territorySelectorValue: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#15803d'
+  },
+  territoryHelperText: {
+    fontSize: 10,
+    color: '#64748b',
+    marginTop: 4,
+    lineHeight: 14
+  },
+  formFieldTextarea: {
+    minHeight: 70,
+    textAlignVertical: 'top'
+  },
+  btnSaveProfile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#15803d',
+    paddingVertical: 12,
+    borderRadius: 10,
+    marginTop: 6
+  },
+  btnSaveProfileText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '800'
+  },
+  profileObservationsCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 16
+  },
+  profileObsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9'
+  },
+  btnNuevaObsMini: {
+    backgroundColor: '#15803d',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6
+  },
+  btnNuevaObsMiniText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '800'
+  },
+  emptyObsBox: {
+    padding: 24,
+    alignItems: 'center'
+  },
+  emptyObsIcon: {
+    fontSize: 32,
+    marginBottom: 8
+  },
+  emptyObsTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0f172a'
+  },
+  emptyObsText: {
+    fontSize: 11,
+    color: '#64748b',
+    textAlign: 'center',
+    marginTop: 4
+  },
+  obsItemsList: {
+    gap: 10
+  },
+  obsItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    gap: 10
+  },
+  obsThumbBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: '#dcfce7',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  obsInfoBox: {
+    flex: 1
+  },
+  obsSpeciesName: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0f172a'
+  },
+  obsLocationText: {
+    fontSize: 10,
+    color: '#64748b',
+    marginTop: 2
+  },
+  obsDateText: {
+    fontSize: 9,
+    color: '#94a3b8',
+    marginTop: 1
+  },
+  obsStatusBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 10
+  },
+  obsStatusBadgeText: {
+    fontSize: 9,
+    fontWeight: '800'
+  },
+
+  // ==========================================
+  // ESTILOS: MODAL TERRITORIO DE LA GUAJIRA
+  // ==========================================
+  territoryModalCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    padding: 20,
+    width: '92%',
+    maxWidth: 400,
+    maxHeight: '75%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 8
+  },
+  territoryModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9'
+  },
+  territoryModalTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0f172a'
+  },
+  territoryModalSubtitle: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 2
+  },
+  territoryModalList: {
+    maxHeight: 340
+  },
+  territoryModalItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 4
+  },
+  territoryModalItemSelected: {
+    backgroundColor: '#dcfce7'
+  },
+  territoryItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10
+  },
+  territoryItemText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#334155'
+  },
+  territoryItemTextSelected: {
+    fontWeight: '900',
+    color: '#15803d'
   }
 });
