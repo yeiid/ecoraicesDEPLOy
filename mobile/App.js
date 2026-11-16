@@ -76,7 +76,6 @@ export default function App() {
   const [sessionCount, setSessionCount] = useState(0);
   const [saveSuccessBanner, setSaveSuccessBanner] = useState(null);
   const [saveErrorBanner, setSaveErrorBanner] = useState(null);
-  const [showMenuModal, setShowMenuModal] = useState(false);
 
   // Outbox / Offline Sync State
   const [stats, setStats] = useState({ total: 0, pending: 0, synced: 0 });
@@ -427,28 +426,19 @@ export default function App() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor="#0b1329" />
 
-      {/* Barra de Cabecera Superior (Estilo Oficial EcoRaíces Web + Mobile) */}
+      {/* Barra de Cabecera Superior (Estilo Oficial EcoRaíces Mobile) */}
       <View style={styles.topHeader}>
-        <View style={styles.headerLeftGroup}>
-          <TouchableOpacity
-            style={styles.hamburgerBtn}
-            onPress={() => setShowMenuModal(true)}
-          >
-            <Ionicons name="menu" size={24} color="#15803d" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.headerBrand}
-            onPress={() => setActiveTab('home')}
-          >
-            <Image
-              source={require('./assets/eco.png')}
-              style={styles.headerEcoLogo}
-              resizeMode="contain"
-            />
-            <Text style={styles.headerBrandText}>ECORAÍCES</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={styles.headerBrand}
+          onPress={() => setActiveTab('home')}
+        >
+          <Image
+            source={require('./assets/eco.png')}
+            style={styles.headerEcoLogo}
+            resizeMode="contain"
+          />
+          <Text style={styles.headerBrandText}>ECORAÍCES</Text>
+        </TouchableOpacity>
 
         {/* Sync Pill estilo Web */}
         <View style={styles.headerSyncPill}>
@@ -472,121 +462,6 @@ export default function App() {
           </TouchableOpacity>
         </View>
       </View>
-
-      {/* Modal Menú Lateral / Drawer Hamburguesa */}
-      <Modal
-        visible={showMenuModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowMenuModal(false)}
-      >
-        <TouchableOpacity
-          style={styles.menuModalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowMenuModal(false)}
-        >
-          <View style={styles.menuDrawerContainer}>
-            <View style={styles.menuDrawerHeader}>
-              <Image
-                source={require('./assets/eco.png')}
-                style={styles.menuDrawerLogo}
-                resizeMode="contain"
-              />
-              <View>
-                <Text style={styles.menuDrawerTitle}>ECORAÍCES</Text>
-                <Text style={styles.menuDrawerSubtitle}>Guajira • Bosque Seco Tropical</Text>
-              </View>
-            </View>
-
-            <View style={styles.menuNavItems}>
-              <TouchableOpacity
-                style={[styles.menuNavItem, activeTab === 'home' && styles.menuNavItemActive]}
-                onPress={() => {
-                  setActiveTab('home');
-                  setShowMenuModal(false);
-                }}
-              >
-                <Ionicons name="home-outline" size={20} color={activeTab === 'home' ? '#15803d' : '#334155'} />
-                <Text style={[styles.menuNavText, activeTab === 'home' && styles.menuNavTextActive]}>
-                  Inicio (Dashboard)
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.menuNavItem, activeTab === 'map3d' && styles.menuNavItemActive]}
-                onPress={() => {
-                  setActiveTab('map3d');
-                  setShowMenuModal(false);
-                }}
-              >
-                <Ionicons name="map-outline" size={20} color={activeTab === 'map3d' ? '#15803d' : '#334155'} />
-                <Text style={[styles.menuNavText, activeTab === 'map3d' && styles.menuNavTextActive]}>
-                  Mapa 3D Satelital
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.menuNavItem, activeTab === 'capture' && styles.menuNavItemActive]}
-                onPress={() => {
-                  setActiveTab('capture');
-                  setShowMenuModal(false);
-                }}
-              >
-                <Ionicons name="add-circle-outline" size={20} color={activeTab === 'capture' ? '#15803d' : '#334155'} />
-                <Text style={[styles.menuNavText, activeTab === 'capture' && styles.menuNavTextActive]}>
-                  Registro de Especies (Campo)
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.menuNavItem, activeTab === 'catalog' && styles.menuNavItemActive]}
-                onPress={() => {
-                  setActiveTab('catalog');
-                  setShowMenuModal(false);
-                }}
-              >
-                <Ionicons name="leaf-outline" size={20} color={activeTab === 'catalog' ? '#15803d' : '#334155'} />
-                <Text style={[styles.menuNavText, activeTab === 'catalog' && styles.menuNavTextActive]}>
-                  Catálogo Botánico
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.menuNavItem, activeTab === 'communities' && styles.menuNavItemActive]}
-                onPress={() => {
-                  setActiveTab('communities');
-                  setShowMenuModal(false);
-                }}
-              >
-                <Ionicons name="people-outline" size={20} color={activeTab === 'communities' ? '#15803d' : '#334155'} />
-                <Text style={[styles.menuNavText, activeTab === 'communities' && styles.menuNavTextActive]}>
-                  Comunidades Wayuu
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.menuNavItem, activeTab === 'profile' && styles.menuNavItemActive]}
-                onPress={() => {
-                  setActiveTab('profile');
-                  setShowMenuModal(false);
-                }}
-              >
-                <Ionicons name="person-outline" size={20} color={activeTab === 'profile' ? '#15803d' : '#334155'} />
-                <Text style={[styles.menuNavText, activeTab === 'profile' && styles.menuNavTextActive]}>
-                  Perfil & Sincronización
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Estado de Dokploy Server */}
-            <View style={styles.menuServerBox}>
-              <Text style={styles.menuServerTitle}>Servidor Dokploy / FastAPI:</Text>
-              <Text style={styles.menuServerUrl} numberOfLines={1}>{serverUrl}</Text>
-              <Text style={styles.menuServerStatus}>🟢 Listo para sincronización</Text>
-            </View>
-          </View>
-        </TouchableOpacity>
-      </Modal>
 
       {/* Contenido Principal según Pestaña Activa */}
       <View style={styles.contentArea}>
@@ -1409,19 +1284,6 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2
   },
-  headerLeftGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8
-  },
-  hamburgerBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: '#dcfce7',
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
   headerBrand: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1470,96 +1332,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800'
   },
-  menuModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
-    justifyContent: 'flex-start'
-  },
-  menuDrawerContainer: {
-    width: '78%',
-    maxWidth: 320,
-    height: '100%',
-    backgroundColor: '#ffffff',
-    padding: 20,
-    paddingTop: 40,
-    shadowColor: '#000000',
-    shadowOffset: { width: 4, height: 0 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 16
-  },
-  menuDrawerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-    marginBottom: 16
-  },
-  menuDrawerLogo: {
-    width: 44,
-    height: 44
-  },
-  menuDrawerTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#15803d',
-    letterSpacing: 0.5
-  },
-  menuDrawerSubtitle: {
-    fontSize: 11,
-    color: '#64748b',
-    fontWeight: '600'
-  },
-  menuNavItems: {
-    gap: 6,
-    flex: 1
-  },
-  menuNavItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 10
-  },
-  menuNavItemActive: {
-    backgroundColor: '#dcfce7'
-  },
-  menuNavText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#334155'
-  },
-  menuNavTextActive: {
-    color: '#15803d',
-    fontWeight: '900'
-  },
-  menuServerBox: {
-    backgroundColor: '#f8fafc',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 10,
-    padding: 12,
-    marginTop: 10
-  },
-  menuServerTitle: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#64748b'
-  },
-  menuServerUrl: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#0f172a',
-    marginVertical: 2
-  },
-  menuServerStatus: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#16a34a'
-  },
+
   outboxPill: {
     flexDirection: 'row',
     alignItems: 'center',
