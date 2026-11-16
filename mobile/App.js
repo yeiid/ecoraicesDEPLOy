@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import {
   GUAJIRA_MUNICIPIOS,
+  COLOMBIA_TERRITORIOS,
   GUAJIRA_ESPECIES_NATIVAS,
   GUAJIRA_COMUNIDADES,
   ESTADOS_FITOSANITARIOS,
@@ -101,6 +102,7 @@ export default function App() {
   const [token, setToken] = useState('');
   const [remoteTrees, setRemoteTrees] = useState([]);
   const [showTerritoryModal, setShowTerritoryModal] = useState(false);
+  const [territorySearch, setTerritorySearch] = useState('');
   const [profileSaveBanner, setProfileSaveBanner] = useState(null);
   const [profileSubTab, setProfileSubTab] = useState('datos'); // 'datos' | 'arboles' | 'medallas' | 'outbox'
 
@@ -161,7 +163,7 @@ export default function App() {
         ['ecoraices_user_role', userRole]
       ]);
       setMunicipio(userTerritory);
-      setProfileSaveBanner('✓ Perfil y territorio de La Guajira actualizados exitosamente');
+      setProfileSaveBanner('✓ Perfil y territorio actualizados exitosamente');
       setTimeout(() => setProfileSaveBanner(null), 3500);
     } catch (err) {
       console.warn('Error guardando perfil:', err);
@@ -1196,7 +1198,7 @@ export default function App() {
                   style={styles.profileTerritoryPill}
                   onPress={() => setShowTerritoryModal(true)}
                 >
-                  <Text style={styles.profileTerritoryText}>📍 {userTerritory}, La Guajira</Text>
+                  <Text style={styles.profileTerritoryText}>📍 {userTerritory}</Text>
                   <Ionicons name="create-outline" size={14} color="#15803d" style={{ marginLeft: 4 }} />
                 </TouchableOpacity>
               </View>
@@ -1300,9 +1302,9 @@ export default function App() {
                   />
                 </View>
 
-                {/* Campo: Municipio / Territorio (La Guajira) */}
+                {/* Campo: Municipio / Territorio (Colombia) */}
                 <View style={styles.formFieldGroup}>
-                  <Text style={styles.formFieldLabel}>Municipio / Territorio (La Guajira)</Text>
+                  <Text style={styles.formFieldLabel}>Municipio / Territorio (Colombia)</Text>
                   <TouchableOpacity
                     style={styles.territorySelectorBtn}
                     onPress={() => setShowTerritoryModal(true)}
@@ -1314,7 +1316,7 @@ export default function App() {
                     <Ionicons name="chevron-down" size={18} color="#64748b" />
                   </TouchableOpacity>
                   <Text style={styles.territoryHelperText}>
-                    Tu territorio nos permite conectarte con las comunidades locales y observaciones de tu zona.
+                    Tu territorio nos permite conectarte con las comunidades locales y observaciones de tu región en Colombia.
                   </Text>
                 </View>
 
@@ -1634,50 +1636,127 @@ export default function App() {
         </View>
       </Modal>
 
-      {/* Modal Selector de Municipio / Territorio de La Guajira */}
+      {/* Modal Selector de Municipio / Territorio de Colombia */}
       <Modal
         visible={showTerritoryModal}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setShowTerritoryModal(false)}
+        onRequestClose={() => {
+          setShowTerritoryModal(false);
+          setTerritorySearch('');
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.territoryModalCard}>
             <View style={styles.territoryModalHeader}>
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={styles.territoryModalTitle}>Selecciona tu Territorio</Text>
-                <Text style={styles.territoryModalSubtitle}>Municipios y sectores de La Guajira</Text>
+                <Text style={styles.territoryModalSubtitle}>
+                  Fase pionera en La Guajira • Cobertura en toda Colombia
+                </Text>
               </View>
               <TouchableOpacity
                 style={styles.modalCloseBtn}
-                onPress={() => setShowTerritoryModal(false)}
+                onPress={() => {
+                  setShowTerritoryModal(false);
+                  setTerritorySearch('');
+                }}
               >
                 <Text style={styles.modalCloseBtnText}>✕</Text>
               </TouchableOpacity>
             </View>
 
+            {/* Buscador interactivo de ciudades y municipios */}
+            <View style={styles.territorySearchBox}>
+              <Ionicons name="search" size={16} color="#64748b" style={{ marginRight: 6 }} />
+              <TextInput
+                style={styles.territorySearchInput}
+                placeholder="Buscar municipio, ciudad o departamento..."
+                placeholderTextColor="#94a3b8"
+                value={territorySearch}
+                onChangeText={setTerritorySearch}
+              />
+              {territorySearch.length > 0 && (
+                <TouchableOpacity onPress={() => setTerritorySearch('')}>
+                  <Ionicons name="close-circle" size={16} color="#94a3b8" />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Opción personalizada si el usuario escribe un lugar no listado */}
+            {territorySearch.trim().length > 1 && (
+              <TouchableOpacity
+                style={styles.customTerritoryBtn}
+                onPress={() => {
+                  const custom = territorySearch.trim();
+                  setUserTerritory(custom);
+                  setMunicipio(custom);
+                  setShowTerritoryModal(false);
+                  setTerritorySearch('');
+                }}
+              >
+                <Ionicons name="add-circle" size={18} color="#15803d" style={{ marginRight: 6 }} />
+                <Text style={styles.customTerritoryBtnText}>
+                  Usar "{territorySearch.trim()}" en Colombia
+                </Text>
+              </TouchableOpacity>
+            )}
+
             <ScrollView style={styles.territoryModalList} showsVerticalScrollIndicator={true}>
-              {GUAJIRA_MUNICIPIOS.map((m) => {
-                const isSelected = userTerritory === m;
+              {COLOMBIA_TERRITORIOS.filter((item) => {
+                if (!territorySearch.trim()) return true;
+                const q = territorySearch.trim().toLowerCase();
+                return (
+                  item.name.toLowerCase().includes(q) ||
+                  item.region.toLowerCase().includes(q) ||
+                  item.tag.toLowerCase().includes(q)
+                );
+              }).map((item) => {
+                const fullLabel = `${item.name}, ${item.region}`;
+                const isSelected =
+                  userTerritory === item.name ||
+                  userTerritory === fullLabel ||
+                  userTerritory.toLowerCase().startsWith(item.name.toLowerCase());
                 return (
                   <TouchableOpacity
-                    key={m}
+                    key={`${item.name}-${item.region}`}
                     style={[styles.territoryModalItem, isSelected && styles.territoryModalItemSelected]}
                     onPress={() => {
-                      setUserTerritory(m);
-                      setMunicipio(m);
+                      setUserTerritory(fullLabel);
+                      setMunicipio(item.name);
                       setShowTerritoryModal(false);
+                      setTerritorySearch('');
                     }}
                   >
                     <View style={styles.territoryItemLeft}>
                       <Text style={{ fontSize: 16 }}>📍</Text>
-                      <Text style={[styles.territoryItemText, isSelected && styles.territoryItemTextSelected]}>
-                        {m}
-                      </Text>
+                      <View>
+                        <Text style={[styles.territoryItemText, isSelected && styles.territoryItemTextSelected]}>
+                          {item.name}
+                        </Text>
+                        <Text style={styles.territoryItemRegion}>{item.region}</Text>
+                      </View>
                     </View>
-                    {isSelected && (
-                      <Ionicons name="checkmark-circle" size={20} color="#15803d" />
-                    )}
+                    <View style={styles.territoryItemRight}>
+                      <View
+                        style={[
+                          styles.territoryTagPill,
+                          item.tag === 'Pionero' ? styles.tagPionero : styles.tagNacional
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.territoryTagText,
+                            item.tag === 'Pionero' ? styles.tagPioneroText : styles.tagNacionalText
+                          ]}
+                        >
+                          {item.tag}
+                        </Text>
+                      </View>
+                      {isSelected && (
+                        <Ionicons name="checkmark-circle" size={18} color="#15803d" style={{ marginLeft: 6 }} />
+                      )}
+                    </View>
                   </TouchableOpacity>
                 );
               })}
@@ -3663,5 +3742,69 @@ const styles = StyleSheet.create({
   territoryItemTextSelected: {
     fontWeight: '900',
     color: '#15803d'
+  },
+  territorySearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f1f5f9',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0'
+  },
+  territorySearchInput: {
+    flex: 1,
+    fontSize: 12,
+    color: '#0f172a',
+    padding: 0
+  },
+  customTerritoryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: '#86efac',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    marginBottom: 10
+  },
+  customTerritoryBtnText: {
+    color: '#15803d',
+    fontSize: 12,
+    fontWeight: '800',
+    flex: 1
+  },
+  territoryItemRegion: {
+    fontSize: 10,
+    color: '#64748b',
+    marginTop: 1
+  },
+  territoryItemRight: {
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
+  territoryTagPill: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 10
+  },
+  tagPionero: {
+    backgroundColor: '#dcfce7'
+  },
+  tagNacional: {
+    backgroundColor: '#e0f2fe'
+  },
+  tagPioneroText: {
+    color: '#15803d',
+    fontSize: 9,
+    fontWeight: '800'
+  },
+  tagNacionalText: {
+    color: '#0369a1',
+    fontSize: 9,
+    fontWeight: '800'
   }
 });

@@ -80,27 +80,52 @@ const statusBadge = {
             <input type="email" id="email" name="email" value={profile.email} class="input">
           </div>
           <div class="form-group">
-            <label for="location">Municipio / Territorio (La Guajira)</label>
-            <input type="text" id="location" name="location" list="municipios-guajira" value={profile.location || ""} class="input" placeholder="Ej. Riohacha, Dibulla, Uribia, Maicao, Cabo de la Vela...">
-            <datalist id="municipios-guajira">
-              <option value="Riohacha" />
-              <option value="Dibulla" />
-              <option value="Manaure" />
-              <option value="Maicao" />
-              <option value="Uribia" />
-              <option value="San Juan del Cesar" />
-              <option value="Fonseca" />
-              <option value="Barrancas" />
-              <option value="Albania" />
-              <option value="Hatonuevo" />
-              <option value="Villanueva" />
-              <option value="Distracción" />
-              <option value="Cabo de la Vela" />
+            <label for="location">Municipio / Territorio (Colombia)</label>
+            <input type="text" id="location" name="location" list="municipios-colombia" value={profile.location || ""} class="input" placeholder="Ej. Riohacha, Santa Marta, Medellín, Bogotá, Cali...">
+            <datalist id="municipios-colombia">
+              <!-- La Guajira (Fase Pionera) -->
+              <option value="Riohacha, La Guajira" />
+              <option value="Dibulla, La Guajira" />
+              <option value="Manaure, La Guajira" />
+              <option value="Maicao, La Guajira" />
+              <option value="Uribia, La Guajira" />
+              <option value="San Juan del Cesar, La Guajira" />
+              <option value="Fonseca, La Guajira" />
+              <option value="Barrancas, La Guajira" />
+              <option value="Albania, La Guajira" />
+              <option value="Hatonuevo, La Guajira" />
+              <option value="Villanueva, La Guajira" />
+              <option value="Distracción, La Guajira" />
+              <option value="Cabo de la Vela, La Guajira" />
               <option value="Nazareth (Alta Guajira)" />
               <option value="Serranía de la Macuira" />
+              <!-- Cobertura Nacional Colombia -->
+              <option value="Santa Marta, Magdalena" />
+              <option value="Barranquilla, Atlántico" />
+              <option value="Cartagena, Bolívar" />
+              <option value="Valledupar, Cesar" />
+              <option value="Montería, Córdoba" />
+              <option value="Sincelejo, Sucre" />
+              <option value="San Andrés Islas" />
+              <option value="Bogotá D.C." />
+              <option value="Medellín, Antioquia" />
+              <option value="Cali, Valle del Cauca" />
+              <option value="Bucaramanga, Santander" />
+              <option value="Cúcuta, Norte de Santander" />
+              <option value="Pereira, Risaralda" />
+              <option value="Manizales, Caldas" />
+              <option value="Armenia, Quindío" />
+              <option value="Ibagué, Tolima" />
+              <option value="Neiva, Huila" />
+              <option value="Villavicencio, Meta" />
+              <option value="Pasto, Nariño" />
+              <option value="Popayán, Cauca" />
+              <option value="Leticia, Amazonas" />
+              <option value="Quibdó, Chocó" />
+              <option value="Yopal, Casanare" />
             </datalist>
             <small class="text-muted" style="font-size: 0.8rem; display: block; margin-top: 0.25rem;">
-              Tu territorio nos permite conectarte con las comunidades locales y observaciones de tu zona.
+              Tu territorio nos permite conectarte con las comunidades locales y observaciones de tu región en Colombia.
             </small>
           </div>
           <div class="form-group">

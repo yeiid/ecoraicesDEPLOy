@@ -23,6 +23,73 @@ export const GUAJIRA_MUNICIPIOS = [
   'Mayapo'
 ];
 
+export const COLOMBIA_TERRITORIOS = [
+  // Fase Pionera: La Guajira
+  { name: 'Riohacha', region: 'La Guajira', tag: 'Pionero' },
+  { name: 'Dibulla', region: 'La Guajira', tag: 'Pionero' },
+  { name: 'Manaure', region: 'La Guajira', tag: 'Pionero' },
+  { name: 'Maicao', region: 'La Guajira', tag: 'Pionero' },
+  { name: 'Uribia', region: 'La Guajira', tag: 'Pionero' },
+  { name: 'San Juan del Cesar', region: 'La Guajira', tag: 'Pionero' },
+  { name: 'Fonseca', region: 'La Guajira', tag: 'Pionero' },
+  { name: 'Barrancas', region: 'La Guajira', tag: 'Pionero' },
+  { name: 'Albania', region: 'La Guajira', tag: 'Pionero' },
+  { name: 'Hatonuevo', region: 'La Guajira', tag: 'Pionero' },
+  { name: 'Villanueva', region: 'La Guajira', tag: 'Pionero' },
+  { name: 'Distracción', region: 'La Guajira', tag: 'Pionero' },
+  { name: 'Cabo de la Vela', region: 'La Guajira', tag: 'Pionero' },
+  { name: 'Nazareth (Macuira)', region: 'La Guajira', tag: 'Pionero' },
+  { name: 'Mayapo', region: 'La Guajira', tag: 'Pionero' },
+  { name: 'Bahía Honda', region: 'La Guajira', tag: 'Pionero' },
+
+  // Región Caribe
+  { name: 'Santa Marta', region: 'Magdalena', tag: 'Caribe' },
+  { name: 'Ciénaga', region: 'Magdalena', tag: 'Caribe' },
+  { name: 'Barranquilla', region: 'Atlántico', tag: 'Caribe' },
+  { name: 'Soledad', region: 'Atlántico', tag: 'Caribe' },
+  { name: 'Cartagena', region: 'Bolívar', tag: 'Caribe' },
+  { name: 'Valledupar', region: 'Cesar', tag: 'Caribe' },
+  { name: 'Aguachica', region: 'Cesar', tag: 'Caribe' },
+  { name: 'Montería', region: 'Córdoba', tag: 'Caribe' },
+  { name: 'Sincelejo', region: 'Sucre', tag: 'Caribe' },
+  { name: 'San Andrés Islas', region: 'San Andrés y Providencia', tag: 'Insular' },
+
+  // Región Andina
+  { name: 'Bogotá D.C.', region: 'Cundinamarca', tag: 'Andina' },
+  { name: 'Medellín', region: 'Antioquia', tag: 'Andina' },
+  { name: 'Bello', region: 'Antioquia', tag: 'Andina' },
+  { name: 'Envigado', region: 'Antioquia', tag: 'Andina' },
+  { name: 'Rionegro', region: 'Antioquia', tag: 'Andina' },
+  { name: 'Cali', region: 'Valle del Cauca', tag: 'Pacífica / Andina' },
+  { name: 'Palmira', region: 'Valle del Cauca', tag: 'Andina' },
+  { name: 'Bucaramanga', region: 'Santander', tag: 'Andina' },
+  { name: 'Floridablanca', region: 'Santander', tag: 'Andina' },
+  { name: 'Cúcuta', region: 'Norte de Santander', tag: 'Andina' },
+  { name: 'Pereira', region: 'Risaralda', tag: 'Eje Cafetero' },
+  { name: 'Manizales', region: 'Caldas', tag: 'Eje Cafetero' },
+  { name: 'Armenia', region: 'Quindío', tag: 'Eje Cafetero' },
+  { name: 'Ibagué', region: 'Tolima', tag: 'Andina' },
+  { name: 'Neiva', region: 'Huila', tag: 'Andina' },
+  { name: 'Tunja', region: 'Boyacá', tag: 'Andina' },
+  { name: 'Duitama', region: 'Boyacá', tag: 'Andina' },
+  { name: 'Pasto', region: 'Nariño', tag: 'Andina' },
+  { name: 'Popayán', region: 'Cauca', tag: 'Andina' },
+
+  // Región Pacífica, Orinoquía y Amazonía
+  { name: 'Quibdó', region: 'Chocó', tag: 'Pacífica' },
+  { name: 'Buenaventura', region: 'Valle del Cauca', tag: 'Pacífica' },
+  { name: 'Tumaco', region: 'Nariño', tag: 'Pacífica' },
+  { name: 'Villavicencio', region: 'Meta', tag: 'Orinoquía' },
+  { name: 'Yopal', region: 'Casanare', tag: 'Orinoquía' },
+  { name: 'Arauca', region: 'Arauca', tag: 'Orinoquía' },
+  { name: 'Florencia', region: 'Caquetá', tag: 'Amazonía' },
+  { name: 'Leticia', region: 'Amazonas', tag: 'Amazonía' },
+  { name: 'Mocoa', region: 'Putumayo', tag: 'Amazonía' },
+  { name: 'San José del Guaviare', region: 'Guaviare', tag: 'Amazonía' },
+  { name: 'Inírida', region: 'Guainía', tag: 'Amazonía' },
+  { name: 'Mitú', region: 'Vaupés', tag: 'Amazonía' }
+];
+
 export const GUAJIRA_ESPECIES_NATIVAS = [
   {
     id: 'trupillo',
