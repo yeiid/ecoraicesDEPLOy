@@ -58,14 +58,20 @@ export default function App() {
   const [gpsAccuracy, setGpsAccuracy] = useState(null);
   const [isLocating, setIsLocating] = useState(false);
 
-  // Field Capture Form State
+  // Field Capture Form State (Modo Rápido / Ráfaga en Campo)
   const [speciesName, setSpeciesName] = useState('Trupillo');
   const [municipio, setMunicipio] = useState('Riohacha');
   const [healthState, setHealthState] = useState('Sano y vigoroso');
-  const [heightMeters, setHeightMeters] = useState('4.5');
-  const [diameterCm, setDiameterCm] = useState('25');
+  const [heightMeters, setHeightMeters] = useState('');
+  const [diameterCm, setDiameterCm] = useState('');
   const [notes, setNotes] = useState('');
   const [photoUri, setPhotoUri] = useState(null);
+  const [sessionCount, setSessionCount] = useState(0);
+  const [showOptionalBiometrics, setShowOptionalBiometrics] = useState(false);
+  const [showTerritoryPicker, setShowTerritoryPicker] = useState(false);
+  const [isCustomSpecies, setIsCustomSpecies] = useState(false);
+  const [customSpeciesName, setCustomSpeciesName] = useState('');
+  const [saveSuccessBanner, setSaveSuccessBanner] = useState(null);
 
   // Outbox / Offline Sync State
   const [stats, setStats] = useState({ total: 0, pending: 0, synced: 0 });
@@ -239,13 +245,15 @@ export default function App() {
   };
 
   const handleSaveTree = async () => {
-    if (!speciesName.trim()) {
-      Alert.alert('Falta especie', 'Indica el nombre de la especie.');
+    const finalSpecies = isCustomSpecies ? customSpeciesName.trim() : speciesName.trim();
+    if (!finalSpecies) {
+      Alert.alert('Falta especie', 'Selecciona o escribe el nombre de la especie.');
       return;
     }
 
     if (!coords) {
-      Alert.alert('Sin GPS', 'Presiona "Actualizar GPS" para georreferenciar el árbol.');
+      Alert.alert('Buscando GPS', 'Obteniendo satélites GNSS... Espera un momento.');
+      fetchCurrentLocation(false);
       return;
     }
 
@@ -256,11 +264,12 @@ export default function App() {
       }
 
       const clientUuid = 'tree-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
+      const currentNumber = sessionCount + 1;
 
       await saveOfflineTree({
         client_uuid: clientUuid,
-        species_name: speciesName,
-        scientific_name: getScientificFor(speciesName),
+        species_name: finalSpecies,
+        scientific_name: getScientificFor(finalSpecies),
         municipality: municipio,
         latitude: coords.latitude,
         longitude: coords.longitude,
@@ -272,14 +281,27 @@ export default function App() {
         local_photo_path: localPhotoPath
       });
 
-      Alert.alert(
-        '🌳 Guardado Offline',
-        `El árbol "${speciesName}" se guardó en la base de datos interna. ¡Has ganado +30 puntos ecológicos!`,
-        [{ text: 'Entendido' }]
-      );
+      // Incrementar contador de sesión de campo
+      setSessionCount(currentNumber);
 
+      // Mostrar banner de guardado rápido sin alerta bloqueante
+      setSaveSuccessBanner(`✅ Árbol #${currentNumber} (${finalSpecies}) guardado en SQLite (+30 pts)`);
+      setTimeout(() => {
+        setSaveSuccessBanner(null);
+      }, 4000);
+
+      // Resetear campos para la siguiente captura inmediata en campo
       setNotes('');
       setPhotoUri(null);
+      setHeightMeters('');
+      setDiameterCm('');
+      if (isCustomSpecies) {
+        setIsCustomSpecies(false);
+        setCustomSpeciesName('');
+        setSpeciesName('Trupillo');
+      }
+
+      // Actualizar estadísticas y refrescar GPS en segundo plano
       refreshStats();
       fetchCurrentLocation(true);
     } catch (err) {
@@ -565,94 +587,57 @@ export default function App() {
         )}
 
         {/* ============================================================== */}
-        {/* 3. CAPTURA DE CAMPO (PANEL 3: GPS Satelital, Foto, SQLite)     */}
+        {/* 3. CAPTURA DE CAMPO RÁPIDA (MODO RÁFAGA / SECUENCIAL MINIMALISTA) */}
         {/* ============================================================== */}
         {activeTab === 'capture' && (
           <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.formContent}>
-            <View style={styles.formCard}>
-              <Text style={styles.formTitle}>Formulario de Registro de Especies</Text>
-              <Text style={styles.formSubtitle}>
-                Captura en campo 100% offline. Guarda en memoria interna y sincroniza cuando tengas señal.
-              </Text>
+            {/* BARRA SUPERIOR DE ESTADO EN RUTA (COMPACTA Y ERGONÓMICA) */}
+            <View style={styles.fieldTopBar}>
+              <TouchableOpacity
+                style={[
+                  styles.fieldGpsBadge,
+                  gpsAccuracy && gpsAccuracy <= 10 ? styles.fieldGpsGood : styles.fieldGpsSearching
+                ]}
+                onPress={() => fetchCurrentLocation(false)}
+                disabled={isLocating}
+              >
+                <Text style={styles.fieldGpsDot}>🟢</Text>
+                <Text style={styles.fieldGpsText}>
+                  {isLocating
+                    ? 'Buscando...'
+                    : coords
+                    ? `±${gpsAccuracy ? gpsAccuracy.toFixed(0) : '10'}m`
+                    : 'Sin GPS'}
+                </Text>
+                {isLocating && <ActivityIndicator size="small" color="#15803d" style={{ marginLeft: 4 }} />}
+              </TouchableOpacity>
 
-              {/* GPS Satelital Status Box */}
-              <View style={styles.gpsCard}>
-                <View style={styles.gpsRow}>
-                  <Text style={styles.gpsIcon}>🛰️</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.gpsTitle}>Ubicación Satelital (GNSS)</Text>
-                    <Text style={styles.gpsCoordsText}>
-                      {coords
-                        ? `Lat: ${coords.latitude.toFixed(6)} | Lng: ${coords.longitude.toFixed(6)}`
-                        : 'Obteniendo coordenadas satelitales...'}
-                    </Text>
-                    {gpsAccuracy && (
-                      <Text style={styles.gpsAccuracyText}>
-                        Precisión: ±{gpsAccuracy.toFixed(1)} metros {gpsAccuracy <= 10 ? '🎯 Excelente' : '🟡 Aceptable'}
-                      </Text>
-                    )}
-                  </View>
-                  <TouchableOpacity
-                    style={styles.refreshGpsBtn}
-                    onPress={() => fetchCurrentLocation(false)}
-                    disabled={isLocating}
-                  >
-                    {isLocating ? (
-                      <ActivityIndicator size="small" color="#15803d" />
-                    ) : (
-                      <Text style={styles.refreshGpsBtnText}>🔄 Actualizar</Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
+              <TouchableOpacity
+                style={styles.fieldTerritoryBtn}
+                onPress={() => setShowTerritoryPicker(!showTerritoryPicker)}
+              >
+                <Text style={styles.fieldTerritoryText}>📍 {municipio}</Text>
+                <Ionicons name={showTerritoryPicker ? 'chevron-up' : 'chevron-down'} size={14} color="#0369a1" />
+              </TouchableOpacity>
+
+              <View style={styles.fieldSessionBadge}>
+                <Text style={styles.fieldSessionText}>🌳 #{sessionCount + 1}</Text>
               </View>
+            </View>
 
-              {/* Acceso Rápido a Especies */}
-              <Text style={styles.fieldLabel}>Selecciona Especie Nativa:</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.speciesChipsRow}>
-                {GUAJIRA_ESPECIES_NATIVAS.map((sp) => {
-                  const isSelected = speciesName === sp.name;
-                  return (
-                    <TouchableOpacity
-                      key={sp.id}
-                      style={[
-                        styles.speciesChip,
-                        isSelected && styles.speciesChipActive,
-                        sp.isInvasive && styles.speciesChipInvasive
-                      ]}
-                      onPress={() => setSpeciesName(sp.name)}
-                    >
-                      <Text style={styles.speciesChipIcon}>{sp.icon}</Text>
-                      <View>
-                        <Text style={[styles.speciesChipName, isSelected && styles.speciesChipNameActive]}>
-                          {sp.name}
-                        </Text>
-                        <Text style={styles.speciesChipTag}>{sp.tag}</Text>
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.fieldLabel}>Nombre de la especie:</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={speciesName}
-                  onChangeText={setSpeciesName}
-                  placeholder="Ej: Trupillo, Dividivi, Neem..."
-                  placeholderTextColor="#94a3b8"
-                />
-              </View>
-
-              {/* Municipio de La Guajira */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.fieldLabel}>Municipio / Territorio:</Text>
+            {/* SELECTOR DESPLEGABLE DE MUNICIPIO (SOLO SI SE CAMBIA DE ZONA) */}
+            {showTerritoryPicker && (
+              <View style={styles.territoryPickerCard}>
+                <Text style={styles.territoryPickerTitle}>Territorio de trabajo (persiste toda la salida):</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.muniScroll}>
                   {GUAJIRA_MUNICIPIOS.map((mun) => (
                     <TouchableOpacity
                       key={mun}
                       style={[styles.muniChip, municipio === mun && styles.muniChipActive]}
-                      onPress={() => setMunicipio(mun)}
+                      onPress={() => {
+                        setMunicipio(mun);
+                        setShowTerritoryPicker(false);
+                      }}
                     >
                       <Text style={[styles.muniChipText, municipio === mun && styles.muniChipTextActive]}>
                         📍 {mun}
@@ -661,86 +646,214 @@ export default function App() {
                   ))}
                 </ScrollView>
               </View>
+            )}
 
-              {/* Estado Fitosanitario */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.fieldLabel}>Estado de Salud:</Text>
-                <View style={styles.healthGrid}>
-                  {ESTADOS_FITOSANITARIOS.map((st) => (
+            {/* BANNER DE RETROALIMENTACIÓN RÁPIDA AL GUARDAR (NO BLOQUEA LA PANTALLA) */}
+            {saveSuccessBanner && (
+              <View style={styles.saveSuccessBanner}>
+                <Ionicons name="checkmark-circle" size={18} color="#15803d" />
+                <Text style={styles.saveSuccessBannerText}>{saveSuccessBanner}</Text>
+              </View>
+            )}
+
+            <View style={styles.formCardMinimal}>
+              {/* 1. FOTO RÁPIDA DEL ÁRBOL */}
+              {photoUri ? (
+                <View style={styles.burstPhotoPreview}>
+                  <Image source={{ uri: photoUri }} style={styles.burstPhotoImage} />
+                  <View style={styles.burstPhotoOverlay}>
+                    <Text style={styles.burstPhotoSpeciesText}>
+                      📷 Foto lista • {isCustomSpecies ? customSpeciesName || 'Especie' : speciesName}
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.burstPhotoRetakeBtn}
+                      onPress={() => setPhotoUri(null)}
+                    >
+                      <Ionicons name="trash-outline" size={14} color="#ffffff" />
+                      <Text style={styles.burstPhotoRetakeText}>Cambiar</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.burstPhotoRow}>
+                  <TouchableOpacity style={styles.burstCameraBtn} onPress={takePhoto}>
+                    <Ionicons name="camera" size={22} color="#ffffff" />
+                    <Text style={styles.burstCameraBtnText}>Tomar Foto del Árbol</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.burstGalleryBtn} onPress={pickImageFromGallery}>
+                    <Ionicons name="images-outline" size={18} color="#475569" />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* 2. GRILLA RÁPIDA DE ESPECIES (1 TAP DIRECTO) */}
+              <Text style={styles.minimalSectionLabel}>Especie Observada:</Text>
+              <View style={styles.speciesGridMinimal}>
+                {GUAJIRA_ESPECIES_NATIVAS.slice(0, 5).map((sp) => {
+                  const isSelected = !isCustomSpecies && speciesName === sp.name;
+                  return (
+                    <TouchableOpacity
+                      key={sp.id}
+                      style={[
+                        styles.speciesMinimalChip,
+                        isSelected && styles.speciesMinimalChipActive,
+                        sp.isInvasive && styles.speciesMinimalChipInvasive
+                      ]}
+                      onPress={() => {
+                        setIsCustomSpecies(false);
+                        setSpeciesName(sp.name);
+                      }}
+                    >
+                      <Text style={styles.speciesMinimalIcon}>{sp.icon}</Text>
+                      <Text
+                        style={[
+                          styles.speciesMinimalName,
+                          isSelected && styles.speciesMinimalNameActive
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {sp.name}
+                      </Text>
+                      {isSelected && (
+                        <View style={styles.selectedCheckDot}>
+                          <Ionicons name="checkmark" size={10} color="#ffffff" />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+
+                {/* Opción Otra Especie */}
+                <TouchableOpacity
+                  style={[
+                    styles.speciesMinimalChip,
+                    isCustomSpecies && styles.speciesMinimalChipActive
+                  ]}
+                  onPress={() => {
+                    setIsCustomSpecies(true);
+                  }}
+                >
+                  <Text style={styles.speciesMinimalIcon}>➕</Text>
+                  <Text
+                    style={[
+                      styles.speciesMinimalName,
+                      isCustomSpecies && styles.speciesMinimalNameActive
+                    ]}
+                  >
+                    Otra...
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Input si seleccionó 'Otra...' */}
+              {isCustomSpecies && (
+                <View style={styles.customSpeciesInputRow}>
+                  <TextInput
+                    style={styles.customSpeciesInput}
+                    value={customSpeciesName}
+                    onChangeText={setCustomSpeciesName}
+                    placeholder="Escribe el nombre de la especie..."
+                    placeholderTextColor="#94a3b8"
+                    autoFocus={true}
+                  />
+                </View>
+              )}
+
+              {/* 3. ESTADO FITOSANITARIO (1 TAP) */}
+              <Text style={styles.minimalSectionLabel}>Estado de Salud:</Text>
+              <View style={styles.healthRowMinimal}>
+                {ESTADOS_FITOSANITARIOS.map((st) => {
+                  const isSelected = healthState === st.id;
+                  return (
                     <TouchableOpacity
                       key={st.id}
-                      style={[styles.healthBtn, healthState === st.id && { borderColor: st.color, backgroundColor: '#f0fdf4' }]}
+                      style={[
+                        styles.healthPillMinimal,
+                        isSelected && { backgroundColor: st.color, borderColor: st.color }
+                      ]}
                       onPress={() => setHealthState(st.id)}
                     >
-                      <Text style={styles.healthBtnText}>{st.label}</Text>
+                      <Text
+                        style={[
+                          styles.healthPillTextMinimal,
+                          isSelected && { color: '#ffffff', fontWeight: '800' }
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {st.label}
+                      </Text>
                     </TouchableOpacity>
-                  ))}
-                </View>
+                  );
+                })}
               </View>
 
-              {/* Medidas (Altura y Diámetro) */}
-              <View style={styles.measureRow}>
-                <View style={[styles.inputGroup, { flex: 1 }]}>
-                  <Text style={styles.fieldLabel}>Altura est. (m):</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={heightMeters}
-                    onChangeText={setHeightMeters}
-                    keyboardType="numeric"
-                    placeholder="Ej: 4.5"
-                  />
-                </View>
-                <View style={[styles.inputGroup, { flex: 1 }]}>
-                  <Text style={styles.fieldLabel}>Diámetro (cm):</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={diameterCm}
-                    onChangeText={setDiameterCm}
-                    keyboardType="numeric"
-                    placeholder="Ej: 30"
-                  />
-                </View>
-              </View>
-
-              {/* Captura de Fotografía */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.fieldLabel}>Fotografía en Campo:</Text>
-                {photoUri ? (
-                  <View style={styles.photoPreviewBox}>
-                    <Image source={{ uri: photoUri }} style={styles.photoPreviewImage} />
-                    <TouchableOpacity style={styles.removePhotoBtn} onPress={() => setPhotoUri(null)}>
-                      <Text style={styles.removePhotoBtnText}>✕ Cambiar foto</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <View style={styles.photoActionsRow}>
-                    <TouchableOpacity style={styles.photoActionBtn} onPress={takePhoto}>
-                      <Ionicons name="camera" size={18} color="#15803d" />
-                      <Text style={styles.photoActionText}>Tomar Foto</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.photoActionBtn, { backgroundColor: '#f1f5f9' }]} onPress={pickImageFromGallery}>
-                      <Ionicons name="images" size={18} color="#475569" />
-                      <Text style={[styles.photoActionText, { color: '#475569' }]}>Galería</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-
-              {/* Notas de Campo */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.fieldLabel}>Notas u observaciones ecológicas:</Text>
-                <TextInput
-                  style={[styles.textInput, { height: 70, textAlignVertical: 'top' }]}
-                  value={notes}
-                  onChangeText={setNotes}
-                  multiline={true}
-                  placeholder="Ej: Copa en floración, nidos de pájaros, suelo pedregoso..."
-                  placeholderTextColor="#94a3b8"
+              {/* 4. MEDIDAS Y NOTAS (ACORDEÓN COLAPSABLE) */}
+              <TouchableOpacity
+                style={styles.accordionHeader}
+                onPress={() => setShowOptionalBiometrics(!showOptionalBiometrics)}
+              >
+                <Ionicons
+                  name={showOptionalBiometrics ? 'chevron-up-circle' : 'add-circle-outline'}
+                  size={16}
+                  color="#15803d"
                 />
-              </View>
+                <Text style={styles.accordionHeaderText}>
+                  {showOptionalBiometrics
+                    ? 'Ocultar Medidas y Notas'
+                    : '+ Altura, Diámetro y Notas (Opcional)'}
+                </Text>
+                {(heightMeters || diameterCm || notes) ? (
+                  <View style={styles.accordionIndicatorDot} />
+                ) : null}
+              </TouchableOpacity>
 
-              <TouchableOpacity style={styles.submitBtn} onPress={handleSaveTree}>
-                <Text style={styles.submitBtnText}>💾 Guardar Registro (Offline)</Text>
+              {showOptionalBiometrics && (
+                <View style={styles.accordionBody}>
+                  <View style={styles.measureRowMinimal}>
+                    <View style={styles.measureFieldMinimal}>
+                      <Text style={styles.subFieldLabel}>Altura (m):</Text>
+                      <TextInput
+                        style={styles.measureInput}
+                        value={heightMeters}
+                        onChangeText={setHeightMeters}
+                        keyboardType="numeric"
+                        placeholder="Ej: 4.5"
+                        placeholderTextColor="#94a3b8"
+                      />
+                    </View>
+                    <View style={styles.measureFieldMinimal}>
+                      <Text style={styles.subFieldLabel}>Diámetro (cm):</Text>
+                      <TextInput
+                        style={styles.measureInput}
+                        value={diameterCm}
+                        onChangeText={setDiameterCm}
+                        keyboardType="numeric"
+                        placeholder="Ej: 25"
+                        placeholderTextColor="#94a3b8"
+                      />
+                    </View>
+                  </View>
+
+                  <TextInput
+                    style={styles.notesInputMinimal}
+                    value={notes}
+                    onChangeText={setNotes}
+                    placeholder="Notas ecológicas (suelo, fauna, afección)..."
+                    placeholderTextColor="#94a3b8"
+                    multiline={true}
+                  />
+                </View>
+              )}
+
+              {/* 5. BOTÓN PRINCIPAL DE GUARDADO RÁPIDO */}
+              <TouchableOpacity
+                style={styles.burstSubmitBtn}
+                onPress={handleSaveTree}
+              >
+                <Ionicons name="flash" size={18} color="#ffffff" style={{ marginRight: 6 }} />
+                <Text style={styles.burstSubmitBtnText}>
+                  GUARDAR ÁRBOL Y SIGUIENTE (#{sessionCount + 1})
+                </Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -1477,127 +1590,352 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 40
   },
-  formCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0'
-  },
-  formTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#0f172a'
-  },
-  formSubtitle: {
-    fontSize: 12,
-    color: '#64748b',
-    marginTop: 4,
-    marginBottom: 14
-  },
-  gpsCard: {
-    backgroundColor: '#f0fdf4',
-    borderRadius: 10,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#86efac',
-    marginBottom: 14
-  },
-  gpsRow: {
+  // ==============================================================
+  // ESTILOS DE CAPTURA RÁPIDA / RÁFAGA EN CAMPO (MINIMALISTA)
+  // ==============================================================
+  fieldTopBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10
+    justifyContent: 'space-between',
+    marginBottom: 10
   },
-  gpsIcon: {
-    fontSize: 22
+  fieldGpsBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1
   },
-  gpsTitle: {
-    fontSize: 12,
+  fieldGpsGood: {
+    backgroundColor: '#f0fdf4',
+    borderColor: '#86efac'
+  },
+  fieldGpsSearching: {
+    backgroundColor: '#fefce8',
+    borderColor: '#fde047'
+  },
+  fieldGpsDot: {
+    fontSize: 9,
+    marginRight: 4
+  },
+  fieldGpsText: {
+    fontSize: 11,
     fontWeight: '800',
     color: '#166534'
   },
-  gpsCoordsText: {
-    fontSize: 11,
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    color: '#0f172a',
-    marginTop: 2
-  },
-  gpsAccuracyText: {
-    fontSize: 10,
-    color: '#15803d',
-    fontWeight: '700',
-    marginTop: 2
-  },
-  refreshGpsBtn: {
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#86efac'
-  },
-  refreshGpsBtnText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#15803d'
-  },
-  fieldLabel: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#334155',
-    marginBottom: 6
-  },
-  speciesChipsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12
-  },
-  speciesChip: {
+  fieldTerritoryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#f8fafc',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
+    gap: 4,
+    backgroundColor: '#f0f9ff',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#bae6fd'
+  },
+  fieldTerritoryText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0369a1'
+  },
+  fieldSessionBadge: {
+    backgroundColor: '#0f172a',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20
+  },
+  fieldSessionText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#38bdf8'
+  },
+  territoryPickerCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: '#e2e8f0'
   },
-  speciesChipActive: {
+  territoryPickerTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#475569',
+    marginBottom: 8
+  },
+  saveSuccessBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#dcfce7',
+    borderWidth: 1,
+    borderColor: '#86efac',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 10
+  },
+  saveSuccessBannerText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#15803d',
+    flex: 1
+  },
+  formCardMinimal: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0'
+  },
+  burstPhotoRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 12
+  },
+  burstCameraBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#15803d',
+    paddingVertical: 12,
+    borderRadius: 12,
+    elevation: 2
+  },
+  burstCameraBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '900'
+  },
+  burstGalleryBtn: {
+    width: 48,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#e2e8f0'
+  },
+  burstPhotoPreview: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    position: 'relative',
+    marginBottom: 12,
+    height: 140
+  },
+  burstPhotoImage: {
+    width: '100%',
+    height: '100%'
+  },
+  burstPhotoOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 6
+  },
+  burstPhotoSpeciesText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '800'
+  },
+  burstPhotoRetakeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(239, 68, 68, 0.85)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6
+  },
+  burstPhotoRetakeText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '800'
+  },
+  minimalSectionLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#334155',
+    marginBottom: 6,
+    marginTop: 4
+  },
+  speciesGridMinimal: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12
+  },
+  speciesMinimalChip: {
+    width: '31%',
+    minWidth: 95,
+    flexGrow: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#f8fafc',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    position: 'relative'
+  },
+  speciesMinimalChipActive: {
     backgroundColor: '#dcfce7',
     borderColor: '#15803d'
   },
-  speciesChipInvasive: {
+  speciesMinimalChipInvasive: {
     borderColor: '#fca5a5'
   },
-  speciesChipIcon: {
-    fontSize: 18
+  speciesMinimalIcon: {
+    fontSize: 16
   },
-  speciesChipName: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#0f172a'
+  speciesMinimalName: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#334155',
+    flex: 1
   },
-  speciesChipNameActive: {
-    color: '#15803d'
+  speciesMinimalNameActive: {
+    color: '#15803d',
+    fontWeight: '900'
   },
-  speciesChipTag: {
-    fontSize: 9,
-    color: '#64748b'
+  selectedCheckDot: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#15803d',
+    alignItems: 'center',
+    justifyContent: 'center'
   },
-  inputGroup: {
-    marginBottom: 12
+  customSpeciesInputRow: {
+    marginBottom: 10
   },
-  textInput: {
+  customSpeciesInput: {
     backgroundColor: '#f8fafc',
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: '#15803d',
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    fontSize: 13,
+    fontSize: 12,
     color: '#0f172a'
   },
+  healthRowMinimal: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 12
+  },
+  healthPillMinimal: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  healthPillTextMinimal: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#475569'
+  },
+  accordionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 2,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9'
+  },
+  accordionHeaderText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#15803d'
+  },
+  accordionIndicatorDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#3b82f6',
+    marginLeft: 4
+  },
+  accordionBody: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0'
+  },
+  measureRowMinimal: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 8
+  },
+  measureFieldMinimal: {
+    flex: 1
+  },
+  subFieldLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#64748b',
+    marginBottom: 4
+  },
+  measureInput: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    fontSize: 12,
+    color: '#0f172a'
+  },
+  notesInputMinimal: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 11,
+    color: '#0f172a',
+    height: 50,
+    textAlignVertical: 'top'
+  },
+  burstSubmitBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#15803d',
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginTop: 8,
+    elevation: 3
+  },
+  burstSubmitBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.3
+  },
+  // ESTILOS COMPARTIDOS
   muniScroll: {
     flexDirection: 'row',
     gap: 6
@@ -1621,89 +1959,6 @@ const styles = StyleSheet.create({
   },
   muniChipTextActive: {
     color: '#ffffff'
-  },
-  healthGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6
-  },
-  healthBtn: {
-    flex: 1,
-    minWidth: '45%',
-    backgroundColor: '#f8fafc',
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    alignItems: 'center'
-  },
-  healthBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#334155'
-  },
-  measureRow: {
-    flexDirection: 'row',
-    gap: 10
-  },
-  photoPreviewBox: {
-    borderRadius: 10,
-    overflow: 'hidden',
-    position: 'relative'
-  },
-  photoPreviewImage: {
-    width: '100%',
-    height: 180,
-    borderRadius: 10
-  },
-  removePhotoBtn: {
-    position: 'absolute',
-    bottom: 10,
-    right: 10,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6
-  },
-  removePhotoBtnText: {
-    color: '#ffffff',
-    fontSize: 11,
-    fontWeight: '700'
-  },
-  photoActionsRow: {
-    flexDirection: 'row',
-    gap: 10
-  },
-  photoActionBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: '#dcfce7',
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#86efac'
-  },
-  photoActionText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#15803d'
-  },
-  submitBtn: {
-    backgroundColor: '#15803d',
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 8,
-    elevation: 3
-  },
-  submitBtnText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '900'
   },
   catalogContent: {
     padding: 16,
