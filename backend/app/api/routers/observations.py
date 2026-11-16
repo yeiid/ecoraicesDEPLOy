@@ -155,6 +155,7 @@ class ObservationValidationRequest(BaseModel):
 @router.post("/")
 async def create_observation(
     request: Request,
+    clientId: Optional[str] = Form(None),
     speciesId: Optional[str] = Form(None),
     nombreComunitario: Optional[str] = Form(None),
     nombreCientificoPropuesto: Optional[str] = Form(None),
@@ -168,10 +169,37 @@ async def create_observation(
     municipio: Optional[str] = Form(None),
     estadoConservacion: Optional[str] = Form(None),
     notes: Optional[str] = Form(None),
+    imageUrl: Optional[str] = Form(None),
     image: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db)
 ):
+    from sqlalchemy.exc import IntegrityError
+
     user_id = get_current_user_id(request)
+    clean_client_id = clientId.strip()[:64] if clientId and clientId.strip() else None
+
+    # Idempotencia para sincronización offline (Web PWA y App React Native):
+    # Si el árbol con este clientId ya fue registrado previamente, devolvemos el existente
+    # sin volver a escribir la imagen ni duplicar puntos en PostgreSQL/PostGIS.
+    if clean_client_id:
+        existing_obs = db.query(Observation).filter(Observation.id == clean_client_id).first()
+        if existing_obs:
+            return {
+                "id": existing_obs.id,
+                "speciesId": existing_obs.speciesId,
+                "userId": existing_obs.userId,
+                "communityId": existing_obs.communityId,
+                "observationDate": existing_obs.observationDate.isoformat() if existing_obs.observationDate else None,
+                "latitude": existing_obs.latitude,
+                "longitude": existing_obs.longitude,
+                "altitude": existing_obs.altitude,
+                "municipio": existing_obs.municipio,
+                "estadoConservacion": existing_obs.estadoConservacion,
+                "notes": existing_obs.notes,
+                "imageUrl": existing_obs.imageUrl,
+                "status": existing_obs.status,
+                "deduplicated": True,
+            }
     
     # Resolver especie si no se envió speciesId preexistente
     if not speciesId or not speciesId.strip():
@@ -204,6 +232,7 @@ async def create_observation(
     UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
     
     image_url = None
+    file_path = None
     if image and image.filename:
         ext = "".join(Path(image.filename).suffixes)
         if not ext:
@@ -226,6 +255,8 @@ async def create_observation(
                 f.write(chunk)
             
         image_url = f"/uploads/observations/{file_name}"
+    elif imageUrl and imageUrl.strip().startswith("/uploads/"):
+        image_url = imageUrl.strip()
         
     # parse datetime from iso string
     # handling 'Z' suffix if present
@@ -241,7 +272,7 @@ async def create_observation(
     status_initial = "PENDING_VALIDATION" if not nombreCientificoPropuesto else "PENDING"
     
     observation = Observation(
-        id=uuid.uuid4().hex,
+        id=clean_client_id if clean_client_id else uuid.uuid4().hex,
         speciesId=speciesId,
         userId=user_id,
         communityId=communityId.strip() if communityId and communityId.strip() else None,
@@ -258,8 +289,33 @@ async def create_observation(
     )
     
     db.add(observation)
-    db.commit()
-    db.refresh(observation)
+    try:
+        db.commit()
+        db.refresh(observation)
+    except IntegrityError:
+        db.rollback()
+        if file_path is not None:
+            file_path.unlink(missing_ok=True)
+        if clean_client_id:
+            existing_obs = db.query(Observation).filter(Observation.id == clean_client_id).first()
+            if existing_obs:
+                return {
+                    "id": existing_obs.id,
+                    "speciesId": existing_obs.speciesId,
+                    "userId": existing_obs.userId,
+                    "communityId": existing_obs.communityId,
+                    "observationDate": existing_obs.observationDate.isoformat() if existing_obs.observationDate else None,
+                    "latitude": existing_obs.latitude,
+                    "longitude": existing_obs.longitude,
+                    "altitude": existing_obs.altitude,
+                    "municipio": existing_obs.municipio,
+                    "estadoConservacion": existing_obs.estadoConservacion,
+                    "notes": existing_obs.notes,
+                    "imageUrl": existing_obs.imageUrl,
+                    "status": existing_obs.status,
+                    "deduplicated": True,
+                }
+        raise
     
     species = db.query(Species).filter(Species.id == speciesId).first()
     asyncio.create_task(sync_observation_to_postgis(species, observation))

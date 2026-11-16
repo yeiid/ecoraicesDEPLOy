@@ -807,14 +807,11 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
   import { optimizeFieldImage } from '../../lib/imageOptimizer.js';
   import { 
     saveOfflineObservation, 
-    getPendingObservations, 
-    removePendingObservation, 
-    getPendingCount 
+    getPendingCount,
+    generateClientObservationId,
+    syncPendingObservations
   } from '../../lib/offlineStore.js';
 
-  document.addEventListener("DOMContentLoaded", () => {
-    initQuickObservationForm();
-  });
   document.addEventListener("astro:page-load", () => {
     initQuickObservationForm();
   });
@@ -977,11 +974,18 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
     const offlineBarText = document.getElementById('offline-bar-text');
     const btnSyncOfflineNow = document.getElementById('btn-sync-offline-now');
 
+    if (window.__ecoraicesFormSyncAbort) {
+      window.__ecoraicesFormSyncAbort.abort();
+    }
+    const formSyncAbort = new AbortController();
+    window.__ecoraicesFormSyncAbort = formSyncAbort;
+    const { signal: formSignal } = formSyncAbort;
+
     async function updateOfflineUI() {
       const count = await getPendingCount();
       if (!offlineSyncBar) return;
       if (count > 0) {
-        offlineBarText.textContent = `${count} árbol(es) guardado(s) en IndexedDB (sin conexión)`;
+        offlineBarText.textContent = `${count} árbol(es) guardado(s) en cola local (pendientes por subir)`;
         offlineSyncBar.style.display = 'flex';
       } else {
         offlineSyncBar.style.display = 'none';
@@ -989,60 +993,48 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
     }
 
     updateOfflineUI();
-    window.addEventListener('ecoraices:sync-count-changed', updateOfflineUI);
+    window.addEventListener('ecoraices:sync-count-changed', updateOfflineUI, { signal: formSignal });
+
+    window.addEventListener('ecoraices:sync-started', () => {
+      if (btnSyncOfflineNow) {
+        btnSyncOfflineNow.disabled = true;
+        btnSyncOfflineNow.textContent = "Sincronizando...";
+      }
+    }, { signal: formSignal });
+
+    window.addEventListener('ecoraices:sync-completed', (e) => {
+      if (btnSyncOfflineNow) {
+        btnSyncOfflineNow.disabled = false;
+        btnSyncOfflineNow.textContent = "Sincronizar ahora";
+      }
+      updateOfflineUI();
+      const count = e?.detail?.count || 0;
+      if (count > 0) {
+        showSuccess(`✓ ${count} árbol(es) sincronizado(s) exitosamente con el servidor.`);
+      }
+    }, { signal: formSignal });
+
+    window.addEventListener('ecoraices:sync-error', (e) => {
+      if (btnSyncOfflineNow) {
+        btnSyncOfflineNow.disabled = false;
+        btnSyncOfflineNow.textContent = "Sincronizar ahora";
+      }
+      updateOfflineUI();
+      const detail = e?.detail;
+      if (detail?.lastError) {
+        showError(`⚠️ Sincronización incompleta: ${detail.lastError}`);
+      }
+    }, { signal: formSignal });
 
     async function syncOfflineQueue() {
-      const queue = await getPendingObservations();
-      if (!queue.length) return;
-
-      btnSyncOfflineNow.disabled = true;
-      btnSyncOfflineNow.textContent = "Sincronizando...";
-
-      let successCount = 0;
-
-      for (const item of queue) {
-        try {
-          const fd = new FormData();
-          const data = item.treeData || {};
-
-          Object.entries(data).forEach(([k, v]) => {
-            if (v !== undefined && v !== null) {
-              fd.append(k, String(v));
-            }
-          });
-
-          if (item.imageBlob) {
-            fd.append("image", item.imageBlob, item.imageName || "tree.webp");
-          }
-
-          const res = await fetch('/api/observations', {
-            method: 'POST',
-            body: fd
-          });
-
-          if (res.ok) {
-            await removePendingObservation(item.id);
-            successCount++;
-          }
-        } catch (syncErr) {
-          console.error('[Offline Sync] Error con árbol:', syncErr);
-        }
+      if (!navigator.onLine) {
+        showError("Aún no tienes conexión a internet. Tus árboles siguen seguros en la memoria del dispositivo.");
+        return;
       }
-
-      btnSyncOfflineNow.disabled = false;
-      btnSyncOfflineNow.textContent = "Sincronizar ahora";
-      updateOfflineUI();
-
-      if (successCount > 0) {
-        showSuccess(`✓ ${successCount} árbol(es) sincronizado(s) exitosamente con el servidor.`);
-      }
+      await syncPendingObservations();
     }
 
-    btnSyncOfflineNow?.addEventListener('click', syncOfflineQueue);
-    window.addEventListener('online', () => {
-      showSuccess("📶 Señal de internet recuperada. Sincronizando árboles pendientes...");
-      syncOfflineQueue();
-    });
+    btnSyncOfflineNow?.addEventListener('click', syncOfflineQueue, { signal: formSignal });
 
     // Foto rápida con compresión WebP en cliente
     let currentPhotoBlob = null;
@@ -1137,7 +1129,17 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
       }
     });
 
-    // Envío ultrarrápido con soporte Online / Offline
+    const resetSubmitBtn = () => {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = `
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        <span>Enviar Registro</span>
+      `;
+    };
+
+    // Envío ultrarrápido con soporte Online / Offline e Idempotencia (clientId)
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       hideAlerts();
@@ -1180,7 +1182,10 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
         <span>Enviando registro...</span>
       `;
 
+      const clientId = generateClientObservationId();
+
       const observationData = {
+        clientId,
         userId,
         nombreComunitario: speciesVal,
         municipio: municipioVal,
@@ -1210,13 +1215,7 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
           photoPreviewWrap.style.display = 'none';
           photoPlaceholderBtn.style.display = 'flex';
 
-          submitBtn.disabled = false;
-          submitBtn.innerHTML = `
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-            </svg>
-            <span>Enviar Registro</span>
-          `;
+          resetSubmitBtn();
           speciesInput.focus();
         } else {
           showSuccess(isOffline 
@@ -1231,14 +1230,15 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
 
       // Si el navegador está offline directamente:
       if (!navigator.onLine) {
-        await saveOfflineObservation(observationData, currentPhotoBlob, currentPhotoName);
+        await saveOfflineObservation(observationData, currentPhotoBlob, currentPhotoName, clientId);
         handleSuccessUI(true);
         return;
       }
 
-      // Si está online, intentar enviar por red
+      // Si está online, intentar enviar por red con el mismo clientId idempotente
       try {
         const formData = new FormData();
+        formData.append("clientId", clientId);
         formData.append("userId", userId);
         formData.append("nombreComunitario", speciesVal);
         formData.append("municipio", municipioVal);
@@ -1263,27 +1263,32 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
 
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.detail || errData.message || "Error al registrar el árbol.");
+          const detail = errData.detail || errData.message || `Error ${res.status} al registrar el árbol.`;
+          const httpErr = new Error(detail);
+          httpErr.status = res.status;
+          throw httpErr;
         }
 
         handleSuccessUI(false);
 
       } catch (err) {
-        // Fallback por corte de señal intermitente en campo
+        // Si es un error 4xx del cliente/autenticación (ej. 400 datos inválidos, 401 sesión expirada, 413 imagen > 10MB),
+        // mostramos el error real en lugar de meter un registro inválido en la cola offline.
+        if (err?.status && err.status >= 400 && err.status < 500) {
+          showError(err.message || "Revisa los datos ingresados o vuelve a iniciar sesión.");
+          resetSubmitBtn();
+          return;
+        }
+
+        // Fallback por corte de señal intermitente o caída temporal de red (error de red o 5xx)
         console.warn('[Offline Fallback IndexedDB]', err);
         try {
-          await saveOfflineObservation(observationData, currentPhotoBlob, currentPhotoName);
+          await saveOfflineObservation(observationData, currentPhotoBlob, currentPhotoName, clientId);
           handleSuccessUI(true);
         } catch (saveErr) {
           console.error('[Error guardando offline]', saveErr);
           showError("Error al registrar: " + (err.message || "Por favor intente nuevamente."));
-          submitBtn.disabled = false;
-          submitBtn.innerHTML = `
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-            </svg>
-            <span>Enviar Registro</span>
-          `;
+          resetSubmitBtn();
         }
       }
     });

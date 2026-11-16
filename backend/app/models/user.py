@@ -12,6 +12,7 @@ class User(Base):
     name = Column(String, nullable=True)
     avatarUrl = Column(String, nullable=True)
     bio = Column(String, nullable=True)
+    location = Column(String, nullable=True)
     role = Column(String, default="COLLECTOR")
     isAdmin = Column(Boolean, default=False)
     provider = Column(String, default="local")

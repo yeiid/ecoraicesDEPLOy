@@ -94,9 +94,19 @@ except Exception as e:
 
 @application.on_event("startup")
 def bootstrap_admin_user():
-    """Auto-promote or create admin user on startup if ADMIN_EMAIL is set."""
+    """Auto-promote or create admin user on startup if ADMIN_EMAIL is set, and ensure DB schema compatibility."""
     import os
     import uuid
+
+    # Migración segura en vivo para asegurar columna location en User
+    try:
+        from app.db.database import engine
+        from sqlalchemy import text
+        with engine.begin() as conn:
+            conn.execute(text('ALTER TABLE "User" ADD COLUMN IF NOT EXISTS location VARCHAR;'))
+    except Exception as col_err:
+        logger.warning(f"Aviso de compatibilidad de esquema User.location: {col_err}")
+
     admin_email = os.getenv("ADMIN_EMAIL", "yeifran67@gmail.com")
     admin_password = os.getenv("ADMIN_PASSWORD")
     

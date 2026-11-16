@@ -39,8 +39,9 @@ const statusInfo = {
 };
 
 const bannerUrl =
-  community.imageUrl ||
-  IMAGE_FALLBACK_DETAIL;
+  (!community.imageUrl || community.imageUrl.includes('unsplash.com'))
+    ? IMAGE_FALLBACK_DETAIL
+    : community.imageUrl;
 ---
 
 <Layout title={title}>

@@ -7,7 +7,8 @@ let cachedWorkingBackendUrl = null;
 
 import { getCandidateBackendUrls } from '../../lib/backendHosts.js';
 
-const PROXY_TIMEOUT_MS = Number(process.env.PROXY_TIMEOUT_MS || 5000);
+const PROXY_TIMEOUT_MS = Number(process.env.PROXY_TIMEOUT_MS || 8000);
+const UPLOAD_PROXY_TIMEOUT_MS = Number(process.env.UPLOAD_PROXY_TIMEOUT_MS || 60000);
 
 export async function ALL({ request, params }) {
   const path = params.path;
@@ -17,9 +18,12 @@ export async function ALL({ request, params }) {
   const headers = new Headers(request.headers);
   headers.delete("host");
 
-  const bodyBuffer = request.method !== 'GET' && request.method !== 'HEAD'
+  const isMutation = request.method !== 'GET' && request.method !== 'HEAD';
+  const bodyBuffer = isMutation
     ? await request.arrayBuffer()
     : undefined;
+
+  const requestTimeoutMs = isMutation ? UPLOAD_PROXY_TIMEOUT_MS : PROXY_TIMEOUT_MS;
 
   const candidates = cachedWorkingBackendUrl
     ? [cachedWorkingBackendUrl, ...getCandidateBackendUrls().filter(u => u !== cachedWorkingBackendUrl)]
@@ -33,7 +37,7 @@ export async function ALL({ request, params }) {
     lastTargetUrl = targetUrl;
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), PROXY_TIMEOUT_MS);
+    const timeoutId = setTimeout(() => controller.abort(), requestTimeoutMs);
 
     try {
       const response = await fetch(targetUrl, {

@@ -3,18 +3,12 @@
  * Centraliza fallbacks de imagen, mapas y backend para evitar magic strings x9.
  */
 
-export const IMAGE_FALLBACK_WIDE =
-  'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=800&q=80';
-export const IMAGE_FALLBACK_CARD =
-  'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=600&q=80';
-export const IMAGE_FALLBACK_SMALL =
-  'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=400&q=80';
-export const IMAGE_FALLBACK_FOREST =
-  'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=600&q=80';
-export const IMAGE_FALLBACK_BANNER =
-  'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=600&q=80';
-export const IMAGE_FALLBACK_DETAIL =
-  'https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=1200&q=80';
+export const IMAGE_FALLBACK_WIDE = '/guajira-banner.webp';
+export const IMAGE_FALLBACK_CARD = '/guajira-paisaje.webp';
+export const IMAGE_FALLBACK_SMALL = '/guajira-flora.webp';
+export const IMAGE_FALLBACK_FOREST = '/guajira-banner.webp';
+export const IMAGE_FALLBACK_BANNER = '/guajira-banner.webp';
+export const IMAGE_FALLBACK_DETAIL = '/guajira-banner.webp';
 
 /** Handler inline único para <img onerror>. Uso: onerror={IMG_ONERROR_WIDE} */
 export const IMG_ONERROR_WIDE = `this.onerror=null; this.src='${IMAGE_FALLBACK_WIDE}';`;

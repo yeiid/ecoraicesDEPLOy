@@ -5,6 +5,7 @@ from datetime import datetime
 class UserBase(BaseModel):
     username: str
     avatarUrl: Optional[str] = None
+    location: Optional[str] = None
     # We only expose public fields for now
 
 class UserResponse(UserBase):

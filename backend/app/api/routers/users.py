@@ -23,6 +23,7 @@ class ProfileUpdateSchema(BaseModel):
     email: Optional[str] = None
     avatarUrl: Optional[str] = None
     bio: Optional[str] = None
+    location: Optional[str] = None
 
 class PasswordChangeSchema(BaseModel):
     currentPassword: str
@@ -105,6 +106,7 @@ def get_profile_data(user_id: str, db: Session):
             "name": user.name,
             "avatarUrl": user.avatarUrl,
             "bio": user.bio,
+            "location": getattr(user, 'location', None),
             "role": user.role,
             "isAdmin": user.isAdmin,
             "createdAt": user.createdAt.isoformat() if user.createdAt else None
@@ -139,6 +141,9 @@ def update_user_profile(user_id: str, data: ProfileUpdateSchema, db: Session):
     if data.bio is not None:
         user.bio = data.bio.strip() if data.bio else None
 
+    if data.location is not None:
+        user.location = data.location.strip() if data.location else None
+
     db.commit()
     db.refresh(user)
 
@@ -151,6 +156,7 @@ def update_user_profile(user_id: str, data: ProfileUpdateSchema, db: Session):
             "name": user.name,
             "avatarUrl": user.avatarUrl,
             "bio": user.bio,
+            "location": user.location,
             "role": user.role,
             "isAdmin": user.isAdmin
         }

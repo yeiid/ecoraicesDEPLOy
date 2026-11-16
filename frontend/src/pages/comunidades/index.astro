@@ -15,6 +15,15 @@ try {
 
 const title = 'Comunidades - EcoRaíces';
 const fallbackBanner = IMAGE_FALLBACK_BANNER;
+
+const userLocation = user?.location?.trim().toLowerCase();
+const sortedCommunities = userLocation
+  ? [...communities].sort((a, b) => {
+      const aMatch = a.location?.toLowerCase().includes(userLocation) ? 1 : 0;
+      const bMatch = b.location?.toLowerCase().includes(userLocation) ? 1 : 0;
+      return bMatch - aMatch;
+    })
+  : communities;
 ---
 
 <Layout title={title}>
@@ -23,8 +32,13 @@ const fallbackBanner = IMAGE_FALLBACK_BANNER;
       <div>
         <h1 class="page-title">Comunidades</h1>
         <p class="text-muted">
-          Únete a comunidades de amantes de las plantas y comparte tus conocimientos.
+          Únete a comunidades de cuidadores y recolectores del bosque seco y ecosistemas de La Guajira.
         </p>
+        {user?.location && (
+          <p class="text-sm mt-1" style="color: var(--color-primary); font-weight: 600;">
+            📍 Mostrando comunidades cercanas a tu territorio: <u>{user.location}</u>
+          </p>
+        )}
       </div>
       {user && (
         <a href="/comunidades/nueva" class="btn btn-accent">
@@ -34,22 +48,29 @@ const fallbackBanner = IMAGE_FALLBACK_BANNER;
     </div>
 
     <div class="communities-grid">
-      {communities.length === 0 ? (
+      {sortedCommunities.length === 0 ? (
         <div class="empty-state card">
           <p class="text-muted">No hay comunidades disponibles todavía.</p>
           {user && <a href="/comunidades/nueva" class="btn btn-accent mt-2">Crear la primera</a>}
         </div>
       ) : (
-        communities.map((community) => (
+        sortedCommunities.map((community) => (
           <a href={`/comunidades/${community.id}`} class="card card-hover community-card" key={community.id}>
             <img
-              src={community.imageUrl || fallbackBanner}
+              src={(!community.imageUrl || community.imageUrl.includes('unsplash.com')) ? fallbackBanner : community.imageUrl}
               alt={community.name}
               class="community-banner"
               loading="lazy"
             />
             <div class="community-info">
-              <h2 class="community-name">{community.name}</h2>
+              <div class="community-top-row" style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+                <h2 class="community-name" style="margin: 0;">{community.name}</h2>
+                {community.location && (
+                  <span style="font-size: 0.75rem; background: var(--color-primary-bg, #e8f5e9); color: var(--color-primary, #1b5e20); padding: 0.15rem 0.5rem; border-radius: 999px; font-weight: 600; white-space: nowrap;">
+                    📍 {community.location}
+                  </span>
+                )}
+              </div>
               <div class="community-members">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />

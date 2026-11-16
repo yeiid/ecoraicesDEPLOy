@@ -15,7 +15,7 @@ import { Icon } from 'astro-icon/components';
 </div>
 
 <script>
-  import { getPendingCount, getPendingObservations, removePendingObservation } from '../lib/offlineStore.js';
+  import { getPendingCount, syncPendingObservations } from '../lib/offlineStore.js';
 
   function initGlobalSync() {
     const pill = document.getElementById('sync-pill-indicator');
@@ -25,13 +25,29 @@ import { Icon } from 'astro-icon/components';
 
     if (!pill || !statusText || !syncBtn) return;
 
-    let isSyncing = false;
+    // Limpiar escuchadores previos de ViewTransitions para no disparar sincronizaciones múltiples
+    if (window.__ecoraicesGlobalSyncAbort) {
+      window.__ecoraicesGlobalSyncAbort.abort();
+    }
+    const abortCtrl = new AbortController();
+    window.__ecoraicesGlobalSyncAbort = abortCtrl;
+    const { signal } = abortCtrl;
 
     async function updateWidgetState() {
       const isOnline = navigator.onLine;
+      const isSyncing = Boolean(window.__ecoraicesActiveSyncPromise);
       const pendingCount = await getPendingCount();
 
       pill.classList.remove('online', 'offline', 'pending', 'syncing');
+
+      if (isSyncing) {
+        pill.classList.add('syncing');
+        statusText.textContent = 'Sincronizando...';
+        syncBtn.disabled = true;
+        return;
+      }
+
+      syncBtn.disabled = false;
 
       if (!isOnline) {
         pill.classList.add('offline');
@@ -56,74 +72,43 @@ import { Icon } from 'astro-icon/components';
     }
 
     async function triggerGlobalSync() {
-      if (isSyncing || !navigator.onLine) return;
-      isSyncing = true;
+      if (!navigator.onLine) return;
       pill.classList.add('syncing');
       statusText.textContent = 'Sincronizando...';
       syncBtn.disabled = true;
 
       try {
-        const queue = await getPendingObservations();
-        let successCount = 0;
-
-        for (const item of queue) {
-          try {
-            const fd = new FormData();
-            const data = item.treeData || {};
-
-            Object.entries(data).forEach(([k, v]) => {
-              if (v !== undefined && v !== null) {
-                fd.append(k, String(v));
-              }
-            });
-
-            if (item.imageBlob) {
-              fd.append('image', item.imageBlob, item.imageName || 'tree.webp');
-            }
-
-            const res = await fetch('/api/observations', {
-              method: 'POST',
-              body: fd
-            });
-
-            if (res.ok) {
-              await removePendingObservation(item.id);
-              successCount++;
-            }
-          } catch (itemErr) {
-            console.error('[Sync Widget] Error al sincronizar árbol individual:', itemErr);
-          }
-        }
-
-        if (successCount > 0) {
-          window.dispatchEvent(new CustomEvent('ecoraices:sync-completed', {
-            detail: { count: successCount }
-          }));
-        }
+        await syncPendingObservations();
       } catch (err) {
         console.error('[Sync Widget] Error general durante la sincronización:', err);
       } finally {
-        isSyncing = false;
         syncBtn.disabled = false;
-        updateWidgetState();
+        await updateWidgetState();
       }
     }
 
-    // Escuchadores de red y eventos locales
     window.addEventListener('online', () => {
       updateWidgetState();
       triggerGlobalSync();
-    });
+    }, { signal });
 
-    window.addEventListener('offline', updateWidgetState);
-    window.addEventListener('ecoraices:sync-count-changed', updateWidgetState);
-    syncBtn.addEventListener('click', triggerGlobalSync);
+    window.addEventListener('offline', updateWidgetState, { signal });
+    window.addEventListener('ecoraices:sync-count-changed', updateWidgetState, { signal });
+    window.addEventListener('ecoraices:sync-started', updateWidgetState, { signal });
+    window.addEventListener('ecoraices:sync-completed', updateWidgetState, { signal });
+    window.addEventListener('ecoraices:sync-error', (e) => {
+      updateWidgetState();
+      const detail = e?.detail;
+      if (detail?.authError) {
+        statusText.textContent = 'Sesión expirada (Re-ingresa)';
+      }
+    }, { signal });
 
-    // Estado inicial
+    syncBtn.addEventListener('click', triggerGlobalSync, { signal });
+
     updateWidgetState();
   }
 
-  document.addEventListener('DOMContentLoaded', initGlobalSync);
   document.addEventListener('astro:page-load', initGlobalSync);
 </script>
 
