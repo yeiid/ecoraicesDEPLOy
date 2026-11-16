@@ -100,11 +100,24 @@ export default function App() {
   const [userTerritory, setUserTerritory] = useState('Riohacha');
   const [userBio, setUserBio] = useState('Comprometido con la reforestación y conservación del Bosque Seco Tropical en La Guajira.');
   const [token, setToken] = useState('');
+  const [isGuestMode, setIsGuestMode] = useState(false);
   const [remoteTrees, setRemoteTrees] = useState([]);
   const [showTerritoryModal, setShowTerritoryModal] = useState(false);
   const [territorySearch, setTerritorySearch] = useState('');
   const [profileSaveBanner, setProfileSaveBanner] = useState(null);
   const [profileSubTab, setProfileSubTab] = useState('datos'); // 'datos' | 'arboles' | 'medallas' | 'outbox'
+
+  // Estados de Autenticación con Dokploy (Login / Registro)
+  const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authName, setAuthName] = useState('');
+  const [authUsername, setAuthUsername] = useState('');
+  const [authRemember, setAuthRemember] = useState(true);
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState('');
+  const [authSuccess, setAuthSuccess] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   // Modal Ficha Botánica Detallada
   const [selectedSpeciesDetail, setSelectedSpeciesDetail] = useState(null);
@@ -141,7 +154,10 @@ export default function App() {
       }
     });
     AsyncStorage.getItem('ecoraices_auth_token').then((val) => {
-      if (val) setToken(val);
+      if (val) {
+        setToken(val);
+        fetchRemoteProfile(val);
+      }
     });
 
     // 3. Obtener ubicación GPS al abrir
@@ -151,6 +167,197 @@ export default function App() {
     loadLiveSpeciesCatalog();
     fetchRemoteObservations();
   }, []);
+
+  const fetchRemoteProfile = async (authToken = token) => {
+    if (!authToken) return;
+    try {
+      const response = await fetch(`${serverUrl}/api/users/me/profile`, {
+        headers: {
+          Authorization: `Bearer ${authToken}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data && data.profile) {
+          const p = data.profile;
+          if (p.name) setUserName(p.name);
+          if (p.email) setUserEmail(p.email);
+          if (p.username) setUserUsername(p.username);
+          if (p.bio) setUserBio(p.bio);
+          if (p.location) {
+            setUserTerritory(p.location);
+            setMunicipio(p.location);
+          }
+          if (p.role) setUserRole(p.role);
+
+          await AsyncStorage.multiSet([
+            ['ecoraices_user_name', p.name || ''],
+            ['ecoraices_user_email', p.email || ''],
+            ['ecoraices_user_username', p.username || ''],
+            ['ecoraices_user_bio', p.bio || ''],
+            ['ecoraices_user_territory', p.location || ''],
+            ['ecoraices_user_role', p.role || '']
+          ]);
+        }
+      }
+    } catch (err) {
+      console.log('Modo offline / Perfil remoto no accesible:', err.message);
+    }
+  };
+
+  const handleLogin = async () => {
+    setAuthError('');
+    setAuthSuccess('');
+    if (!authEmail.trim() || !authPassword.trim()) {
+      setAuthError('Por favor ingresa tu correo electrónico y contraseña.');
+      return;
+    }
+    setIsAuthLoading(true);
+    try {
+      const response = await fetch(`${serverUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: authEmail.trim(),
+          password: authPassword,
+          remember: authRemember
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        const errorMsg = Array.isArray(data.detail)
+          ? data.detail[0]?.msg || 'Error de validación en credenciales.'
+          : (data.detail || data.message || 'Error en las credenciales.');
+        throw new Error(errorMsg);
+      }
+
+      if (data.token) {
+        setToken(data.token);
+        setIsGuestMode(false);
+        await AsyncStorage.setItem('ecoraices_auth_token', data.token);
+
+        if (data.user) {
+          const u = data.user;
+          if (u.name) setUserName(u.name);
+          if (u.email) setUserEmail(u.email);
+          if (u.username) setUserUsername(u.username);
+          if (u.role) setUserRole(u.role);
+          if (u.location) {
+            setUserTerritory(u.location);
+            setMunicipio(u.location);
+          }
+          await AsyncStorage.multiSet([
+            ['ecoraices_user_name', u.name || ''],
+            ['ecoraices_user_email', u.email || ''],
+            ['ecoraices_user_username', u.username || ''],
+            ['ecoraices_user_role', u.role || '']
+          ]);
+        }
+
+        setAuthPassword('');
+        setAuthSuccess('¡Sesión iniciada exitosamente!');
+        fetchRemoteProfile(data.token);
+        fetchRemoteObservations();
+      } else {
+        throw new Error('No se recibió el token de autenticación.');
+      }
+    } catch (err) {
+      setAuthError(err.message || 'Error de conexión con el servidor Dokploy.');
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
+  const handleRegister = async () => {
+    setAuthError('');
+    setAuthSuccess('');
+    if (!authUsername.trim() || !authEmail.trim() || !authPassword.trim()) {
+      setAuthError('Nombre de usuario, correo y contraseña son obligatorios.');
+      return;
+    }
+    if (authPassword.length < 8) {
+      setAuthError('La contraseña debe tener un mínimo de 8 caracteres.');
+      return;
+    }
+    setIsAuthLoading(true);
+    try {
+      const response = await fetch(`${serverUrl}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: authUsername.trim(),
+          email: authEmail.trim(),
+          password: authPassword,
+          name: authName.trim() || authUsername.trim()
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        const errorMsg = Array.isArray(data.detail)
+          ? data.detail[0]?.msg || 'Error de validación al registrarte.'
+          : (data.detail || data.message || 'No se pudo crear la cuenta.');
+        throw new Error(errorMsg);
+      }
+
+      if (data.token) {
+        setToken(data.token);
+        setIsGuestMode(false);
+        await AsyncStorage.setItem('ecoraices_auth_token', data.token);
+
+        if (data.user) {
+          const u = data.user;
+          if (u.name) setUserName(u.name);
+          if (u.email) setUserEmail(u.email);
+          if (u.username) setUserUsername(u.username);
+          await AsyncStorage.multiSet([
+            ['ecoraices_user_name', u.name || ''],
+            ['ecoraices_user_email', u.email || ''],
+            ['ecoraices_user_username', u.username || '']
+          ]);
+        }
+
+        setAuthPassword('');
+        setAuthSuccess('¡Cuenta creada y sesión iniciada exitosamente!');
+        fetchRemoteProfile(data.token);
+        fetchRemoteObservations();
+      } else {
+        setAuthSuccess('¡Cuenta creada exitosamente! Por favor inicia sesión.');
+        setAuthMode('login');
+      }
+    } catch (err) {
+      setAuthError(err.message || 'Error de conexión con el servidor Dokploy.');
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Cerrar Sesión',
+      '¿Estás seguro de que deseas cerrar sesión? Tus árboles registrados en el dispositivo SQLite permanecerán a salvo para sincronizarse luego.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Sí, Cerrar Sesión',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await AsyncStorage.removeItem('ecoraices_auth_token');
+              setToken('');
+              setIsGuestMode(false);
+              setAuthEmail('');
+              setAuthPassword('');
+              setAuthError('');
+              setAuthSuccess('');
+              Alert.alert('Sesión Cerrada', 'Has cerrado sesión exitosamente en este dispositivo.');
+            } catch (err) {
+              console.warn('Error al cerrar sesión:', err);
+            }
+          }
+        }
+      ]
+    );
+  };
 
   const handleSaveProfile = async () => {
     try {
@@ -163,6 +370,24 @@ export default function App() {
         ['ecoraices_user_role', userRole]
       ]);
       setMunicipio(userTerritory);
+
+      if (token) {
+        fetch(`${serverUrl}/api/users/me/profile`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            name: userName,
+            username: userUsername,
+            email: userEmail,
+            bio: userBio,
+            location: userTerritory
+          })
+        }).catch((err) => console.log('Sync profile error:', err.message));
+      }
+
       setProfileSaveBanner('✓ Perfil y territorio actualizados exitosamente');
       setTimeout(() => setProfileSaveBanner(null), 3500);
     } catch (err) {
@@ -1181,28 +1406,325 @@ export default function App() {
         {/* 6. PERFIL Y SISTEMA COMPLETO DE MEDALLAS (MIRROR DE LA WEB)   */}
         {/* ============================================================== */}
         {activeTab === 'profile' && (
-          <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.profileContent}>
-            {/* Header del Perfil */}
-            <View style={styles.profileHeaderCard}>
-              <View style={styles.avatarCircle}>
-                <Text style={styles.avatarInitials}>
-                  {userName.split(' ').map((n) => n[0]).join('').substring(0, 2)}
-                </Text>
-              </View>
-              <View style={styles.profileHeaderInfo}>
-                <Text style={styles.profileName}>{userName}</Text>
-                <Text style={styles.profileSubtitle}>
-                  @{userUsername} • {userRole}
-                </Text>
+          !token && !isGuestMode ? (
+            /* ============================================================ */
+            /* PANTALLA DE AUTENTICACIÓN: LOGIN Y REGISTRO (CON DOKPLOY)    */
+            /* ============================================================ */
+            <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.authScrollContent}>
+              <View style={styles.authCard}>
+                {/* Branding EcoRaíces */}
+                <View style={styles.authBrandContainer}>
+                  <View style={styles.authLogoCircle}>
+                    <Ionicons name="leaf" size={32} color="#15803d" />
+                  </View>
+                  <Text style={styles.authTitle}>EcoRaíces</Text>
+                  <Text style={styles.authSubtitle}>
+                    Plataforma de Monitoreo Biológico & Comunitario
+                  </Text>
+                  <View style={styles.authServerBadge}>
+                    <View style={styles.onlineDot} />
+                    <Text style={styles.authServerText}>Dokploy: {serverUrl.replace(/^https?:\/\//, '')}</Text>
+                  </View>
+                </View>
+
+                {/* Selector de Pestañas: Iniciar Sesión / Crear Cuenta */}
+                <View style={styles.authTabSwitcher}>
+                  <TouchableOpacity
+                    style={[styles.authTabBtn, authMode === 'login' && styles.authTabBtnActive]}
+                    onPress={() => {
+                      setAuthMode('login');
+                      setAuthError('');
+                      setAuthSuccess('');
+                    }}
+                  >
+                    <Text style={[styles.authTabBtnText, authMode === 'login' && styles.authTabBtnTextActive]}>
+                      Iniciar Sesión
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.authTabBtn, authMode === 'register' && styles.authTabBtnActive]}
+                    onPress={() => {
+                      setAuthMode('register');
+                      setAuthError('');
+                      setAuthSuccess('');
+                    }}
+                  >
+                    <Text style={[styles.authTabBtnText, authMode === 'register' && styles.authTabBtnTextActive]}>
+                      Crear Cuenta
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Banner de Error */}
+                {authError ? (
+                  <View style={styles.authAlertError}>
+                    <Ionicons name="alert-circle" size={18} color="#b91c1c" />
+                    <Text style={styles.authAlertErrorText}>{authError}</Text>
+                  </View>
+                ) : null}
+
+                {/* Banner de Éxito */}
+                {authSuccess ? (
+                  <View style={styles.authAlertSuccess}>
+                    <Ionicons name="checkmark-circle" size={18} color="#15803d" />
+                    <Text style={styles.authAlertSuccessText}>{authSuccess}</Text>
+                  </View>
+                ) : null}
+
+                {/* FORMULARIO: INICIAR SESIÓN */}
+                {authMode === 'login' ? (
+                  <View style={styles.authForm}>
+                    <View style={styles.formFieldGroup}>
+                      <Text style={styles.formFieldLabel}>Correo Electrónico</Text>
+                      <View style={styles.authInputWrapper}>
+                        <Ionicons name="mail-outline" size={18} color="#64748b" style={styles.authInputIcon} />
+                        <TextInput
+                          style={styles.authTextInput}
+                          value={authEmail}
+                          onChangeText={setAuthEmail}
+                          placeholder="tu@correo.com"
+                          placeholderTextColor="#94a3b8"
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                        />
+                      </View>
+                    </View>
+
+                    <View style={styles.formFieldGroup}>
+                      <Text style={styles.formFieldLabel}>Contraseña</Text>
+                      <View style={styles.authInputWrapper}>
+                        <Ionicons name="lock-closed-outline" size={18} color="#64748b" style={styles.authInputIcon} />
+                        <TextInput
+                          style={styles.authTextInput}
+                          value={authPassword}
+                          onChangeText={setAuthPassword}
+                          placeholder="••••••••"
+                          placeholderTextColor="#94a3b8"
+                          secureTextEntry={!showPassword}
+                          autoCapitalize="none"
+                        />
+                        <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.authPassToggle}>
+                          <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={18} color="#64748b" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.rememberRow}
+                      onPress={() => setAuthRemember(!authRemember)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons
+                        name={authRemember ? 'checkbox' : 'square-outline'}
+                        size={20}
+                        color={authRemember ? '#15803d' : '#94a3b8'}
+                      />
+                      <Text style={styles.rememberText}>Recordar mi cuenta en este dispositivo</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.authSubmitBtn, isAuthLoading && styles.authSubmitBtnDisabled]}
+                      onPress={handleLogin}
+                      disabled={isAuthLoading}
+                    >
+                      {isAuthLoading ? (
+                        <ActivityIndicator size="small" color="#ffffff" />
+                      ) : (
+                        <>
+                          <Ionicons name="log-in-outline" size={20} color="#ffffff" style={{ marginRight: 8 }} />
+                          <Text style={styles.authSubmitBtnText}>Iniciar Sesión</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.authSwitchBtn}
+                      onPress={() => {
+                        setAuthMode('register');
+                        setAuthError('');
+                        setAuthSuccess('');
+                      }}
+                    >
+                      <Text style={styles.authSwitchText}>
+                        ¿No tienes una cuenta? <Text style={styles.authSwitchLink}>Regístrate aquí</Text>
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  /* FORMULARIO: CREAR CUENTA */
+                  <View style={styles.authForm}>
+                    <View style={styles.formFieldGroup}>
+                      <Text style={styles.formFieldLabel}>Nombre Completo</Text>
+                      <View style={styles.authInputWrapper}>
+                        <Ionicons name="person-outline" size={18} color="#64748b" style={styles.authInputIcon} />
+                        <TextInput
+                          style={styles.authTextInput}
+                          value={authName}
+                          onChangeText={setAuthName}
+                          placeholder="Ej: David Hernández"
+                          placeholderTextColor="#94a3b8"
+                          autoCapitalize="words"
+                        />
+                      </View>
+                    </View>
+
+                    <View style={styles.formFieldGroup}>
+                      <Text style={styles.formFieldLabel}>Nombre de Usuario</Text>
+                      <View style={styles.authInputWrapper}>
+                        <Ionicons name="at-outline" size={18} color="#64748b" style={styles.authInputIcon} />
+                        <TextInput
+                          style={styles.authTextInput}
+                          value={authUsername}
+                          onChangeText={setUserUsername}
+                          placeholder="ej: david_guajira"
+                          placeholderTextColor="#94a3b8"
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                        />
+                      </View>
+                    </View>
+
+                    <View style={styles.formFieldGroup}>
+                      <Text style={styles.formFieldLabel}>Correo Electrónico</Text>
+                      <View style={styles.authInputWrapper}>
+                        <Ionicons name="mail-outline" size={18} color="#64748b" style={styles.authInputIcon} />
+                        <TextInput
+                          style={styles.authTextInput}
+                          value={authEmail}
+                          onChangeText={setAuthEmail}
+                          placeholder="tu@correo.com"
+                          placeholderTextColor="#94a3b8"
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                        />
+                      </View>
+                    </View>
+
+                    <View style={styles.formFieldGroup}>
+                      <Text style={styles.formFieldLabel}>Contraseña (mínimo 8 caracteres)</Text>
+                      <View style={styles.authInputWrapper}>
+                        <Ionicons name="lock-closed-outline" size={18} color="#64748b" style={styles.authInputIcon} />
+                        <TextInput
+                          style={styles.authTextInput}
+                          value={authPassword}
+                          onChangeText={setAuthPassword}
+                          placeholder="••••••••"
+                          placeholderTextColor="#94a3b8"
+                          secureTextEntry={!showPassword}
+                          autoCapitalize="none"
+                        />
+                        <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.authPassToggle}>
+                          <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={18} color="#64748b" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    <TouchableOpacity
+                      style={[styles.authSubmitBtn, isAuthLoading && styles.authSubmitBtnDisabled]}
+                      onPress={handleRegister}
+                      disabled={isAuthLoading}
+                    >
+                      {isAuthLoading ? (
+                        <ActivityIndicator size="small" color="#ffffff" />
+                      ) : (
+                        <>
+                          <Ionicons name="person-add-outline" size={20} color="#ffffff" style={{ marginRight: 8 }} />
+                          <Text style={styles.authSubmitBtnText}>Crear Cuenta en EcoRaíces</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.authSwitchBtn}
+                      onPress={() => {
+                        setAuthMode('login');
+                        setAuthError('');
+                        setAuthSuccess('');
+                      }}
+                    >
+                      <Text style={styles.authSwitchText}>
+                        ¿Ya tienes una cuenta? <Text style={styles.authSwitchLink}>Inicia sesión aquí</Text>
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Opción de Continuar en Modo Offline */}
                 <TouchableOpacity
-                  style={styles.profileTerritoryPill}
-                  onPress={() => setShowTerritoryModal(true)}
+                  style={styles.authGuestBtn}
+                  onPress={() => setIsGuestMode(true)}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.profileTerritoryText}>📍 {userTerritory}</Text>
-                  <Ionicons name="create-outline" size={14} color="#15803d" style={{ marginLeft: 4 }} />
+                  <Ionicons name="cloud-offline-outline" size={18} color="#64748b" style={{ marginRight: 6 }} />
+                  <Text style={styles.authGuestBtnText}>Continuar en Modo Guardabosques Offline</Text>
                 </TouchableOpacity>
+
+                <View style={styles.authOfflineHintBox}>
+                  <Text style={styles.authOfflineHintText}>
+                    💡 Puedes censar árboles en campo sin conexión a internet. Tus datos se guardan en SQLite local y se sincronizan a Dokploy cuando inicies sesión y tengas red.
+                  </Text>
+                </View>
               </View>
-            </View>
+            </ScrollView>
+          ) : (
+            <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.profileContent}>
+              {/* Banner de Modo Invitado si no hay token */}
+              {!token && (
+                <View style={styles.guestBanner}>
+                  <View style={styles.guestBannerLeft}>
+                    <Ionicons name="information-circle-outline" size={18} color="#0284c7" />
+                    <Text style={styles.guestBannerText}>Modo Offline (Sin Autenticar)</Text>
+                  </View>
+                  <TouchableOpacity style={styles.guestLoginBtn} onPress={() => setIsGuestMode(false)}>
+                    <Text style={styles.guestLoginBtnText}>Iniciar Sesión</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Header del Perfil */}
+              <View style={styles.profileHeaderCard}>
+                <View style={styles.avatarCircle}>
+                  <Text style={styles.avatarInitials}>
+                    {userName.split(' ').map((n) => n[0]).join('').substring(0, 2)}
+                  </Text>
+                </View>
+                <View style={styles.profileHeaderInfo}>
+                  <Text style={styles.profileName}>{userName}</Text>
+                  <Text style={styles.profileSubtitle}>
+                    @{userUsername} • {userRole}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.profileTerritoryPill}
+                    onPress={() => setShowTerritoryModal(true)}
+                  >
+                    <Text style={styles.profileTerritoryText}>📍 {userTerritory}</Text>
+                    <Ionicons name="create-outline" size={14} color="#15803d" style={{ marginLeft: 4 }} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Botón Salir / Cerrar Sesión en Header */}
+                {token ? (
+                  <TouchableOpacity
+                    style={styles.headerLogoutBtn}
+                    onPress={handleLogout}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="log-out-outline" size={16} color="#ef4444" />
+                    <Text style={styles.headerLogoutBtnText}>Salir</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.headerLoginBtn}
+                    onPress={() => setIsGuestMode(false)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="log-in-outline" size={16} color="#15803d" />
+                    <Text style={styles.headerLoginBtnText}>Entrar</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
 
             {/* Sub-Tabs de Navegación de Perfil */}
             <View style={styles.profileSubTabsBar}>
@@ -1351,6 +1873,18 @@ export default function App() {
                   <Ionicons name="checkmark-circle" size={18} color="#ffffff" style={{ marginRight: 6 }} />
                   <Text style={styles.btnSaveProfileText}>Guardar Cambios de Perfil</Text>
                 </TouchableOpacity>
+
+                {/* Botón Cerrar Sesión si está autenticado */}
+                {token ? (
+                  <TouchableOpacity
+                    style={styles.fullLogoutBtn}
+                    onPress={handleLogout}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="log-out-outline" size={18} color="#ef4444" style={{ marginRight: 6 }} />
+                    <Text style={styles.fullLogoutBtnText}>Cerrar Sesión en este Dispositivo</Text>
+                  </TouchableOpacity>
+                ) : null}
               </View>
             )}
 
@@ -1488,6 +2022,36 @@ export default function App() {
             {/* PESTAÑA 4: SINCRONIZACIÓN OUTBOX & SERVIDOR DOKPLOY */}
             {profileSubTab === 'outbox' && (
               <>
+                {/* Tarjeta de Estado de Conexión y Cuenta */}
+                <View style={styles.outboxAuthCard}>
+                  <View style={styles.outboxAuthHeader}>
+                    <Ionicons
+                      name={token ? 'shield-checkmark' : 'cloud-offline-outline'}
+                      size={20}
+                      color={token ? '#15803d' : '#f59e0b'}
+                    />
+                    <Text style={styles.outboxAuthTitle}>
+                      {token ? 'Cuenta Conectada a Dokploy' : 'Modo Offline (Sin Autenticar)'}
+                    </Text>
+                  </View>
+                  <Text style={styles.outboxAuthDesc}>
+                    {token
+                      ? `Sesión activa como @${userUsername} (${userEmail}). Tus observaciones se sincronizan directamente con la plataforma central.`
+                      : 'Inicia sesión para que tus árboles se asocien a tu cuenta de guardabosques en la plataforma web de EcoRaíces.'}
+                  </Text>
+                  {token ? (
+                    <TouchableOpacity style={styles.outboxLogoutBtn} onPress={handleLogout}>
+                      <Ionicons name="log-out-outline" size={16} color="#ef4444" style={{ marginRight: 4 }} />
+                      <Text style={styles.outboxLogoutBtnText}>Cerrar Sesión / Cambiar Cuenta</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity style={styles.outboxLoginBtn} onPress={() => setIsGuestMode(false)}>
+                      <Ionicons name="log-in-outline" size={16} color="#15803d" style={{ marginRight: 4 }} />
+                      <Text style={styles.outboxLoginBtnText}>Iniciar Sesión / Crear Cuenta</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
                 <View style={styles.outboxSectionCard}>
                   <View style={styles.outboxHeaderRow}>
                     <View>
@@ -1569,7 +2133,8 @@ export default function App() {
               </>
             )}
           </ScrollView>
-        )}
+        )
+      )}
       </View>
 
       {/* Modal Ficha Botánica (Panel 5 del mockup) */}
@@ -2788,7 +3353,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    marginBottom: 14
+    marginBottom: 14,
+    position: 'relative'
   },
   avatarCircle: {
     width: 68,
@@ -3806,5 +4372,371 @@ const styles = StyleSheet.create({
     color: '#0369a1',
     fontSize: 9,
     fontWeight: '800'
+  },
+
+  // ==========================================
+  // ESTILOS: AUTENTICACIÓN & SESIÓN DOKPLOY
+  // ==========================================
+  headerLogoutBtn: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 8
+  },
+  headerLogoutBtnText: {
+    color: '#ef4444',
+    fontSize: 11,
+    fontWeight: '700'
+  },
+  headerLoginBtn: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: '#86efac',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 8
+  },
+  headerLoginBtnText: {
+    color: '#15803d',
+    fontSize: 11,
+    fontWeight: '800'
+  },
+  fullLogoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff1f2',
+    borderWidth: 1,
+    borderColor: '#fda4af',
+    paddingVertical: 12,
+    borderRadius: 10,
+    marginTop: 10
+  },
+  fullLogoutBtnText: {
+    color: '#e11d48',
+    fontSize: 13,
+    fontWeight: '800'
+  },
+  authScrollContent: {
+    padding: 16,
+    paddingBottom: 40
+  },
+  authCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 3
+  },
+  authBrandContainer: {
+    alignItems: 'center',
+    marginBottom: 20
+  },
+  authLogoCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#dcfce7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#86efac',
+    marginBottom: 10
+  },
+  authTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#0f172a'
+  },
+  authSubtitle: {
+    fontSize: 12,
+    color: '#64748b',
+    textAlign: 'center',
+    marginTop: 4,
+    maxWidth: 260
+  },
+  authServerBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginTop: 10,
+    gap: 6
+  },
+  authServerText: {
+    fontSize: 10,
+    color: '#15803d',
+    fontWeight: '700'
+  },
+  authTabSwitcher: {
+    flexDirection: 'row',
+    backgroundColor: '#f1f5f9',
+    borderRadius: 10,
+    padding: 3,
+    marginBottom: 18
+  },
+  authTabBtn: {
+    flex: 1,
+    paddingVertical: 9,
+    alignItems: 'center',
+    borderRadius: 8
+  },
+  authTabBtnActive: {
+    backgroundColor: '#ffffff',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2
+  },
+  authTabBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#64748b'
+  },
+  authTabBtnTextActive: {
+    color: '#15803d',
+    fontWeight: '900'
+  },
+  authAlertError: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 14,
+    gap: 8
+  },
+  authAlertErrorText: {
+    color: '#b91c1c',
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1
+  },
+  authAlertSuccess: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 14,
+    gap: 8
+  },
+  authAlertSuccessText: {
+    color: '#15803d',
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1
+  },
+  authForm: {
+    width: '100%'
+  },
+  authInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 8,
+    paddingHorizontal: 12
+  },
+  authInputIcon: {
+    marginRight: 8
+  },
+  authTextInput: {
+    flex: 1,
+    paddingVertical: 10,
+    fontSize: 13,
+    color: '#0f172a'
+  },
+  authPassToggle: {
+    padding: 6
+  },
+  rememberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 12,
+    gap: 8
+  },
+  rememberText: {
+    fontSize: 12,
+    color: '#475569'
+  },
+  authSubmitBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#15803d',
+    paddingVertical: 13,
+    borderRadius: 10,
+    marginTop: 6
+  },
+  authSubmitBtnDisabled: {
+    opacity: 0.7
+  },
+  authSubmitBtnText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '800'
+  },
+  authSwitchBtn: {
+    alignItems: 'center',
+    marginTop: 14,
+    paddingVertical: 6
+  },
+  authSwitchText: {
+    fontSize: 12,
+    color: '#64748b'
+  },
+  authSwitchLink: {
+    color: '#15803d',
+    fontWeight: '800'
+  },
+  authGuestBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 10,
+    backgroundColor: '#f8fafc'
+  },
+  authGuestBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569'
+  },
+  authOfflineHintBox: {
+    marginTop: 14,
+    backgroundColor: '#f8fafc',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0'
+  },
+  authOfflineHintText: {
+    fontSize: 11,
+    color: '#64748b',
+    lineHeight: 16,
+    textAlign: 'center'
+  },
+  guestBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f0f9ff',
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 10,
+    marginBottom: 12
+  },
+  guestBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1
+  },
+  guestBannerText: {
+    fontSize: 11,
+    color: '#0369a1',
+    fontWeight: '700',
+    flex: 1
+  },
+  guestLoginBtn: {
+    backgroundColor: '#0284c7',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6
+  },
+  guestLoginBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#ffffff'
+  },
+  outboxAuthCard: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 14
+  },
+  outboxAuthHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4
+  },
+  outboxAuthTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0f172a'
+  },
+  outboxAuthDesc: {
+    fontSize: 11,
+    color: '#64748b',
+    lineHeight: 16,
+    marginBottom: 10
+  },
+  outboxLogoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    paddingVertical: 8,
+    borderRadius: 8
+  },
+  outboxLogoutBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#ef4444'
+  },
+  outboxLoginBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: '#86efac',
+    paddingVertical: 8,
+    borderRadius: 8
+  },
+  outboxLoginBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#15803d'
   }
 });
