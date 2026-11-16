@@ -1,20 +1,27 @@
 {
   "expo": {
-    "name": "EcoRaíces Campo",
-    "slug": "ecoraices-campo",
+    "name": "EcoRaíces",
+    "slug": "ecoraices",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0f172a"
+    },
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "tech.neuraljira.ecoraices",
       "infoPlist": {
         "NSCameraUsageDescription": "EcoRaíces necesita la cámara para fotografiar los árboles y especies en campo.",
         "NSLocationWhenInUseUsageDescription": "EcoRaíces necesita tu ubicación GNSS para georreferenciar los árboles registrados."
       }
     },
     "android": {
-      "package": "tech.neuraljira.ecoraices.campo",
+      "package": "tech.neuraljira.ecoraices",
+      "versionCode": 1,
       "permissions": [
         "CAMERA",
         "ACCESS_FINE_LOCATION",
@@ -23,7 +30,7 @@
         "WRITE_EXTERNAL_STORAGE"
       ],
       "adaptiveIcon": {
-        "backgroundColor": "#1a472a",
+        "backgroundColor": "#0f172a",
         "foregroundImage": "./assets/android-icon-foreground.png"
       }
     },

@@ -76,6 +76,7 @@ export default function App() {
   const [sessionCount, setSessionCount] = useState(0);
   const [saveSuccessBanner, setSaveSuccessBanner] = useState(null);
   const [saveErrorBanner, setSaveErrorBanner] = useState(null);
+  const [showMenuModal, setShowMenuModal] = useState(false);
 
   // Outbox / Offline Sync State
   const [stats, setStats] = useState({ total: 0, pending: 0, synced: 0 });
@@ -426,37 +427,166 @@ export default function App() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor="#0b1329" />
 
-      {/* Barra de Cabecera Superior (Estilo HUD TranspoSys Cockpit) */}
+      {/* Barra de Cabecera Superior (Estilo Oficial EcoRaíces Web + Mobile) */}
       <View style={styles.topHeader}>
-        <View style={styles.headerBrand}>
-          <View style={styles.headerLogoBadge}>
-            <Text style={styles.headerLogoIcon}>🌳</Text>
-          </View>
-          <View>
-            <Text style={styles.headerTitle}>EcoRaíces</Text>
-            <Text style={styles.headerSubtitle}>La Guajira • {userTerritory}</Text>
-          </View>
+        <View style={styles.headerLeftGroup}>
+          <TouchableOpacity
+            style={styles.hamburgerBtn}
+            onPress={() => setShowMenuModal(true)}
+          >
+            <Ionicons name="menu" size={24} color="#15803d" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.headerBrand}
+            onPress={() => setActiveTab('home')}
+          >
+            <Image
+              source={require('./assets/eco.png')}
+              style={styles.headerEcoLogo}
+              resizeMode="contain"
+            />
+            <Text style={styles.headerBrandText}>ECORAÍCES</Text>
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.headerRightHUD}>
-          {/* Badge Nivel Gamificado */}
-          <View style={styles.levelBadge}>
-            <Text style={styles.levelBadgeIcon}>{gamification.currentRank.icon}</Text>
-            <Text style={styles.levelBadgeText}>Nivel {gamification.currentRank.nivel}</Text>
-          </View>
-
-          {/* Outbox Pill */}
+        {/* Sync Pill estilo Web */}
+        <View style={styles.headerSyncPill}>
+          <Text style={styles.headerSyncDot}>🔵</Text>
+          <Text style={styles.headerSyncText} numberOfLines={1}>
+            {stats.pending > 0 ? `${stats.pending} por subir` : 'Al día'}
+          </Text>
           <TouchableOpacity
-            style={[styles.outboxPill, stats.pending > 0 && styles.outboxPillActive]}
-            onPress={() => setActiveTab('profile')}
+            style={[styles.headerSyncBtn, (isSyncing || stats.pending === 0) && { opacity: 0.6 }]}
+            onPress={handleStartSync}
+            disabled={isSyncing || stats.pending === 0}
           >
-            <Ionicons name="cloud-outline" size={13} color={stats.pending > 0 ? '#d97706' : '#94a3b8'} />
-            <Text style={[styles.outboxPillText, stats.pending > 0 && styles.outboxPillTextActive]}>
-              {stats.pending > 0 ? `${stats.pending} en cola` : 'Al día'}
-            </Text>
+            {isSyncing ? (
+              <ActivityIndicator size="small" color="#ffffff" />
+            ) : (
+              <>
+                <Ionicons name="sync" size={12} color="#ffffff" style={{ marginRight: 3 }} />
+                <Text style={styles.headerSyncBtnText}>Subir</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Modal Menú Lateral / Drawer Hamburguesa */}
+      <Modal
+        visible={showMenuModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowMenuModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.menuModalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowMenuModal(false)}
+        >
+          <View style={styles.menuDrawerContainer}>
+            <View style={styles.menuDrawerHeader}>
+              <Image
+                source={require('./assets/eco.png')}
+                style={styles.menuDrawerLogo}
+                resizeMode="contain"
+              />
+              <View>
+                <Text style={styles.menuDrawerTitle}>ECORAÍCES</Text>
+                <Text style={styles.menuDrawerSubtitle}>Guajira • Bosque Seco Tropical</Text>
+              </View>
+            </View>
+
+            <View style={styles.menuNavItems}>
+              <TouchableOpacity
+                style={[styles.menuNavItem, activeTab === 'home' && styles.menuNavItemActive]}
+                onPress={() => {
+                  setActiveTab('home');
+                  setShowMenuModal(false);
+                }}
+              >
+                <Ionicons name="home-outline" size={20} color={activeTab === 'home' ? '#15803d' : '#334155'} />
+                <Text style={[styles.menuNavText, activeTab === 'home' && styles.menuNavTextActive]}>
+                  Inicio (Dashboard)
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.menuNavItem, activeTab === 'map3d' && styles.menuNavItemActive]}
+                onPress={() => {
+                  setActiveTab('map3d');
+                  setShowMenuModal(false);
+                }}
+              >
+                <Ionicons name="map-outline" size={20} color={activeTab === 'map3d' ? '#15803d' : '#334155'} />
+                <Text style={[styles.menuNavText, activeTab === 'map3d' && styles.menuNavTextActive]}>
+                  Mapa 3D Satelital
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.menuNavItem, activeTab === 'capture' && styles.menuNavItemActive]}
+                onPress={() => {
+                  setActiveTab('capture');
+                  setShowMenuModal(false);
+                }}
+              >
+                <Ionicons name="add-circle-outline" size={20} color={activeTab === 'capture' ? '#15803d' : '#334155'} />
+                <Text style={[styles.menuNavText, activeTab === 'capture' && styles.menuNavTextActive]}>
+                  Registro de Especies (Campo)
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.menuNavItem, activeTab === 'catalog' && styles.menuNavItemActive]}
+                onPress={() => {
+                  setActiveTab('catalog');
+                  setShowMenuModal(false);
+                }}
+              >
+                <Ionicons name="leaf-outline" size={20} color={activeTab === 'catalog' ? '#15803d' : '#334155'} />
+                <Text style={[styles.menuNavText, activeTab === 'catalog' && styles.menuNavTextActive]}>
+                  Catálogo Botánico
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.menuNavItem, activeTab === 'communities' && styles.menuNavItemActive]}
+                onPress={() => {
+                  setActiveTab('communities');
+                  setShowMenuModal(false);
+                }}
+              >
+                <Ionicons name="people-outline" size={20} color={activeTab === 'communities' ? '#15803d' : '#334155'} />
+                <Text style={[styles.menuNavText, activeTab === 'communities' && styles.menuNavTextActive]}>
+                  Comunidades Wayuu
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.menuNavItem, activeTab === 'profile' && styles.menuNavItemActive]}
+                onPress={() => {
+                  setActiveTab('profile');
+                  setShowMenuModal(false);
+                }}
+              >
+                <Ionicons name="person-outline" size={20} color={activeTab === 'profile' ? '#15803d' : '#334155'} />
+                <Text style={[styles.menuNavText, activeTab === 'profile' && styles.menuNavTextActive]}>
+                  Perfil & Sincronización
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Estado de Dokploy Server */}
+            <View style={styles.menuServerBox}>
+              <Text style={styles.menuServerTitle}>Servidor Dokploy / FastAPI:</Text>
+              <Text style={styles.menuServerUrl} numberOfLines={1}>{serverUrl}</Text>
+              <Text style={styles.menuServerStatus}>🟢 Listo para sincronización</Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       {/* Contenido Principal según Pestaña Activa */}
       <View style={styles.contentArea}>
@@ -468,7 +598,11 @@ export default function App() {
             {/* Hero Welcome Card */}
             <View style={styles.welcomeHeroCard}>
               <View style={styles.welcomeLogoBig}>
-                <Text style={{ fontSize: 32 }}>🌳</Text>
+                <Image
+                  source={require('./assets/eco.png')}
+                  style={{ width: 44, height: 44 }}
+                  resizeMode="contain"
+                />
               </View>
               <Text style={styles.welcomeTitle}>¡Bienvenidos a EcoRaíces!</Text>
               <Text style={styles.welcomeDesc}>
@@ -1265,63 +1399,166 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    backgroundColor: '#0f172a',
+    paddingHorizontal: 12,
+    backgroundColor: '#ffffff',
     borderBottomWidth: 1,
-    borderBottomColor: '#1e293b'
+    borderBottomColor: '#e2e8f0',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2
   },
-  headerBrand: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10
-  },
-  headerLogoBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#132144',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#1e3a8a'
-  },
-  headerLogoIcon: {
-    fontSize: 20
-  },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#34d399',
-    letterSpacing: -0.3
-  },
-  headerSubtitle: {
-    fontSize: 10,
-    color: '#94a3b8',
-    fontWeight: '600'
-  },
-  headerRightHUD: {
+  headerLeftGroup: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8
   },
-  levelBadge: {
+  hamburgerBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#dcfce7',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  headerBrand: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#1e293b',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    gap: 6
+  },
+  headerEcoLogo: {
+    width: 30,
+    height: 30
+  },
+  headerBrandText: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#15803d',
+    letterSpacing: 0.5
+  },
+  headerSyncPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#eff6ff',
     borderWidth: 1,
-    borderColor: '#334155'
+    borderColor: '#bfdbfe',
+    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 4
   },
-  levelBadgeIcon: {
-    fontSize: 12
+  headerSyncDot: {
+    fontSize: 8
   },
-  levelBadgeText: {
+  headerSyncText: {
     fontSize: 10,
+    fontWeight: '700',
+    color: '#1d4ed8',
+    maxWidth: 110
+  },
+  headerSyncBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12
+  },
+  headerSyncBtnText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '800'
+  },
+  menuModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'flex-start'
+  },
+  menuDrawerContainer: {
+    width: '78%',
+    maxWidth: 320,
+    height: '100%',
+    backgroundColor: '#ffffff',
+    padding: 20,
+    paddingTop: 40,
+    shadowColor: '#000000',
+    shadowOffset: { width: 4, height: 0 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 16
+  },
+  menuDrawerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    marginBottom: 16
+  },
+  menuDrawerLogo: {
+    width: 44,
+    height: 44
+  },
+  menuDrawerTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#15803d',
+    letterSpacing: 0.5
+  },
+  menuDrawerSubtitle: {
+    fontSize: 11,
+    color: '#64748b',
+    fontWeight: '600'
+  },
+  menuNavItems: {
+    gap: 6,
+    flex: 1
+  },
+  menuNavItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 10
+  },
+  menuNavItemActive: {
+    backgroundColor: '#dcfce7'
+  },
+  menuNavText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#334155'
+  },
+  menuNavTextActive: {
+    color: '#15803d',
+    fontWeight: '900'
+  },
+  menuServerBox: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 10
+  },
+  menuServerTitle: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#64748b'
+  },
+  menuServerUrl: {
+    fontSize: 11,
     fontWeight: '800',
-    color: '#38bdf8'
+    color: '#0f172a',
+    marginVertical: 2
+  },
+  menuServerStatus: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#16a34a'
   },
   outboxPill: {
     flexDirection: 'row',
