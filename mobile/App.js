@@ -736,20 +736,24 @@ export default function App() {
     });
   }, [apiSpecies, catalogSearch, selectedCategoryFilter]);
 
-  // Lista de todos los árboles para el mapa 3D
+  // Lista de todos los árboles para el mapa 3D (unifica SQLite local y servidor Dokploy)
   const allMapTrees = useMemo(() => {
     return [
       ...outboxTrees.map((t) => ({
         ...t,
-        name: t.species_name,
-        verified: t.sync_status === 'SYNCED'
+        name: t.speciesName || t.species_name || 'Árbol Censado',
+        species_name: t.speciesName || t.species_name || 'Árbol Censado',
+        scientific_name: t.scientificName || t.scientific_name || '',
+        municipality: t.municipio || t.municipality || 'La Guajira',
+        verified: t.syncStatus === 'SYNCED' || t.sync_status === 'SYNCED'
       })),
       ...remoteTrees.map((rt) => ({
         ...rt,
-        species_name: rt.species?.name || rt.name || 'Árbol',
-        scientific_name: rt.species?.scientificName || '',
-        municipality: rt.municipality || 'La Guajira',
-        verified: true
+        name: rt.species?.name || rt.speciesName || rt.species_name || rt.name || 'Árbol Registrado',
+        species_name: rt.species?.name || rt.speciesName || rt.species_name || rt.name || 'Árbol Registrado',
+        scientific_name: rt.species?.scientificName || rt.scientific_name || '',
+        municipality: rt.municipio || rt.municipality || 'La Guajira',
+        verified: rt.status === 'APPROVED' || rt.verified || true
       }))
     ];
   }, [outboxTrees, remoteTrees]);

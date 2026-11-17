@@ -162,22 +162,6 @@ export default function ProfileScreen({
             </TouchableOpacity>
           </View>
 
-          {/* Botón de Autocompletar Cuenta de Prueba */}
-          {authMode === 'login' && (
-            <TouchableOpacity
-              style={styles.quickTestUserBtn}
-              onPress={() => {
-                setAuthEmail('ecotest@neuraljira.tech');
-                setAuthPassword('TestPassword2026!');
-                setAuthError('');
-              }}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.quickTestUserBtnText}>
-                🧪 Probar con cuenta de prueba (ecotest@neuraljira.tech)
-              </Text>
-            </TouchableOpacity>
-          )}
 
           {/* Banner de Error */}
           {Boolean(authError) && (
@@ -653,62 +637,90 @@ export default function ProfileScreen({
           ) : (
             <View style={styles.obsItemsList}>
               {/* Árboles locales pendientes en SQLite */}
-              {outboxTrees.map((tree) => (
-                <View key={`outbox-${tree.id}`} style={styles.obsItemRow}>
-                  <View style={styles.obsThumbBox}>
-                    {tree.local_image_path ? (
-                      <Image source={{ uri: tree.local_image_path }} style={styles.obsThumbImg} />
-                    ) : (
-                      <Text style={{ fontSize: 22 }}>🌳</Text>
-                    )}
-                  </View>
-                  <View style={styles.obsInfoBox}>
-                    <Text style={styles.obsSpeciesName}>{tree.species_name}</Text>
-                    <Text style={styles.obsLocationText}>
-                      📍 {tree.municipality} • Lat: {tree.latitude?.toFixed?.(4) || tree.latitude}, Lng: {tree.longitude?.toFixed?.(4) || tree.longitude}
-                    </Text>
-                    <Text style={styles.obsDateText}>
-                      {tree.created_at ? new Date(tree.created_at).toLocaleDateString('es-CO') : tree.observation_date || 'Reciente'}
-                    </Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.obsStatusBadge,
-                      tree.sync_status === 'SYNCED' ? styles.statusSynced : styles.statusPending
-                    ]}
-                  >
-                    <Text
+              {outboxTrees.map((tree) => {
+                const spName = tree.speciesName || tree.species_name || 'Árbol Censado';
+                const mun = tree.municipio || tree.municipality || 'La Guajira';
+                const isSynced = tree.syncStatus === 'SYNCED' || tree.sync_status === 'SYNCED';
+                const imgUri = tree.localImagePath || tree.local_image_path;
+                const dateStr = tree.createdAt || tree.created_at || tree.observationDate || tree.observation_date;
+                const latVal = typeof tree.latitude === 'number' ? tree.latitude.toFixed(4) : tree.latitude;
+                const lngVal = typeof tree.longitude === 'number' ? tree.longitude.toFixed(4) : tree.longitude;
+
+                return (
+                  <View key={`outbox-${tree.clientId || tree.id}`} style={styles.obsItemRow}>
+                    <View style={styles.obsThumbBox}>
+                      {imgUri ? (
+                        <Image source={{ uri: imgUri }} style={styles.obsThumbImg} />
+                      ) : (
+                        <Text style={{ fontSize: 22 }}>🌳</Text>
+                      )}
+                    </View>
+                    <View style={styles.obsInfoBox}>
+                      <Text style={styles.obsSpeciesName}>{spName}</Text>
+                      <Text style={styles.obsLocationText}>
+                        📍 {mun} • Lat: {latVal}, Lng: {lngVal}
+                      </Text>
+                      <Text style={styles.obsDateText}>
+                        {dateStr ? new Date(dateStr).toLocaleDateString('es-CO') : 'Reciente'}
+                      </Text>
+                    </View>
+                    <View
                       style={[
-                        styles.obsStatusBadgeText,
-                        tree.sync_status === 'SYNCED' ? styles.statusTextSynced : styles.statusTextPending
+                        styles.obsStatusBadge,
+                        isSynced ? styles.statusSynced : styles.statusPending
                       ]}
                     >
-                      {tree.sync_status === 'SYNCED' ? '✓ Subido' : '⏳ SQLite'}
-                    </Text>
+                      <Text
+                        style={[
+                          styles.obsStatusBadgeText,
+                          isSynced ? styles.statusTextSynced : styles.statusTextPending
+                        ]}
+                      >
+                        {isSynced ? '✓ Subido' : '⏳ SQLite'}
+                      </Text>
+                    </View>
                   </View>
-                </View>
-              ))}
+                );
+              })}
 
-              {/* Árboles remotos del servidor */}
-              {remoteTrees.map((rt) => (
-                <View key={`remote-${rt.id}`} style={styles.obsItemRow}>
-                  <View style={styles.obsThumbBox}>
-                    <Text style={{ fontSize: 22 }}>🌿</Text>
+              {/* Árboles remotos del servidor Dokploy */}
+              {remoteTrees.map((rt) => {
+                const spName = rt.species?.name || rt.speciesName || rt.species_name || rt.name || 'Árbol Registrado';
+                const mun = rt.municipio || rt.municipality || 'La Guajira';
+                const dateStr = rt.createdAt || rt.created_at || rt.observationDate;
+                const isApproved = rt.status === 'APPROVED' || rt.verified;
+                const latVal = typeof rt.latitude === 'number' ? rt.latitude.toFixed(4) : rt.latitude;
+                const lngVal = typeof rt.longitude === 'number' ? rt.longitude.toFixed(4) : rt.longitude;
+                const fullImgUrl = rt.imageUrl
+                  ? (rt.imageUrl.startsWith('http') ? rt.imageUrl : `${serverUrl}${rt.imageUrl}`)
+                  : null;
+
+                return (
+                  <View key={`remote-${rt.id}`} style={styles.obsItemRow}>
+                    <View style={styles.obsThumbBox}>
+                      {fullImgUrl ? (
+                        <Image source={{ uri: fullImgUrl }} style={styles.obsThumbImg} />
+                      ) : (
+                        <Text style={{ fontSize: 22 }}>🌿</Text>
+                      )}
+                    </View>
+                    <View style={styles.obsInfoBox}>
+                      <Text style={styles.obsSpeciesName}>{spName}</Text>
+                      <Text style={styles.obsLocationText}>
+                        📍 {mun} • Lat: {latVal}, Lng: {lngVal}
+                      </Text>
+                      <Text style={styles.obsDateText}>
+                        {dateStr ? new Date(dateStr).toLocaleDateString('es-CO') : 'Verificado'}
+                      </Text>
+                    </View>
+                    <View style={[styles.obsStatusBadge, styles.statusSynced]}>
+                      <Text style={[styles.obsStatusBadgeText, styles.statusTextSynced]}>
+                        {isApproved ? '✓ Aprobada' : '⏳ En revisión'}
+                      </Text>
+                    </View>
                   </View>
-                  <View style={styles.obsInfoBox}>
-                    <Text style={styles.obsSpeciesName}>{rt.species_name}</Text>
-                    <Text style={styles.obsLocationText}>
-                      📍 {rt.municipality} • Lat: {rt.latitude?.toFixed?.(4) || rt.latitude}, Lng: {rt.longitude?.toFixed?.(4) || rt.longitude}
-                    </Text>
-                    <Text style={styles.obsDateText}>
-                      {rt.created_at ? new Date(rt.created_at).toLocaleDateString('es-CO') : 'Verificado'}
-                    </Text>
-                  </View>
-                  <View style={[styles.obsStatusBadge, styles.statusSynced]}>
-                    <Text style={[styles.obsStatusBadgeText, styles.statusTextSynced]}>✓ Aprobada</Text>
-                  </View>
-                </View>
-              ))}
+                );
+              })}
             </View>
           )}
         </View>
@@ -995,21 +1007,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     flex: 1
-  },
-  quickTestUserBtn: {
-    backgroundColor: '#f0fdf4',
-    borderWidth: 1,
-    borderColor: '#86efac',
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    alignItems: 'center',
-    marginBottom: 12
-  },
-  quickTestUserBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.primary
   },
   serverInputRow: {
     flexDirection: 'row',
