@@ -125,14 +125,76 @@ const MAP_HTML = `
     .badge-native { background: #d1fae5; color: #065f46; }
     .popup-note { background: #f8fafc; border-left: 3px solid #10b981; padding: 6px 8px; border-radius: 4px; margin: 6px 0; font-size: 11px; color: #334155; }
     .popup-note.invasive { border-left-color: #ef4444; background: #fff1f2; }
+
+    /* Botón Modo Persona en el Popup */
+    .popup-btn-person {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      width: 100%;
+      margin-top: 8px;
+      padding: 8px 10px;
+      background: #0284c7;
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 2px 5px rgba(2, 132, 199, 0.35);
+      transition: background 0.2s, transform 0.1s;
+    }
+    .popup-btn-person:active {
+      background: #0369a1;
+      transform: scale(0.98);
+    }
+    .popup-thumb-img {
+      width: 100%;
+      height: 90px;
+      object-fit: cover;
+      border-radius: 8px;
+      margin-bottom: 6px;
+    }
+
+    /* HUD Superior: Modo Persona Activo */
+    .person-mode-hud {
+      position: absolute;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.92);
+      color: #ffffff;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 800;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+      z-index: 100;
+      border: 1px solid rgba(255,255,255,0.25);
+      pointer-events: none;
+    }
+    .person-mode-hud.active {
+      display: flex;
+    }
   </style>
 </head>
 <body>
   <div id="map"></div>
+  <div id="person-hud" class="person-mode-hud">
+    <span>🚶‍♂️ MODO PERSONA (A ras de suelo)</span>
+  </div>
+
   <script>
     let map;
     let markers = [];
     let is3D = false;
+    let isPersonMode = false;
+    let personTargetCoords = null;
+    let currentTrees = [];
 
     const STYLE_URL = "https://map.neuraljira.tech/api/v1/style.json";
     const FALLBACK_STYLE = {
@@ -154,6 +216,24 @@ const MAP_HTML = `
         const res = await fetch(STYLE_URL);
         if (res.ok) {
           mapStyle = await res.json();
+          // Quitar la opacidad atenuada del 0.25 para que OSM tenga 95% de nitidez y color vivo
+          if (mapStyle.layers && Array.isArray(mapStyle.layers)) {
+            mapStyle.layers.forEach(l => {
+              if (l.id === 'osm-layer' && l.paint) {
+                l.paint['raster-opacity'] = 0.95;
+              }
+              // Atenuar polígonos catastrales grises para que NO tapen las calles
+              if (l.id && (l.id.includes('terreno-fill') || l.id.includes('sector-fill') || l.id.includes('vereda-fill')) && l.paint) {
+                l.paint['fill-opacity'] = 0.12;
+              }
+              // Resaltar calles con color ámbar visible y grosor definido
+              if (l.id && l.id.includes('nomenclatura_vial-line') && l.paint) {
+                l.paint['line-color'] = '#f59e0b';
+                l.paint['line-width'] = 2.8;
+                l.paint['line-opacity'] = 0.95;
+              }
+            });
+          }
         }
       } catch (e) {
         console.warn("Using fallback style", e);
@@ -180,7 +260,7 @@ const MAP_HTML = `
       const name = ((item.species_name || item.name || "") + " " + (item.scientific_name || "")).toLowerCase();
       if (name.includes("neem") || name.includes("nim")) {
         return {
-          displayName: item.species_name || 'Neem Guajiro',
+          displayName: item.species_name || item.name || 'Neem Guajiro',
           scientific: 'Azadirachta indica',
           isInvasive: true,
           tagClass: 'tag-neem',
@@ -194,7 +274,7 @@ const MAP_HTML = `
       }
       if (name.includes("trupillo")) {
         return {
-          displayName: item.species_name || 'Trupillo',
+          displayName: item.species_name || item.name || 'Trupillo',
           scientific: 'Prosopis juliflora',
           isInvasive: false,
           tagClass: 'tag-trupillo',
@@ -208,7 +288,7 @@ const MAP_HTML = `
       }
       if (name.includes("dividivi")) {
         return {
-          displayName: item.species_name || 'Dividivi',
+          displayName: item.species_name || item.name || 'Dividivi',
           scientific: 'Libidibia coriaria',
           isInvasive: false,
           tagClass: 'tag-dividivi',
@@ -235,6 +315,7 @@ const MAP_HTML = `
     }
 
     function setTrees(treesList) {
+      currentTrees = treesList || [];
       markers.forEach(m => m.remove());
       markers = [];
       if (!Array.isArray(treesList) || treesList.length === 0) return;
@@ -274,16 +355,24 @@ const MAP_HTML = `
           }));
         });
 
+        const imgPath = t.imageUrl || t.localImagePath || t.local_image_path;
+        const imgHTML = imgPath ? \`<img src="\${imgPath}" class="popup-thumb-img" alt="Foto árbol" onerror="this.style.display='none'"/>\` : '';
+        const treeIdStr = String(t.clientId || t.id || '');
+
         const popupHTML = \`
           <div>
+            \${imgHTML}
             <div class="popup-title">\${profile.displayName}</div>
             <div class="popup-sub">\${profile.scientific}</div>
             <span class="popup-badge \${profile.badgeClass}">\${profile.badgeText}</span>
             <div class="popup-note \${profile.isInvasive ? 'invasive' : ''}">\${profile.alert}</div>
             <div style="font-size: 10px; color: #64748b; margin-top: 4px;">
               📍 \${lat.toFixed(5)}, \${lng.toFixed(5)}<br/>
-              🏛️ \${t.municipality || 'La Guajira'}
+              🏛️ \${t.municipio || t.municipality || 'La Guajira'}
             </div>
+            <button type="button" class="popup-btn-person" onclick="window.enterPersonModeFromPopup('\${treeIdStr}')">
+              🚶‍♂️ Pararme al pie del árbol
+            </button>
           </div>
         \`;
 
@@ -296,13 +385,80 @@ const MAP_HTML = `
         markers.push(marker);
       });
 
-      if (hasValidCoords && treesList.length > 1) {
+      if (hasValidCoords && treesList.length > 1 && !isPersonMode) {
         map.fitBounds(bounds, { padding: 50, maxZoom: 15, duration: 1000 });
       }
     }
 
+    function enterPersonMode(lat, lng, treeInfo) {
+      if (isNaN(lat) || isNaN(lng)) return;
+      isPersonMode = true;
+      personTargetCoords = { lat, lng };
+
+      // Cerrar popups para vista limpia
+      markers.forEach(m => {
+        if (m.getPopup && m.getPopup().isOpen()) m.getPopup().remove();
+      });
+
+      // Aterrizaje suave de cámara a ras de suelo (pitch 82° = altura de ojos de una persona)
+      map.easeTo({
+        center: [lng, lat],
+        zoom: 19.6,
+        pitch: 82,
+        bearing: -15,
+        duration: 1600
+      });
+
+      const hud = document.getElementById('person-hud');
+      if (hud) hud.classList.add('active');
+
+      window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'PERSON_MODE_CHANGE',
+        payload: { active: true, tree: treeInfo }
+      }));
+    }
+
+    function exitPersonMode() {
+      isPersonMode = false;
+      personTargetCoords = null;
+      const hud = document.getElementById('person-hud');
+      if (hud) hud.classList.remove('active');
+
+      map.easeTo({
+        pitch: is3D ? 58 : 0,
+        zoom: 15,
+        bearing: 0,
+        duration: 1200
+      });
+
+      window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'PERSON_MODE_CHANGE',
+        payload: { active: false }
+      }));
+    }
+
+    function orbit360() {
+      if (!personTargetCoords) return;
+      const currentBearing = map.getBearing();
+      map.easeTo({
+        center: [personTargetCoords.lng, personTargetCoords.lat],
+        bearing: currentBearing + 60,
+        duration: 900
+      });
+    }
+
+    window.enterPersonModeFromPopup = function(treeIdStr) {
+      const found = currentTrees.find(t => String(t.clientId || t.id) === String(treeIdStr));
+      if (found) {
+        const lat = parseFloat(found.latitude || found.lat);
+        const lng = parseFloat(found.longitude || found.lng);
+        enterPersonMode(lat, lng, found);
+      }
+    };
+
     function toggle3DView(enable3D) {
       is3D = enable3D;
+      if (isPersonMode) return;
       map.easeTo({
         pitch: is3D ? 58 : 0,
         bearing: is3D ? -20 : 0,
@@ -327,6 +483,12 @@ const MAP_HTML = `
           flyToCoords(data.payload.lat, data.payload.lng, 15);
         } else if (data.type === 'FLY_TO') {
           flyToCoords(data.payload.lat, data.payload.lng, data.payload.zoom || 14);
+        } else if (data.type === 'ENTER_PERSON_MODE') {
+          enterPersonMode(data.payload.lat, data.payload.lng, data.payload.tree);
+        } else if (data.type === 'EXIT_PERSON_MODE') {
+          exitPersonMode();
+        } else if (data.type === 'ORBIT_360') {
+          orbit360();
         }
       } catch (e) {}
     });
@@ -348,6 +510,8 @@ export default function Map3DView({
   const [searchQuery, setSearchQuery] = useState('');
   const [mapLoaded, setMapLoaded] = useState(false);
   const [offlinePackProgress, setOfflinePackProgress] = useState(null);
+  const [isPersonMode, setIsPersonMode] = useState(false);
+  const [personTree, setPersonTree] = useState(null);
 
   // Árboles filtrados según barra superior de EcoRaíces
   const filteredTrees = useMemo(() => {
@@ -379,6 +543,10 @@ export default function Map3DView({
   const toggle3D = () => {
     const nextState = !is3DMode;
     setIs3DMode(nextState);
+    if (isPersonMode) {
+      setIsPersonMode(false);
+      setPersonTree(null);
+    }
     if (webViewRef.current) {
       webViewRef.current.postMessage(
         JSON.stringify({
@@ -386,6 +554,44 @@ export default function Map3DView({
           payload: nextState
         })
       );
+    }
+  };
+
+  const handleTogglePersonMode = () => {
+    if (isPersonMode) {
+      if (webViewRef.current) {
+        webViewRef.current.postMessage(JSON.stringify({ type: 'EXIT_PERSON_MODE' }));
+      }
+      setIsPersonMode(false);
+      setPersonTree(null);
+    } else {
+      const target = personTree || filteredTrees[0] || trees[0];
+      if (!target) {
+        Alert.alert('Modo Persona', 'No hay árboles censados visibles para explorar a ras de suelo.');
+        return;
+      }
+      const lat = parseFloat(target.latitude || target.lat);
+      const lng = parseFloat(target.longitude || target.lng);
+      if (isNaN(lat) || isNaN(lng)) {
+        Alert.alert('Modo Persona', 'El árbol seleccionado no posee coordenadas válidas.');
+        return;
+      }
+      setPersonTree(target);
+      setIsPersonMode(true);
+      if (webViewRef.current) {
+        webViewRef.current.postMessage(
+          JSON.stringify({
+            type: 'ENTER_PERSON_MODE',
+            payload: { lat, lng, tree: target }
+          })
+        );
+      }
+    }
+  };
+
+  const handleOrbit360 = () => {
+    if (webViewRef.current) {
+      webViewRef.current.postMessage(JSON.stringify({ type: 'ORBIT_360' }));
     }
   };
 
@@ -417,6 +623,10 @@ export default function Map3DView({
   };
 
   const handleSelectShortcut = (sc) => {
+    if (isPersonMode) {
+      setIsPersonMode(false);
+      setPersonTree(null);
+    }
     if (webViewRef.current) {
       webViewRef.current.postMessage(
         JSON.stringify({
@@ -433,7 +643,12 @@ export default function Map3DView({
       if (data.type === 'MAP_READY') {
         setMapLoaded(true);
       } else if (data.type === 'SELECT_TREE') {
+        setPersonTree(data.payload);
         if (onTreeSelected) onTreeSelected(data.payload);
+      } else if (data.type === 'PERSON_MODE_CHANGE') {
+        setIsPersonMode(data.payload.active);
+        if (data.payload.tree) setPersonTree(data.payload.tree);
+        if (!data.payload.active) setPersonTree(null);
       }
     } catch (e) {}
   };
@@ -532,7 +747,7 @@ export default function Map3DView({
           domStorageEnabled={true}
         />
 
-        {/* 3. DOCK VERTICAL DERECHO: SOLO LAS 3 HERRAMIENTAS SOLICITADAS */}
+        {/* 3. DOCK VERTICAL DERECHO: HERRAMIENTAS INTELIGENTES */}
         <View style={styles.rightFloatingStack}>
           {/* Botón 1: Mi GPS */}
           <TouchableOpacity activeOpacity={0.85} onPress={handleCenterUser} style={styles.floatingActionBtn}>
@@ -552,7 +767,26 @@ export default function Map3DView({
             <Text style={[styles.floatingBtnLabel, is3DMode && { color: '#e2e8f0' }]}>Vista</Text>
           </TouchableOpacity>
 
-          {/* Botón 3: Descargar Mapa Offline */}
+          {/* Botón 3: Modo Persona 3D (Pegman / Al pie del árbol) */}
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={handleTogglePersonMode}
+            style={[
+              styles.floatingActionBtn,
+              isPersonMode && styles.floatingActionBtnActivePersona
+            ]}
+          >
+            <Ionicons
+              name={isPersonMode ? "walk" : "walk-outline"}
+              size={22}
+              color={isPersonMode ? "#ffffff" : "#f59e0b"}
+            />
+            <Text style={[styles.floatingBtnLabel, isPersonMode && { color: '#ffffff' }]}>
+              Persona
+            </Text>
+          </TouchableOpacity>
+
+          {/* Botón 4: Descargar Mapa Offline */}
           <TouchableOpacity activeOpacity={0.85} onPress={handleDownloadOfflineMap} style={styles.floatingActionBtn}>
             {offlinePackProgress != null && offlinePackProgress < 100 ? (
               <Text style={styles.floatingActionTextSmall}>{offlinePackProgress}%</Text>
@@ -568,6 +802,33 @@ export default function Map3DView({
             </Text>
           </TouchableOpacity>
         </View>
+
+        {/* 4. HUD FLOTANTE INFERIOR: MODO PERSONA ACTIVO A RAS DE SUELO */}
+        {isPersonMode && (
+          <View style={styles.personModeCard}>
+            <View style={styles.personCardHeader}>
+              <View style={styles.personLiveDot} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.personCardTitle} numberOfLines={1}>
+                  🚶‍♂️ {personTree?.species_name || personTree?.name || 'Árbol Seleccionado'}
+                </Text>
+                <Text style={styles.personCardSub} numberOfLines={1}>
+                  Vista a pie de árbol (82°) • {personTree?.municipio || personTree?.municipality || 'La Guajira'}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.personCardActions}>
+              <TouchableOpacity style={styles.personOrbitBtn} onPress={handleOrbit360} activeOpacity={0.8}>
+                <Ionicons name="sync" size={15} color="#0284c7" />
+                <Text style={styles.personOrbitBtnText}>Girar 360°</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.personExitBtn} onPress={handleTogglePersonMode} activeOpacity={0.8}>
+                <Ionicons name="close-circle" size={15} color="#ef4444" />
+                <Text style={styles.personExitBtnText}>Salir a Vista Aérea</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -749,6 +1010,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#0f172a',
     borderColor: '#334155'
   },
+  floatingActionBtnActivePersona: {
+    backgroundColor: '#f59e0b',
+    borderColor: '#d97706',
+    elevation: 8,
+    shadowColor: '#d97706',
+    shadowOpacity: 0.4
+  },
   floatingBtnLabel: {
     fontSize: 9,
     fontWeight: '800',
@@ -759,5 +1027,82 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '900',
     color: '#0f172a'
+  },
+  personModeCard: {
+    position: 'absolute',
+    bottom: 20,
+    left: 14,
+    right: 14,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 14,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#f59e0b',
+    zIndex: 60
+  },
+  personCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10
+  },
+  personLiveDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#f59e0b'
+  },
+  personCardTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0f172a'
+  },
+  personCardSub: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 1
+  },
+  personCardActions: {
+    flexDirection: 'row',
+    gap: 10
+  },
+  personOrbitBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#f0f9ff',
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+    borderRadius: 10,
+    paddingVertical: 8
+  },
+  personOrbitBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0284c7'
+  },
+  personExitBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    borderRadius: 10,
+    paddingVertical: 8
+  },
+  personExitBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#ef4444'
   }
 });
