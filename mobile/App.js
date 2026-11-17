@@ -42,6 +42,9 @@ import {
 import { persistTreePhoto } from './src/services/storage';
 import { syncOfflineOutbox } from './src/services/sync';
 import Map3DView from './src/components/Map3DView';
+import Header from './src/components/Header';
+import BottomNav from './src/components/BottomNav';
+import { colors } from './src/theme';
 
 // Mapeo de imágenes locales para las comunidades
 const LOCAL_COMMUNITY_ASSETS = {
@@ -693,41 +696,12 @@ export default function App() {
       <StatusBar barStyle="light-content" backgroundColor="#0b1329" />
 
       {/* Barra de Cabecera Superior (Estilo Oficial EcoRaíces Mobile) */}
-      <View style={styles.topHeader}>
-        <TouchableOpacity
-          style={styles.headerBrand}
-          onPress={() => setActiveTab('home')}
-        >
-          <Image
-            source={require('./assets/eco.png')}
-            style={styles.headerEcoLogo}
-            resizeMode="contain"
-          />
-          <Text style={styles.headerBrandText}>ECORAÍCES</Text>
-        </TouchableOpacity>
-
-        {/* Sync Pill estilo Web */}
-        <View style={styles.headerSyncPill}>
-          <Text style={styles.headerSyncDot}>🔵</Text>
-          <Text style={styles.headerSyncText} numberOfLines={1}>
-            {stats.pending > 0 ? `${stats.pending} por subir` : 'Al día'}
-          </Text>
-          <TouchableOpacity
-            style={[styles.headerSyncBtn, (isSyncing || stats.pending === 0) && { opacity: 0.6 }]}
-            onPress={handleStartSync}
-            disabled={isSyncing || stats.pending === 0}
-          >
-            {isSyncing ? (
-              <ActivityIndicator size="small" color="#ffffff" />
-            ) : (
-              <>
-                <Ionicons name="sync" size={12} color="#ffffff" style={{ marginRight: 3 }} />
-                <Text style={styles.headerSyncBtnText}>Subir</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
-      </View>
+      <Header
+        onLogoPress={() => setActiveTab('home')}
+        pendingCount={stats.pending}
+        isSyncing={isSyncing}
+        onSyncPress={handleStartSync}
+      />
 
       {/* Contenido Principal según Pestaña Activa */}
       <View style={styles.contentArea}>
@@ -2331,50 +2305,10 @@ export default function App() {
       </Modal>
 
       {/* Barra de Navegación Inferior Cockpit */}
-      <View style={styles.bottomTabBar}>
-        <TouchableOpacity style={styles.tabBtn} onPress={() => setActiveTab('home')}>
-          <Ionicons
-            name="home"
-            size={20}
-            color={(activeTab === 'home' || activeTab === 'about') ? '#10b981' : '#64748b'}
-          />
-          <Text
-            style={[
-              styles.tabLabel,
-              (activeTab === 'home' || activeTab === 'about') && styles.tabLabelActive
-            ]}
-          >
-            Inicio
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.tabBtn} onPress={() => setActiveTab('map3d')}>
-          <Ionicons name="map" size={20} color={activeTab === 'map3d' ? '#38bdf8' : '#64748b'} />
-          <Text style={[styles.tabLabel, activeTab === 'map3d' && { color: '#38bdf8' }]}>Mapa 3D</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.tabBtnCenter} onPress={() => setActiveTab('capture')}>
-          <View style={styles.tabCenterCircle}>
-            <Ionicons name="add" size={26} color="#ffffff" />
-          </View>
-          <Text style={[styles.tabLabel, activeTab === 'capture' && styles.tabLabelActive]}>Campo</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.tabBtn} onPress={() => setActiveTab('catalog')}>
-          <Ionicons name="leaf" size={20} color={activeTab === 'catalog' ? '#10b981' : '#64748b'} />
-          <Text style={[styles.tabLabel, activeTab === 'catalog' && styles.tabLabelActive]}>Catálogo</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.tabBtn} onPress={() => setActiveTab('communities')}>
-          <Ionicons name="people" size={20} color={activeTab === 'communities' ? '#10b981' : '#64748b'} />
-          <Text style={[styles.tabLabel, activeTab === 'communities' && styles.tabLabelActive]}>Comunidades</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.tabBtn} onPress={() => setActiveTab('profile')}>
-          <Ionicons name="person" size={20} color={activeTab === 'profile' ? '#10b981' : '#64748b'} />
-          <Text style={[styles.tabLabel, activeTab === 'profile' && styles.tabLabelActive]}>Perfil</Text>
-        </TouchableOpacity>
-      </View>
+      <BottomNav
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+      />
     </SafeAreaView>
   );
 }
