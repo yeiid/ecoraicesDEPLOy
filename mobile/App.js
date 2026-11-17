@@ -12,8 +12,11 @@ import {
   SafeAreaView,
   StatusBar,
   Modal,
-  Platform
+  Platform,
+  LogBox
 } from 'react-native';
+
+LogBox.ignoreAllLogs(true);
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -134,49 +137,60 @@ export default function App() {
   const [selectedSpeciesDetail, setSelectedSpeciesDetail] = useState(null);
 
   useEffect(() => {
-    // 1. Inicializar SQLite
-    getDB().then(() => {
-      refreshStats();
-    });
+    let isMounted = true;
 
-    // 2. Cargar preferencias persistidas
-    AsyncStorage.getItem('ecoraices_server_url').then((val) => {
-      if (val) setServerUrl(val);
-    });
-    AsyncStorage.getItem('ecoraices_user_name').then((val) => {
-      if (val) setUserName(val);
-    });
-    AsyncStorage.getItem('ecoraices_user_email').then((val) => {
-      if (val) setUserEmail(val);
-    });
-    AsyncStorage.getItem('ecoraices_user_username').then((val) => {
-      if (val) setUserUsername(val);
-    });
-    AsyncStorage.getItem('ecoraices_user_role').then((val) => {
-      if (val) setUserRole(val);
-    });
-    AsyncStorage.getItem('ecoraices_user_bio').then((val) => {
-      if (val) setUserBio(val);
-    });
-    AsyncStorage.getItem('ecoraices_user_territory').then((val) => {
-      if (val) {
-        setUserTerritory(val);
-        setMunicipio(val);
+    const initializeApp = async () => {
+      try {
+        await getDB();
+        await refreshStats();
+
+        // 1. Cargar preferencias persistidas en lote (una sola consulta a disco)
+        const keys = [
+          'ecoraices_server_url',
+          'ecoraices_user_name',
+          'ecoraices_user_email',
+          'ecoraices_user_username',
+          'ecoraices_user_role',
+          'ecoraices_user_bio',
+          'ecoraices_user_territory',
+          'ecoraices_auth_token'
+        ];
+        const entries = await AsyncStorage.multiGet(keys);
+        const map = Object.fromEntries(entries);
+
+        if (!isMounted) return;
+        if (map['ecoraices_server_url']) setServerUrl(map['ecoraices_server_url']);
+        if (map['ecoraices_user_name']) setUserName(map['ecoraices_user_name']);
+        if (map['ecoraices_user_email']) setUserEmail(map['ecoraices_user_email']);
+        if (map['ecoraices_user_username']) setUserUsername(map['ecoraices_user_username']);
+        if (map['ecoraices_user_role']) setUserRole(map['ecoraices_user_role']);
+        if (map['ecoraices_user_bio']) setUserBio(map['ecoraices_user_bio']);
+        if (map['ecoraices_user_territory']) {
+          setUserTerritory(map['ecoraices_user_territory']);
+          setMunicipio(map['ecoraices_user_territory']);
+        }
+        if (map['ecoraices_auth_token']) {
+          setToken(map['ecoraices_auth_token']);
+          fetchRemoteProfile(map['ecoraices_auth_token']);
+        }
+
+        // 2. Disparar GPS y API en segundo plano con retardo de 120ms para que la UI responda instantáneamente
+        setTimeout(() => {
+          if (!isMounted) return;
+          fetchCurrentLocation(true);
+          loadLiveSpeciesCatalog();
+          fetchRemoteObservations();
+        }, 120);
+      } catch (err) {
+        console.warn('Error inicializando app:', err);
       }
-    });
-    AsyncStorage.getItem('ecoraices_auth_token').then((val) => {
-      if (val) {
-        setToken(val);
-        fetchRemoteProfile(val);
-      }
-    });
+    };
 
-    // 3. Obtener ubicación GPS al abrir
-    fetchCurrentLocation(true);
+    initializeApp();
 
-    // 4. Cargar API de Especies y Observaciones
-    loadLiveSpeciesCatalog();
-    fetchRemoteObservations();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const fetchRemoteProfile = async (authToken = token) => {
@@ -533,18 +547,37 @@ export default function App() {
         return;
       }
 
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Highest
-      });
+      // 1. Obtener última posición conocida de inmediato (0ms, jamás congela la UI)
+      const lastKnown = await Location.getLastKnownPositionAsync().catch(() => null);
+      if (lastKnown && lastKnown.coords) {
+        setCoords({
+          latitude: lastKnown.coords.latitude,
+          longitude: lastKnown.coords.longitude,
+          altitude: lastKnown.coords.altitude
+        });
+        setGpsAccuracy(lastKnown.coords.accuracy);
+      }
 
-      setCoords({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        altitude: location.coords.altitude
+      // 2. Afinar con satélites en segundo plano con timeout estricto de 3500ms
+      const gpsPromise = Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced
       });
-      setGpsAccuracy(location.coords.accuracy);
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('GPS timeout')), 3500)
+      );
+
+      const location = await Promise.race([gpsPromise, timeoutPromise]).catch(() => null);
+
+      if (location && location.coords) {
+        setCoords({
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+          altitude: location.coords.altitude
+        });
+        setGpsAccuracy(location.coords.accuracy);
+      }
     } catch (err) {
-      if (!silent) Alert.alert('Error GPS', 'No se pudo obtener la posición satelital: ' + err.message);
+      if (!silent) console.log('Error GPS:', err.message);
     } finally {
       setIsLocating(false);
     }
@@ -765,7 +798,11 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#0b1329" />
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor="#ffffff"
+        translucent={Platform.OS === 'android'}
+      />
 
       {/* Barra de Cabecera Superior (Estilo Oficial EcoRaíces Mobile) */}
       <Header
@@ -969,7 +1006,8 @@ export default function App() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#0b1329'
+    backgroundColor: '#ffffff',
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 28) : 0
   },
   contentArea: {
     flex: 1,

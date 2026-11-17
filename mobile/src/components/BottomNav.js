@@ -100,14 +100,14 @@ export default function BottomNav({ activeTab, onTabChange }) {
 
 const styles = StyleSheet.create({
   bottomTabBar: {
-    height: Platform.OS === 'ios' ? 70 : 60,
+    height: Platform.OS === 'ios' ? 70 : 66,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
     backgroundColor: '#0b1329',
     borderTopWidth: 1,
     borderTopColor: '#1e293b',
-    paddingBottom: Platform.OS === 'ios' ? 14 : 4,
+    paddingBottom: Platform.OS === 'ios' ? 14 : 8,
     ...shadows.bottomBar
   },
   tabBtn: {
