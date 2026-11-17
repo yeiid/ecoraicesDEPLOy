@@ -4,6 +4,7 @@ import {
   View,
   Text,
   TouchableOpacity,
+  TextInput,
   ScrollView,
   Platform,
   Alert
@@ -11,7 +12,6 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const OFFLINE_MAP_FILENAME = 'laguajira.pmtiles';
 const ASYNC_STORAGE_OFFLINE_KEY = '@ecoraices_offline_map_saved';
 
 const GUAJIRA_GPS_SHORTCUTS = [
@@ -22,39 +22,18 @@ const GUAJIRA_GPS_SHORTCUTS = [
   { name: 'Macuira', lat: 12.0967, lng: -71.3283 }
 ];
 
-function getHaversineDistanceMeters(lat1, lon1, lat2, lon2) {
-  if (isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2)) return null;
-  const R = 6371e3;
-  const phi1 = (lat1 * Math.PI) / 180;
-  const phi2 = (lat2 * Math.PI) / 180;
-  const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
-  const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
-
-  const a =
-    Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
-    Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return Math.round(R * c);
-}
-
-function formatDistance(meters) {
-  if (meters == null) return '-- m';
-  if (meters < 1000) return `${meters} m`;
-  return `${(meters / 1000).toFixed(1)} km`;
-}
-
 const MAP_HTML = `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>EcoRaíces MapLibre 3D Cockpit Web</title>
+  <title>EcoRaíces MapLibre 3D Web</title>
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" />
   <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
   <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    html, body, #map { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; background: #0b1329; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    html, body, #map { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; background: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
     
     /* Marcador GPS de Usuario Pulsante */
     .user-gps-marker {
@@ -133,7 +112,7 @@ const MAP_HTML = `
       display: flex;
       align-items: center;
       justify-content: center;
-      filter: drop-shadow(0 4px 6px rgba(15, 23, 42, 0.3));
+      filter: drop-shadow(0 4px 6px rgba(15, 23, 42, 0.25));
     }
     .tree-floating-tag {
       position: absolute;
@@ -148,7 +127,7 @@ const MAP_HTML = `
       font-size: 9px;
       font-weight: 700;
       white-space: nowrap;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
       pointer-events: none;
       z-index: 5;
       border: 1px solid rgba(255, 255, 255, 0.8);
@@ -166,7 +145,7 @@ const MAP_HTML = `
       color: #0f172a !important;
       border-radius: 14px;
       padding: 12px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25) !important;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2) !important;
       border: 1px solid #e2e8f0 !important;
       max-width: 280px;
       font-size: 12px;
@@ -226,7 +205,7 @@ const MAP_HTML = `
       display: none;
       align-items: center;
       gap: 8px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.35);
       z-index: 100;
       border: 1px solid rgba(56, 189, 248, 0.3);
       pointer-events: none;
@@ -279,8 +258,8 @@ const MAP_HTML = `
         const res = await fetch(STYLE_URL);
         if (res.ok) {
           mapStyle = await res.json();
-          // Configuración cartográfica óptima:
-          // 1. Nitidez total del raster OpenStreetMap (calles limpias, nombres y parques sin rayas molestas)
+          // Configuración cartográfica limpia:
+          // 1. Nitidez total de OpenStreetMap (calles limpias, nombres y parques sin rayas molestas)
           if (mapStyle.layers && Array.isArray(mapStyle.layers)) {
             mapStyle.layers.forEach(l => {
               if (l.id === 'osm-layer' && l.paint) {
@@ -601,8 +580,8 @@ export default function Map3DView({
 
   const [is3DMode, setIs3DMode] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [mapLoaded, setMapLoaded] = useState(false);
-  const [activeTreeIndex, setActiveTreeIndex] = useState(0);
 
   // Estados de Modo Persona
   const [isPersonMode, setIsPersonMode] = useState(false);
@@ -612,10 +591,11 @@ export default function Map3DView({
   const [offlinePackProgress, setOfflinePackProgress] = useState(null);
   const [isDownloading, setIsDownloading] = useState(false);
 
-  // Filtrado de árboles según categoría botánica
+  // Filtrado de árboles según barra superior de EcoRaíces
   const filteredTrees = useMemo(() => {
     return trees.filter((tree) => {
       const name = ((tree.species_name || tree.name || '') + ' ' + (tree.scientific_name || '') + ' ' + (tree.municipality || tree.municipio || '')).toLowerCase();
+      if (searchQuery.trim() && !name.includes(searchQuery.trim().toLowerCase())) return false;
       if (selectedFilter === 'invasive') {
         if (!name.includes('neem') && !name.includes('nim')) return false;
       } else if (selectedFilter === 'native') {
@@ -625,21 +605,7 @@ export default function Map3DView({
       }
       return true;
     });
-  }, [trees, selectedFilter]);
-
-  // Árbol activo más relevante para el cockpit
-  const activeTree = useMemo(() => {
-    if (filteredTrees.length === 0) return null;
-    return filteredTrees[activeTreeIndex % filteredTrees.length];
-  }, [filteredTrees, activeTreeIndex]);
-
-  // Distancia calculada en tiempo real hacia el árbol activo
-  const distanceToActiveTree = useMemo(() => {
-    if (!userCoords || !activeTree) return null;
-    const treeLat = parseFloat(activeTree.latitude || activeTree.lat);
-    const treeLng = parseFloat(activeTree.longitude || activeTree.lng);
-    return getHaversineDistanceMeters(userCoords.latitude, userCoords.longitude, treeLat, treeLng);
-  }, [userCoords, activeTree]);
+  }, [trees, searchQuery, selectedFilter]);
 
   // Enviar mensaje al iframe de MapLibre
   const postToIframe = useCallback((msgObj) => {
@@ -692,10 +658,6 @@ export default function Map3DView({
           setMapLoaded(true);
         } else if (data.type === 'SELECT_TREE') {
           setPersonTree(data.payload);
-          const idx = filteredTrees.findIndex(
-            (t) => String(t.clientId || t.id) === String(data.payload.clientId || data.payload.id)
-          );
-          if (idx !== -1) setActiveTreeIndex(idx);
           if (onTreeSelected) onTreeSelected(data.payload);
         } else if (data.type === 'PERSON_MODE_CHANGE') {
           setIsPersonMode(data.payload.active);
@@ -750,39 +712,6 @@ export default function Map3DView({
     }
   };
 
-  // Botón Tramo / Enfocar árbol activo
-  const handleFocusTree = () => {
-    if (activeTree) {
-      const lat = parseFloat(activeTree.latitude || activeTree.lat);
-      const lng = parseFloat(activeTree.longitude || activeTree.lng);
-      if (!isNaN(lat) && !isNaN(lng)) {
-        postToIframe({
-          type: 'FLY_TO',
-          payload: { lat, lng, zoom: 16 }
-        });
-      }
-    } else {
-      Alert.alert('Árbol', 'Selecciona un árbol del territorio.');
-    }
-  };
-
-  // Siguiente árbol del tramo
-  const handleNextTree = () => {
-    if (filteredTrees.length > 0) {
-      const nextIdx = (activeTreeIndex + 1) % filteredTrees.length;
-      setActiveTreeIndex(nextIdx);
-      const nextTree = filteredTrees[nextIdx];
-      const lat = parseFloat(nextTree.latitude || nextTree.lat);
-      const lng = parseFloat(nextTree.longitude || nextTree.lng);
-      if (!isNaN(lat) && !isNaN(lng)) {
-        postToIframe({
-          type: 'FLY_TO',
-          payload: { lat, lng, zoom: 16 }
-        });
-      }
-    }
-  };
-
   // Alternar Modo Persona a ras de suelo
   const handleTogglePersonMode = () => {
     if (isPersonMode) {
@@ -790,7 +719,7 @@ export default function Map3DView({
       setIsPersonMode(false);
       setPersonTree(null);
     } else {
-      const target = personTree || activeTree || filteredTrees[0] || trees[0];
+      const target = personTree || filteredTrees[0] || trees[0];
       if (!target) {
         Alert.alert('Modo Persona', 'No hay árboles censados visibles para explorar a ras de suelo.');
         return;
@@ -870,85 +799,84 @@ export default function Map3DView({
 
   return (
     <View style={styles.container}>
-      {/* 1. SECCIÓN SUPERIOR: STATUS HUD CABINA TIPO TRANSPORTE */}
-      <View style={styles.topHudContainer}>
-        {activeTree && (
-          <TouchableOpacity activeOpacity={0.9} onPress={handleFocusTree} style={styles.activeStopCard}>
-            <View style={styles.activeStopTopRow}>
-              <View style={styles.distanceBadgePill}>
-                <Ionicons name="navigate" size={12} color="#ffffff" />
-                <Text style={styles.distanceBadgeText}>{formatDistance(distanceToActiveTree)}</Text>
-              </View>
-
-              <View style={styles.stopSeqPill}>
-                <Text style={styles.stopSeqText}>
-                  ÁRBOL #{activeTreeIndex + 1} DE {filteredTrees.length}
-                </Text>
-                <View style={styles.statusDotLive} />
-                <Text style={styles.statusLiveText}>ACTIVO</Text>
-              </View>
-
-              <View style={styles.hudActionsRight}>
-                <TouchableOpacity
-                  style={styles.hudNextBtn}
-                  onPress={handleNextTree}
-                  title="Siguiente árbol"
-                >
-                  <Ionicons name="arrow-forward" size={14} color="#38bdf8" />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <Text numberOfLines={1} style={styles.activeStopTitle}>
-              {activeTree.species_name || activeTree.name || 'Árbol Forestal'}
-            </Text>
-            <Text numberOfLines={1} style={styles.activeStopSubtitle}>
-              🏛️ {activeTree.municipio || activeTree.municipality || 'La Guajira'} • 📍 {Number(activeTree.latitude || activeTree.lat || 0).toFixed(4)}, {Number(activeTree.longitude || activeTree.lng || 0).toFixed(4)}
-            </Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Atajos Rápidos de Municipios Guajira */}
-        <View style={styles.gpsSimulatorRow}>
-          <Text style={styles.simulatorLabel}>📍 Guajira Telemetría:</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.simulatorChipsScroll}>
-            {GUAJIRA_GPS_SHORTCUTS.map((sc) => (
-              <TouchableOpacity key={sc.name} style={styles.simChip} onPress={() => handleSelectShortcut(sc)}>
-                <Text style={styles.simChipText}>📍 {sc.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
-        {/* Filtros Botánicos Rápidos */}
-        <View style={styles.filterPillsRow}>
+      {/* 1. BARRA SUPERIOR DE FILTROS LIMPIA DE ECORAÍCES */}
+      <View style={styles.webHeaderFilters}>
+        {/* Píldoras Rápidas de Categorías */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.segmentedRow}>
           <TouchableOpacity
-            style={[styles.filterChip, selectedFilter === 'all' && styles.filterChipActive]}
+            style={[styles.segmentBtn, selectedFilter === 'all' && styles.segmentBtnActive]}
             onPress={() => setSelectedFilter('all')}
           >
-            <Text style={[styles.filterChipText, selectedFilter === 'all' && styles.filterChipTextActive]}>
-              🌐 Todos ({trees.length})
-            </Text>
+            <Text style={styles.segIcon}>🌐</Text>
+            <Text style={[styles.segText, selectedFilter === 'all' && styles.segTextActive]}>Todos</Text>
+            <View style={styles.segBadge}>
+              <Text style={styles.segBadgeText}>{trees.length}</Text>
+            </View>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.filterChip, selectedFilter === 'invasive' && styles.filterChipInvasive]}
+            style={[styles.segmentBtn, selectedFilter === 'invasive' && styles.segmentBtnInvasiveActive]}
             onPress={() => setSelectedFilter('invasive')}
           >
-            <Text style={[styles.filterChipText, selectedFilter === 'invasive' && styles.filterChipTextInvasive]}>
-              🚨 Neem (Invasor)
+            <Text style={styles.segIcon}>🚨</Text>
+            <Text style={[styles.segText, selectedFilter === 'invasive' && styles.segTextInvasiveActive]}>
+              Invasores (Neem)
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.filterChip, selectedFilter === 'native' && styles.filterChipNative]}
+            style={[styles.segmentBtn, selectedFilter === 'native' && styles.segmentBtnNativeActive]}
             onPress={() => setSelectedFilter('native')}
           >
-            <Text style={[styles.filterChipText, selectedFilter === 'native' && styles.filterChipTextNative]}>
-              🌿 Nativas
+            <Text style={styles.segIcon}>🌿</Text>
+            <Text style={[styles.segText, selectedFilter === 'native' && styles.segTextNativeActive]}>
+              Nativas
             </Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.segmentBtn, selectedFilter === 'verified' && styles.segmentBtnVerifiedActive]}
+            onPress={() => setSelectedFilter('verified')}
+          >
+            <Text style={styles.segIcon}>✓</Text>
+            <Text style={[styles.segText, selectedFilter === 'verified' && styles.segTextVerifiedActive]}>
+              Verificados
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+
+        {/* Buscador de especies + Contador de visibles */}
+        <View style={styles.searchRow}>
+          <View style={styles.searchInputContainer}>
+            <Ionicons name="search" size={15} color="#64748b" style={{ marginRight: 6 }} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Buscar especie o municipio..."
+              placeholderTextColor="#94a3b8"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Ionicons name="close-circle" size={15} color="#94a3b8" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <View style={styles.counterBadge}>
+            <View style={styles.counterDot} />
+            <Text style={styles.counterText}>{filteredTrees.length} visibles</Text>
+          </View>
         </View>
+
+        {/* Atajos de Municipios de La Guajira */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.shortcutsRow}>
+          {GUAJIRA_GPS_SHORTCUTS.map((sc) => (
+            <TouchableOpacity key={sc.name} style={styles.shortcutChip} onPress={() => handleSelectShortcut(sc)}>
+              <Text style={styles.shortcutChipText}>📍 {sc.name}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
 
       {/* 2. MAPA CENTRAL (IFRAME REACT-NATIVE-WEB) */}
@@ -956,11 +884,11 @@ export default function Map3DView({
         <iframe
           ref={iframeRef}
           srcDoc={MAP_HTML}
-          style={{ width: '100%', height: '100%', border: 'none', backgroundColor: '#0b1329' }}
-          title="EcoRaíces MapLibre 3D Web Cockpit"
+          style={{ width: '100%', height: '100%', border: 'none', backgroundColor: '#f8fafc' }}
+          title="EcoRaíces MapLibre 3D Web"
         />
 
-        {/* 3. DOCK VERTICAL DERECHO: HERRAMIENTAS INTELIGENTES TRANSPORTE */}
+        {/* 3. DOCK VERTICAL DERECHO: EXACTAMENTE LAS 4 HERRAMIENTAS ECORAÍCES */}
         <View style={styles.rightFloatingStack}>
           {/* Botón 1: Mi GPS */}
           <TouchableOpacity activeOpacity={0.85} onPress={handleCenterUser} style={styles.floatingActionBtn}>
@@ -968,31 +896,25 @@ export default function Map3DView({
             <Text style={styles.floatingBtnLabel}>Mi GPS</Text>
           </TouchableOpacity>
 
-          {/* Botón 2: Tramo / Enfocar */}
-          <TouchableOpacity activeOpacity={0.85} onPress={handleFocusTree} style={[styles.floatingActionBtn, styles.btnTramo]}>
-            <Ionicons name="git-branch-outline" size={19} color="#ffffff" />
-            <Text style={[styles.floatingBtnLabel, { color: '#ffffff' }]}>Tramo</Text>
-          </TouchableOpacity>
-
-          {/* Botón 3: 2D / 3D Vista */}
+          {/* Botón 2: 2D / 3D Vista */}
           <TouchableOpacity
             activeOpacity={0.85}
             onPress={toggle3D}
             style={[styles.floatingActionBtn, is3DMode && styles.floatingActionBtnDark]}
           >
-            <Text style={[styles.floatingActionTextSmall, is3DMode && { color: '#38bdf8' }]}>
+            <Text style={[styles.floatingActionTextSmall, is3DMode && { color: '#ffffff' }]}>
               {is3DMode ? '3D' : '2D'}
             </Text>
-            <Text style={[styles.floatingBtnLabel, is3DMode && { color: '#38bdf8' }]}>Vista</Text>
+            <Text style={[styles.floatingBtnLabel, is3DMode && { color: '#e2e8f0' }]}>Vista</Text>
           </TouchableOpacity>
 
-          {/* Botón 4: Modo Persona 3D (Al pie del árbol) */}
+          {/* Botón 3: Modo Persona 3D (Al pie del árbol) */}
           <TouchableOpacity
             activeOpacity={0.85}
             onPress={handleTogglePersonMode}
             style={[
               styles.floatingActionBtn,
-              isPersonMode ? styles.floatingActionBtnActivePersona : styles.btnPersonaDefault
+              isPersonMode && styles.floatingActionBtnActivePersona
             ]}
           >
             <Ionicons
@@ -1005,7 +927,7 @@ export default function Map3DView({
             </Text>
           </TouchableOpacity>
 
-          {/* Botón 5: Descarga Externa Mapa Offline */}
+          {/* Botón 4: Descarga Externa Mapa Offline */}
           <TouchableOpacity activeOpacity={0.85} onPress={handleDownloadOfflineMap} style={styles.floatingActionBtn}>
             {isDownloading ? (
               <Text style={styles.floatingActionTextSmall}>{offlinePackProgress}%</Text>
@@ -1017,7 +939,7 @@ export default function Map3DView({
               />
             )}
             <Text style={styles.floatingBtnLabel}>
-              {offlinePackProgress === 100 ? '22M' : 'Offline'}
+              {offlinePackProgress === 100 ? 'Listo' : 'Mapa'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -1056,157 +978,144 @@ export default function Map3DView({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0b1329'
+    backgroundColor: '#f8fafc'
   },
-  topHudContainer: {
+  webHeaderFilters: {
+    backgroundColor: '#ffffff',
+    paddingVertical: 10,
     paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 6,
-    backgroundColor: 'rgba(11, 19, 41, 0.96)',
     borderBottomWidth: 1,
-    borderBottomColor: '#1e293b',
+    borderBottomColor: '#e2e8f0',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
     zIndex: 20
   },
-  activeStopCard: {
-    backgroundColor: '#132144',
-    borderRadius: 12,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#1e3a8a',
-    marginBottom: 6
-  },
-  activeStopTopRow: {
+  segmentedRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     gap: 8,
-    marginBottom: 4
+    paddingBottom: 8
   },
-  distanceBadgePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#0284c7',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 6
-  },
-  distanceBadgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#ffffff'
-  },
-  stopSeqPill: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6
-  },
-  stopSeqText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#38bdf8'
-  },
-  statusDotLive: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#10b981'
-  },
-  statusLiveText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#10b981'
-  },
-  hudActionsRight: {
-    flexDirection: 'row',
-    alignItems: 'center'
-  },
-  hudNextBtn: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: '#1e293b',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#334155'
-  },
-  activeStopTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#ffffff'
-  },
-  activeStopSubtitle: {
-    fontSize: 11,
-    color: '#94a3b8',
-    marginTop: 1
-  },
-  gpsSimulatorRow: {
+  segmentBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 6
-  },
-  simulatorLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#94a3b8'
-  },
-  simulatorChipsScroll: {
-    flexDirection: 'row',
-    gap: 5
-  },
-  simChip: {
-    backgroundColor: '#1e293b',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+    backgroundColor: '#f1f5f9',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 9999,
     borderWidth: 1,
-    borderColor: '#334155'
+    borderColor: '#e2e8f0'
   },
-  simChipText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#e2e8f0'
-  },
-  filterPillsRow: {
-    flexDirection: 'row',
-    gap: 6,
-    paddingTop: 2
-  },
-  filterChip: {
-    backgroundColor: '#1e293b',
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#334155'
-  },
-  filterChipActive: {
+  segmentBtnActive: {
     backgroundColor: '#0284c7',
     borderColor: '#0284c7'
   },
-  filterChipInvasive: {
+  segmentBtnInvasiveActive: {
     backgroundColor: '#dc2626',
     borderColor: '#dc2626'
   },
-  filterChipNative: {
-    backgroundColor: '#059669',
-    borderColor: '#059669'
+  segmentBtnNativeActive: {
+    backgroundColor: '#16a34a',
+    borderColor: '#16a34a'
   },
-  filterChipText: {
-    fontSize: 10,
+  segmentBtnVerifiedActive: {
+    backgroundColor: '#2563eb',
+    borderColor: '#2563eb'
+  },
+  segIcon: {
+    fontSize: 13
+  },
+  segText: {
+    fontSize: 12,
     fontWeight: '700',
-    color: '#94a3b8'
+    color: '#475569'
   },
-  filterChipTextActive: {
+  segTextActive: {
     color: '#ffffff'
   },
-  filterChipTextInvasive: {
+  segTextInvasiveActive: {
     color: '#ffffff'
   },
-  filterChipTextNative: {
+  segTextNativeActive: {
     color: '#ffffff'
+  },
+  segTextVerifiedActive: {
+    color: '#ffffff'
+  },
+  segBadge: {
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 8
+  },
+  segBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0f172a'
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2
+  },
+  searchInputContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    paddingHorizontal: 8,
+    height: 36
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 12,
+    color: '#0f172a',
+    paddingVertical: 0
+  },
+  counterBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e0f2fe',
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+    borderRadius: 6
+  },
+  counterDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#0284c7',
+    marginRight: 6
+  },
+  counterText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0369a1'
+  },
+  shortcutsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 8
+  },
+  shortcutChip: {
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#e2e8f0'
+  },
+  shortcutChipText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#475569'
   },
   mapCanvasWrapper: {
     flex: 1,
@@ -1217,13 +1126,13 @@ const styles = StyleSheet.create({
     top: 14,
     right: 12,
     zIndex: 50,
-    gap: 8,
+    gap: 10,
     alignItems: 'center'
   },
   floatingActionBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
+    width: 50,
+    height: 50,
+    borderRadius: 14,
     backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1231,37 +1140,29 @@ const styles = StyleSheet.create({
     borderColor: '#e2e8f0',
     elevation: 6,
     shadowColor: '#000',
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.15,
     shadowOffset: { width: 0, height: 3 },
     shadowRadius: 5
   },
-  btnTramo: {
-    backgroundColor: '#0284c7',
-    borderColor: '#0284c7'
-  },
-  btnPersonaDefault: {
-    backgroundColor: '#ffffff',
-    borderColor: '#bae6fd'
-  },
   floatingActionBtnDark: {
     backgroundColor: '#0f172a',
-    borderColor: '#38bdf8'
+    borderColor: '#334155'
   },
   floatingActionBtnActivePersona: {
     backgroundColor: '#0284c7',
     borderColor: '#0369a1',
     elevation: 8,
     shadowColor: '#0284c7',
-    shadowOpacity: 0.5
+    shadowOpacity: 0.4
   },
   floatingBtnLabel: {
-    fontSize: 8.5,
+    fontSize: 9,
     fontWeight: '800',
     color: '#0f172a',
     marginTop: 2
   },
   floatingActionTextSmall: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '900',
     color: '#0f172a'
   },
@@ -1270,16 +1171,16 @@ const styles = StyleSheet.create({
     bottom: 20,
     left: 14,
     right: 14,
-    backgroundColor: '#132144',
+    backgroundColor: '#ffffff',
     borderRadius: 16,
     padding: 14,
     elevation: 10,
     shadowColor: '#000',
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.2,
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 10,
     borderWidth: 1.5,
-    borderColor: '#38bdf8',
+    borderColor: '#0284c7',
     zIndex: 60
   },
   personCardHeader: {
@@ -1292,16 +1193,16 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#38bdf8'
+    backgroundColor: '#0284c7'
   },
   personCardTitle: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#ffffff'
+    color: '#0f172a'
   },
   personCardSub: {
     fontSize: 11,
-    color: '#94a3b8',
+    color: '#64748b',
     marginTop: 1
   },
   personCardActions: {
@@ -1314,16 +1215,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: 'rgba(2, 132, 199, 0.2)',
+    backgroundColor: '#f0f9ff',
     borderWidth: 1,
-    borderColor: '#0284c7',
+    borderColor: '#bae6fd',
     borderRadius: 10,
     paddingVertical: 8
   },
   personOrbitBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#38bdf8'
+    color: '#0284c7'
   },
   personExitBtn: {
     flex: 1,
@@ -1331,15 +1232,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    backgroundColor: '#fef2f2',
     borderWidth: 1,
-    borderColor: '#ef4444',
+    borderColor: '#fecaca',
     borderRadius: 10,
     paddingVertical: 8
   },
   personExitBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#f87171'
+    color: '#ef4444'
   }
 });
