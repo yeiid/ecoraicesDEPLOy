@@ -69,6 +69,8 @@ export default function ProfileScreen({
   handleStartSync,
   serverUrl,
   setServerUrl,
+  connectionStatus,
+  handleTestConnection,
   onNavigateToCapture
 }) {
   // Si el usuario no tiene token ni ha entrado como invitado -> Vista de Login / Registro Dokploy
@@ -85,12 +87,49 @@ export default function ProfileScreen({
             <Text style={styles.authSubtitle}>
               Plataforma de Monitoreo Biológico & Comunitario
             </Text>
-            <View style={styles.authServerBadge}>
-              <View style={styles.onlineDot} />
-              <Text style={styles.authServerText}>
-                Dokploy: {serverUrl ? serverUrl.replace(/^https?:\/\//, '') : 'ecoraices.neuraljira.tech'}
+            <TouchableOpacity
+              style={[
+                styles.authServerBadge,
+                connectionStatus?.ok === true && styles.authServerBadgeOk,
+                connectionStatus?.ok === false && styles.authServerBadgeErr
+              ]}
+              onPress={handleTestConnection}
+              activeOpacity={0.7}
+            >
+              {connectionStatus === 'testing' ? (
+                <ActivityIndicator size="small" color={colors.primary} style={{ marginRight: 4 }} />
+              ) : (
+                <View
+                  style={[
+                    styles.onlineDot,
+                    connectionStatus?.ok === false && { backgroundColor: colors.danger }
+                  ]}
+                />
+              )}
+              <Text
+                style={[
+                  styles.authServerText,
+                  connectionStatus?.ok === false && { color: colors.danger }
+                ]}
+              >
+                {connectionStatus === 'testing'
+                  ? 'Verificando Dokploy...'
+                  : connectionStatus?.ok
+                  ? `✓ Online (${connectionStatus.latency}ms): ${serverUrl ? serverUrl.replace(/^https?:\/\//, '') : 'ecoraices.neuraljira.tech'}`
+                  : connectionStatus?.ok === false
+                  ? '✕ Sin Conexión (Toca para reintentar)'
+                  : `Dokploy: ${serverUrl ? serverUrl.replace(/^https?:\/\//, '') : 'ecoraices.neuraljira.tech'} • Probar`}
               </Text>
-            </View>
+            </TouchableOpacity>
+
+            {connectionStatus?.ok === false && (
+              <View style={styles.connectionErrorNotice}>
+                <Ionicons name="warning-outline" size={14} color="#dc2626" />
+                <Text style={styles.connectionErrorNoticeText}>
+                  {connectionStatus.error}
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Selector de Pestañas: Iniciar Sesión / Crear Cuenta */}
@@ -122,6 +161,23 @@ export default function ProfileScreen({
               </Text>
             </TouchableOpacity>
           </View>
+
+          {/* Botón de Autocompletar Cuenta de Prueba */}
+          {authMode === 'login' && (
+            <TouchableOpacity
+              style={styles.quickTestUserBtn}
+              onPress={() => {
+                setAuthEmail('ecotest@neuraljira.tech');
+                setAuthPassword('TestPassword2026!');
+                setAuthError('');
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.quickTestUserBtnText}>
+                🧪 Probar con cuenta de prueba (ecotest@neuraljira.tech)
+              </Text>
+            </TouchableOpacity>
+          )}
 
           {/* Banner de Error */}
           {Boolean(authError) && (
@@ -805,15 +861,41 @@ export default function ProfileScreen({
             <Text style={styles.settingsTitle}>Configuración de Conexión</Text>
             <View style={styles.formFieldGroup}>
               <Text style={styles.formFieldLabel}>URL del Servidor Dokploy:</Text>
-              <TextInput
-                style={styles.formFieldInput}
-                value={serverUrl}
-                onChangeText={(val) => {
-                  setServerUrl(val);
-                  AsyncStorage.setItem('ecoraices_server_url', val);
-                }}
-                placeholder="https://ecoraices.neuraljira.tech"
-              />
+              <View style={styles.serverInputRow}>
+                <TextInput
+                  style={[styles.formFieldInput, { flex: 1, marginBottom: 0 }]}
+                  value={serverUrl}
+                  onChangeText={(val) => {
+                    setServerUrl(val);
+                    AsyncStorage.setItem('ecoraices_server_url', val);
+                  }}
+                  placeholder="https://ecoraices.neuraljira.tech"
+                />
+                <TouchableOpacity
+                  style={styles.btnTestServer}
+                  onPress={handleTestConnection}
+                  disabled={connectionStatus === 'testing'}
+                  activeOpacity={0.7}
+                >
+                  {connectionStatus === 'testing' ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <Text style={styles.btnTestServerText}>Probar</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+              {connectionStatus && (
+                <Text
+                  style={[
+                    styles.serverStatusFeedback,
+                    connectionStatus.ok ? styles.serverStatusFeedbackOk : styles.serverStatusFeedbackErr
+                  ]}
+                >
+                  {connectionStatus.ok
+                    ? `✓ Conectado (${connectionStatus.latency}ms) - ${connectionStatus.message}`
+                    : `✕ ${connectionStatus.error}`}
+                </Text>
+              )}
             </View>
           </View>
         </>
@@ -887,6 +969,76 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: colors.primary,
     fontWeight: '700'
+  },
+  authServerBadgeOk: {
+    backgroundColor: '#dcfce7',
+    borderColor: '#86efac'
+  },
+  authServerBadgeErr: {
+    backgroundColor: '#fee2e2',
+    borderColor: '#fca5a5'
+  },
+  connectionErrorNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#fee2e2',
+    borderWidth: 1,
+    borderColor: '#fca5a5',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginTop: 8
+  },
+  connectionErrorNoticeText: {
+    color: '#b91c1c',
+    fontSize: 11,
+    fontWeight: '600',
+    flex: 1
+  },
+  quickTestUserBtn: {
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: '#86efac',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    marginBottom: 12
+  },
+  quickTestUserBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.primary
+  },
+  serverInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8
+  },
+  btnTestServer: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  btnTestServerText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '800'
+  },
+  serverStatusFeedback: {
+    fontSize: 11,
+    marginTop: 6,
+    fontWeight: '600'
+  },
+  serverStatusFeedbackOk: {
+    color: colors.primary
+  },
+  serverStatusFeedbackErr: {
+    color: colors.danger
   },
   authTabSwitcher: {
     flexDirection: 'row',

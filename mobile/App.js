@@ -128,6 +128,7 @@ export default function App() {
   const [authError, setAuthError] = useState('');
   const [authSuccess, setAuthSuccess] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState(null);
 
   // Modal Ficha Botánica Detallada
   const [selectedSpeciesDetail, setSelectedSpeciesDetail] = useState(null);
@@ -215,6 +216,42 @@ export default function App() {
     }
   };
 
+  const handleTestConnection = async () => {
+    setConnectionStatus('testing');
+    const cleanUrl = (serverUrl || DEFAULT_API_BASE_URL).trim().replace(/\/+$/, '');
+    const startTime = Date.now();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    try {
+      const res = await fetch(`${cleanUrl}/api/health`, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      const latency = Date.now() - startTime;
+      if (res.ok) {
+        const data = await res.json();
+        setConnectionStatus({
+          ok: true,
+          latency,
+          server: cleanUrl.replace(/^https?:\/\//, ''),
+          message: data.message || 'FastAPI backend en línea'
+        });
+      } else {
+        setConnectionStatus({
+          ok: false,
+          latency,
+          error: `El servidor respondió con código HTTP ${res.status}`
+        });
+      }
+    } catch (err) {
+      clearTimeout(timeoutId);
+      setConnectionStatus({
+        ok: false,
+        error: err.name === 'AbortError'
+          ? 'Tiempo de espera agotado (8s). Servidor no responde.'
+          : 'No se pudo conectar al servidor. Revisa tu internet o la URL.'
+      });
+    }
+  };
+
   const handleLogin = async () => {
     setAuthError('');
     setAuthSuccess('');
@@ -223,16 +260,21 @@ export default function App() {
       return;
     }
     setIsAuthLoading(true);
+    const cleanUrl = (serverUrl || DEFAULT_API_BASE_URL).trim().replace(/\/+$/, '');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
     try {
-      const response = await fetch(`${serverUrl}/api/auth/login`, {
+      const response = await fetch(`${cleanUrl}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: authEmail.trim(),
           password: authPassword,
           remember: authRemember
-        })
+        }),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
       const data = await response.json();
       if (!response.ok) {
         const errorMsg = Array.isArray(data.detail)
@@ -272,7 +314,14 @@ export default function App() {
         throw new Error('No se recibió el token de autenticación.');
       }
     } catch (err) {
-      setAuthError(err.message || 'Error de conexión con el servidor Dokploy.');
+      clearTimeout(timeoutId);
+      if (err.name === 'AbortError') {
+        setAuthError('Tiempo de espera agotado (12s). El servidor Dokploy tardó demasiado en responder.');
+      } else if (err.message && err.message.includes('Network request failed')) {
+        setAuthError(`No se pudo conectar a ${cleanUrl.replace(/^https?:\/\//, '')}. Verifica tu conexión a internet o el estado del servidor.`);
+      } else {
+        setAuthError(err.message || 'Error de conexión con el servidor Dokploy.');
+      }
     } finally {
       setIsAuthLoading(false);
     }
@@ -290,8 +339,11 @@ export default function App() {
       return;
     }
     setIsAuthLoading(true);
+    const cleanUrl = (serverUrl || DEFAULT_API_BASE_URL).trim().replace(/\/+$/, '');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
     try {
-      const response = await fetch(`${serverUrl}/api/auth/register`, {
+      const response = await fetch(`${cleanUrl}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -299,8 +351,10 @@ export default function App() {
           email: authEmail.trim(),
           password: authPassword,
           name: authName.trim() || authUsername.trim()
-        })
+        }),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
       const data = await response.json();
       if (!response.ok) {
         const errorMsg = Array.isArray(data.detail)
@@ -335,7 +389,14 @@ export default function App() {
         setAuthMode('login');
       }
     } catch (err) {
-      setAuthError(err.message || 'Error de conexión con el servidor Dokploy.');
+      clearTimeout(timeoutId);
+      if (err.name === 'AbortError') {
+        setAuthError('Tiempo de espera agotado (12s). El servidor Dokploy tardó demasiado en responder.');
+      } else if (err.message && err.message.includes('Network request failed')) {
+        setAuthError(`No se pudo conectar a ${cleanUrl.replace(/^https?:\/\//, '')}. Verifica tu conexión a internet o el estado del servidor.`);
+      } else {
+        setAuthError(err.message || 'No se pudo crear la cuenta.');
+      }
     } finally {
       setIsAuthLoading(false);
     }
@@ -868,6 +929,8 @@ export default function App() {
             handleStartSync={handleStartSync}
             serverUrl={serverUrl}
             setServerUrl={setServerUrl}
+            connectionStatus={connectionStatus}
+            handleTestConnection={handleTestConnection}
             onNavigateToCapture={() => setActiveTab('capture')}
           />
         )}
