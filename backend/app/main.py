@@ -7,14 +7,20 @@ import time
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ecoraices")
 
+import ipaddress
+import os
+
+enable_api_docs = os.getenv("ENABLE_API_DOCS", "false").lower() == "true"
+
 # IMPORTANT: variable name must NOT be "app" to avoid conflict with the "app" package
 application = FastAPI(
     title="EcoRaíces API",
-    description="API for EcoRaíces migrated from Astro",
-    version="1.0.0"
+    description="API for EcoRaíces",
+    version="1.0.0",
+    docs_url="/docs" if enable_api_docs else None,
+    redoc_url="/redoc" if enable_api_docs else None,
+    openapi_url="/openapi.json" if enable_api_docs else None,
 )
-
-import os
 
 cors_origins_raw = os.getenv("CORS_ORIGINS", "")
 allowed_origins = [o.strip() for o in cors_origins_raw.split(",") if o.strip()]
@@ -60,17 +66,32 @@ application.add_middleware(
     allow_headers=["*"],
 )
 
-# Prometheus exposition
+def _is_internal_client(request: Request) -> bool:
+    if request.headers.get("x-forwarded-for"):
+        return False
+    host = request.client.host if request.client else ""
+    try:
+        ip = ipaddress.ip_address(host)
+        return ip.is_private or ip.is_loopback
+    except ValueError:
+        return False
+
+# Prometheus exposition (solo red interna Docker o METRICS_TOKEN)
 if HAS_PROM:
     @application.get("/metrics")
-    def metrics():
+    def metrics(request: Request):
+        metrics_token = os.getenv("METRICS_TOKEN", "").strip()
+        auth_header = request.headers.get("authorization") or ""
+        token_ok = bool(metrics_token) and auth_header == f"Bearer {metrics_token}"
+        if not token_ok and not _is_internal_client(request):
+            return Response(status_code=403)
         return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
-# Health check — always available
+# Health check — always available for internal container orchestrators
 @application.get("/api/health")
 async def health_check():
-    return {"status": "ok", "message": "FastAPI backend is running"}
+    return {"status": "ok"}
 
 # Import and register routers
 try:

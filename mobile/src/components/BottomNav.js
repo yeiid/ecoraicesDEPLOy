@@ -1,5 +1,5 @@
 /**
- * EcoRaíces Mobile · Barra de Navegación Inferior Modular (Cockpit)
+ * EcoRaíces Mobile · Barra de Navegación Inferior Modular
  */
 
 import React from 'react';
@@ -25,7 +25,7 @@ export default function BottomNav({ activeTab, onTabChange }) {
       >
         <Ionicons
           name="home"
-          size={20}
+          size={19}
           color={isHomeActive ? colors.primary : colors.textSecondary}
         />
         <Text style={[styles.tabLabel, isHomeActive && styles.tabLabelActive]}>
@@ -41,10 +41,10 @@ export default function BottomNav({ activeTab, onTabChange }) {
       >
         <Ionicons
           name="map"
-          size={20}
-          color={isMapActive ? colors.mapCyan : colors.textSecondary}
+          size={19}
+          color={isMapActive ? '#34d399' : colors.textSecondary}
         />
-        <Text style={[styles.tabLabel, isMapActive && { color: colors.mapCyan, fontWeight: '800' }]}>
+        <Text style={[styles.tabLabel, isMapActive && { color: '#34d399', fontWeight: '800' }]}>
           Mapa 3D
         </Text>
       </TouchableOpacity>
@@ -56,7 +56,7 @@ export default function BottomNav({ activeTab, onTabChange }) {
         activeOpacity={0.85}
       >
         <View style={[styles.tabCenterCircle, isCaptureActive && styles.tabCenterCircleActive]}>
-          <Ionicons name="add" size={26} color="#ffffff" />
+          <Ionicons name="add" size={25} color="#ffffff" />
         </View>
         <Text style={[styles.tabLabel, isCaptureActive && styles.tabLabelActive]}>
           Campo
@@ -71,7 +71,7 @@ export default function BottomNav({ activeTab, onTabChange }) {
       >
         <Ionicons
           name="leaf"
-          size={20}
+          size={19}
           color={isCatalogActive ? colors.primary : colors.textSecondary}
         />
         <Text style={[styles.tabLabel, isCatalogActive && styles.tabLabelActive]}>
@@ -79,7 +79,23 @@ export default function BottomNav({ activeTab, onTabChange }) {
         </Text>
       </TouchableOpacity>
 
-      {/* 5. Perfil / Auth */}
+      {/* 5. Comunidades */}
+      <TouchableOpacity
+        style={styles.tabBtn}
+        onPress={() => onTabChange('communities')}
+        activeOpacity={0.7}
+      >
+        <Ionicons
+          name="people"
+          size={19}
+          color={isCommunitiesActive ? colors.primary : colors.textSecondary}
+        />
+        <Text style={[styles.tabLabel, isCommunitiesActive && styles.tabLabelActive]}>
+          Comunidad
+        </Text>
+      </TouchableOpacity>
+
+      {/* 6. Perfil / Auth */}
       <TouchableOpacity
         style={styles.tabBtn}
         onPress={() => onTabChange('profile')}
@@ -87,7 +103,7 @@ export default function BottomNav({ activeTab, onTabChange }) {
       >
         <Ionicons
           name="person"
-          size={20}
+          size={19}
           color={isProfileActive ? colors.primary : colors.textSecondary}
         />
         <Text style={[styles.tabLabel, isProfileActive && styles.tabLabelActive]}>
@@ -123,9 +139,9 @@ const styles = StyleSheet.create({
     marginTop: -16
   },
   tabCenterCircle: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
@@ -139,16 +155,16 @@ const styles = StyleSheet.create({
   },
   tabCenterCircleActive: {
     backgroundColor: '#16a34a',
-    borderColor: '#38bdf8'
+    borderColor: '#34d399'
   },
   tabLabel: {
-    fontSize: 10,
+    fontSize: 9.5,
     color: '#94a3b8',
     marginTop: 2,
     fontWeight: '600'
   },
   tabLabelActive: {
-    color: '#4ade80',
+    color: colors.primary,
     fontWeight: '800'
   }
 });

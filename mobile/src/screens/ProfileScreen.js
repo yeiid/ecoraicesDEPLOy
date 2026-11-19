@@ -1,5 +1,5 @@
 /**
- * EcoRaíces Mobile · Pantalla de Perfil & Autenticación Dokploy
+ * EcoRaíces Mobile · Pantalla de Perfil & Autenticación
  * Pantalla modularizada independiente: Login, Registro, Datos, Árboles, Medallas y Outbox Sync
  */
 
@@ -14,7 +14,6 @@ import {
   Image,
   ActivityIndicator
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, shadows } from '../theme';
 
@@ -68,12 +67,9 @@ export default function ProfileScreen({
   syncProgress,
   handleStartSync,
   serverUrl,
-  setServerUrl,
-  connectionStatus,
-  handleTestConnection,
   onNavigateToCapture
 }) {
-  // Si el usuario no tiene token ni ha entrado como invitado -> Vista de Login / Registro Dokploy
+  // Si el usuario no tiene token ni ha entrado como invitado -> Vista de Login / Registro
   if (!token && !isGuestMode) {
     return (
       <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.authScrollContent}>
@@ -87,49 +83,6 @@ export default function ProfileScreen({
             <Text style={styles.authSubtitle}>
               Plataforma de Monitoreo Biológico & Comunitario
             </Text>
-            <TouchableOpacity
-              style={[
-                styles.authServerBadge,
-                connectionStatus?.ok === true && styles.authServerBadgeOk,
-                connectionStatus?.ok === false && styles.authServerBadgeErr
-              ]}
-              onPress={handleTestConnection}
-              activeOpacity={0.7}
-            >
-              {connectionStatus === 'testing' ? (
-                <ActivityIndicator size="small" color={colors.primary} style={{ marginRight: 4 }} />
-              ) : (
-                <View
-                  style={[
-                    styles.onlineDot,
-                    connectionStatus?.ok === false && { backgroundColor: colors.danger }
-                  ]}
-                />
-              )}
-              <Text
-                style={[
-                  styles.authServerText,
-                  connectionStatus?.ok === false && { color: colors.danger }
-                ]}
-              >
-                {connectionStatus === 'testing'
-                  ? 'Verificando Dokploy...'
-                  : connectionStatus?.ok
-                  ? `✓ Online (${connectionStatus.latency}ms): ${serverUrl ? serverUrl.replace(/^https?:\/\//, '') : 'ecoraices.neuraljira.tech'}`
-                  : connectionStatus?.ok === false
-                  ? '✕ Sin Conexión (Toca para reintentar)'
-                  : `Dokploy: ${serverUrl ? serverUrl.replace(/^https?:\/\//, '') : 'ecoraices.neuraljira.tech'} • Probar`}
-              </Text>
-            </TouchableOpacity>
-
-            {connectionStatus?.ok === false && (
-              <View style={styles.connectionErrorNotice}>
-                <Ionicons name="warning-outline" size={14} color="#dc2626" />
-                <Text style={styles.connectionErrorNoticeText}>
-                  {connectionStatus.error}
-                </Text>
-              </View>
-            )}
           </View>
 
           {/* Selector de Pestañas: Iniciar Sesión / Crear Cuenta */}
@@ -373,7 +326,7 @@ export default function ProfileScreen({
 
           <View style={styles.authOfflineHintBox}>
             <Text style={styles.authOfflineHintText}>
-              💡 Puedes censar árboles en campo sin conexión a internet. Tus datos se guardan en SQLite local y se sincronizan a Dokploy cuando inicies sesión y tengas red.
+              💡 Puedes censar árboles en campo sin conexión a internet. Tus datos se guardan en SQLite local y se sincronizan con EcoRaíces cuando inicies sesión y tengas red.
             </Text>
           </View>
         </View>
@@ -773,7 +726,7 @@ export default function ProfileScreen({
         </>
       )}
 
-      {/* PESTAÑA 4: SINCRONIZACIÓN OUTBOX & SERVIDOR DOKPLOY */}
+      {/* PESTAÑA 4: SINCRONIZACIÓN OUTBOX */}
       {profileSubTab === 'outbox' && (
         <>
           {/* Tarjeta de Estado de Conexión y Cuenta */}
@@ -785,13 +738,13 @@ export default function ProfileScreen({
                 color={token ? colors.primary : colors.warning}
               />
               <Text style={styles.outboxAuthTitle}>
-                {token ? 'Cuenta Conectada a Dokploy' : 'Modo Offline (Sin Autenticar)'}
+                {token ? 'Sesión Verificada en EcoRaíces' : 'Modo Offline (Sin Autenticar)'}
               </Text>
             </View>
             <Text style={styles.outboxAuthDesc}>
               {token
-                ? `Sesión activa como @${userUsername} (${userEmail}). Tus observaciones se sincronizan directamente con la plataforma central.`
-                : 'Inicia sesión para que tus árboles se asocien a tu cuenta de guardabosques en la plataforma web de EcoRaíces.'}
+                ? `Sesión activa como @${userUsername} (${userEmail}). Tus observaciones se sincronizan de forma segura con la plataforma central.`
+                : 'Inicia sesión para que tus árboles se asocien a tu cuenta de guardabosques en la plataforma EcoRaíces.'}
             </Text>
             {token ? (
               <TouchableOpacity style={styles.outboxLogoutBtn} onPress={handleLogout}>
@@ -811,7 +764,7 @@ export default function ProfileScreen({
               <View>
                 <Text style={styles.outboxTitle}>Cola de Sincronización Outbox</Text>
                 <Text style={styles.outboxSubtitle}>
-                  {stats.pending} pendientes • {stats.synced} subidos a Dokploy
+                  {stats.pending} pendientes • {stats.synced} sincronizados
                 </Text>
               </View>
               <TouchableOpacity
@@ -840,75 +793,41 @@ export default function ProfileScreen({
                 <Text style={styles.emptyOutboxText}>No hay árboles pendientes en la base de datos local SQLite.</Text>
               </View>
             ) : (
-              outboxTrees.slice(0, 5).map((tree) => (
-                <View key={tree.id} style={styles.treeOutboxItem}>
-                  <View style={styles.treeOutboxLeft}>
-                    <Text style={styles.treeOutboxName}>{tree.species_name}</Text>
-                    <Text style={styles.treeOutboxDetails}>
-                      📍 {tree.municipality} • Lat: {tree.latitude?.toFixed?.(4) || tree.latitude}, Lng: {tree.longitude?.toFixed?.(4) || tree.longitude}
-                    </Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.treeStatusBadge,
-                      tree.sync_status === 'SYNCED' ? styles.statusSynced : styles.statusPending
-                    ]}
-                  >
-                    <Text
+              outboxTrees.slice(0, 10).map((tree) => {
+                const isSynced = (tree.syncStatus || tree.sync_status) === 'SYNCED';
+                const errMsg = tree.syncError || tree.sync_error;
+                return (
+                  <View key={tree.clientId || tree.id} style={styles.treeOutboxItem}>
+                    <View style={styles.treeOutboxLeft}>
+                      <Text style={styles.treeOutboxName}>{tree.speciesName || tree.species_name}</Text>
+                      <Text style={styles.treeOutboxDetails}>
+                        📍 {tree.municipio || tree.municipality} • Lat: {tree.latitude?.toFixed?.(4) || tree.latitude}, Lng: {tree.longitude?.toFixed?.(4) || tree.longitude}
+                      </Text>
+                      {errMsg ? (
+                        <Text style={{ fontSize: 10, color: '#dc2626', marginTop: 2 }}>
+                          ⚠️ {errMsg}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <View
                       style={[
-                        styles.treeStatusText,
-                        tree.sync_status === 'SYNCED' ? styles.statusTextSynced : styles.statusTextPending
+                        styles.treeStatusBadge,
+                        isSynced ? styles.statusSynced : styles.statusPending
                       ]}
                     >
-                      {tree.sync_status === 'SYNCED' ? '✓ Subido' : '⏳ En Cola'}
-                    </Text>
+                      <Text
+                        style={[
+                          styles.treeStatusText,
+                          isSynced ? styles.statusTextSynced : styles.statusTextPending
+                        ]}
+                      >
+                        {isSynced ? '✓ Subido' : '⏳ En Cola'}
+                      </Text>
+                    </View>
                   </View>
-                </View>
-              ))
+                );
+              })
             )}
-          </View>
-
-          {/* Ajustes de Servidor */}
-          <View style={styles.settingsSectionCard}>
-            <Text style={styles.settingsTitle}>Configuración de Conexión</Text>
-            <View style={styles.formFieldGroup}>
-              <Text style={styles.formFieldLabel}>URL del Servidor Dokploy:</Text>
-              <View style={styles.serverInputRow}>
-                <TextInput
-                  style={[styles.formFieldInput, { flex: 1, marginBottom: 0 }]}
-                  value={serverUrl}
-                  onChangeText={(val) => {
-                    setServerUrl(val);
-                    AsyncStorage.setItem('ecoraices_server_url', val);
-                  }}
-                  placeholder="https://ecoraices.neuraljira.tech"
-                />
-                <TouchableOpacity
-                  style={styles.btnTestServer}
-                  onPress={handleTestConnection}
-                  disabled={connectionStatus === 'testing'}
-                  activeOpacity={0.7}
-                >
-                  {connectionStatus === 'testing' ? (
-                    <ActivityIndicator size="small" color="#ffffff" />
-                  ) : (
-                    <Text style={styles.btnTestServerText}>Probar</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-              {connectionStatus && (
-                <Text
-                  style={[
-                    styles.serverStatusFeedback,
-                    connectionStatus.ok ? styles.serverStatusFeedbackOk : styles.serverStatusFeedbackErr
-                  ]}
-                >
-                  {connectionStatus.ok
-                    ? `✓ Conectado (${connectionStatus.latency}ms) - ${connectionStatus.message}`
-                    : `✕ ${connectionStatus.error}`}
-                </Text>
-              )}
-            </View>
           </View>
         </>
       )}
@@ -958,84 +877,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 4,
     maxWidth: 260
-  },
-  authServerBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.successBg,
-    borderWidth: 1,
-    borderColor: colors.successBorder,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginTop: 10,
-    gap: 6
-  },
-  onlineDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.primary
-  },
-  authServerText: {
-    fontSize: 10,
-    color: colors.primary,
-    fontWeight: '700'
-  },
-  authServerBadgeOk: {
-    backgroundColor: '#dcfce7',
-    borderColor: '#86efac'
-  },
-  authServerBadgeErr: {
-    backgroundColor: '#fee2e2',
-    borderColor: '#fca5a5'
-  },
-  connectionErrorNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#fee2e2',
-    borderWidth: 1,
-    borderColor: '#fca5a5',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    marginTop: 8
-  },
-  connectionErrorNoticeText: {
-    color: '#b91c1c',
-    fontSize: 11,
-    fontWeight: '600',
-    flex: 1
-  },
-  serverInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8
-  },
-  btnTestServer: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  btnTestServerText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '800'
-  },
-  serverStatusFeedback: {
-    fontSize: 11,
-    marginTop: 6,
-    fontWeight: '600'
-  },
-  serverStatusFeedbackOk: {
-    color: colors.primary
-  },
-  serverStatusFeedbackErr: {
-    color: colors.danger
   },
   authTabSwitcher: {
     flexDirection: 'row',
@@ -1863,19 +1704,5 @@ const styles = StyleSheet.create({
   treeStatusText: {
     fontSize: 9,
     fontWeight: '800'
-  },
-  settingsSectionCard: {
-    backgroundColor: colors.cardBg,
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 16
-  },
-  settingsTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    marginBottom: 12
   }
 });

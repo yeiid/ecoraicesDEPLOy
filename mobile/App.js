@@ -1,17 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
-  Text,
   View,
-  ScrollView,
+  Text,
   TouchableOpacity,
-  TextInput,
-  Image,
   Alert,
-  ActivityIndicator,
   SafeAreaView,
   StatusBar,
-  Modal,
   Platform,
   LogBox
 } from 'react-native';
@@ -20,30 +15,25 @@ LogBox.ignoreAllLogs(true);
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons';
 
 import {
-  GUAJIRA_MUNICIPIOS,
-  COLOMBIA_TERRITORIOS,
   GUAJIRA_ESPECIES_NATIVAS,
   GUAJIRA_COMUNIDADES,
-  ESTADOS_FITOSANITARIOS,
-  CONOCE_ECORAICES,
   DEFAULT_API_BASE_URL
 } from './src/constants/guajira';
 import {
-  calculateUserGamification,
-  RANGOS_GUARDABOSQUES,
-  MEDALLAS_SISTEMA
+  calculateUserGamification
 } from './src/constants/medals';
 import {
   getDB,
   saveOfflineTree,
   getAllOfflineTrees,
-  getOfflineStats
+  getOfflineStats,
+  markTreeStatus
 } from './src/services/db';
 import { persistTreePhoto } from './src/services/storage';
-import { syncOfflineOutbox } from './src/services/sync';
+import { syncOfflineOutbox, uploadSingleObservation } from './src/services/sync';
+import { resolveLocationFromCoords } from './src/services/geocoding';
 import Map3DView from './src/components/Map3DView';
 import Header from './src/components/Header';
 import BottomNav from './src/components/BottomNav';
@@ -54,33 +44,28 @@ import AboutScreen from './src/screens/AboutScreen';
 import CatalogScreen from './src/screens/CatalogScreen';
 import CommunitiesScreen from './src/screens/CommunitiesScreen';
 import TerritoryModal from './src/components/TerritoryModal';
-import { colors } from './src/theme';
 
-// Mapeo de imágenes locales para las comunidades
+// Mapeo de imágenes locales de respaldo para banners de comunidades sin foto propia
 const LOCAL_COMMUNITY_ASSETS = {
   'guajira-banner': require('./assets/guajira-banner.webp'),
   'guajira-paisaje': require('./assets/guajira-paisaje.webp'),
   'guajira-flora': require('./assets/guajira-flora.webp')
 };
 
-const HEALTH_CHIPS = [
-  { id: 'Sano y vigoroso', label: '🌳 Sano' },
-  { id: 'Con floración o frutos', label: '🌸 Flores/Fruto' },
-  { id: 'Dañado o talado', label: '🪓 Dañado' },
-  { id: 'Seco o con plaga', label: '🍂 Seco/Plaga' }
-];
-
 export default function App() {
-  // Navigation Tabs: 'home' | 'map3d' | 'capture' | 'catalog' | 'communities' | 'profile'
+  // Navigation Tabs: 'home' | 'map3d' | 'capture' | 'catalog' | 'communities' | 'profile' | 'about'
   const [activeTab, setActiveTab] = useState('home');
 
   // GPS State
   const [coords, setCoords] = useState(null);
   const [gpsAccuracy, setGpsAccuracy] = useState(null);
   const [isLocating, setIsLocating] = useState(false);
+  const [detectedLocation, setDetectedLocation] = useState(null);
 
-  // Field Capture Form State (Fiel a NewObservationForm Web)
+  // Field Capture Form State (Conectado a POST /api/observations)
   const [speciesName, setSpeciesName] = useState('');
+  const [selectedSpeciesId, setSelectedSpeciesId] = useState(null);
+  const [selectedCommunityId, setSelectedCommunityId] = useState(null);
   const [municipio, setMunicipio] = useState('Riohacha');
   const [healthState, setHealthState] = useState('Sano y vigoroso');
   const [notes, setNotes] = useState('');
@@ -96,32 +81,36 @@ export default function App() {
   const [outboxTrees, setOutboxTrees] = useState([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState(null);
+  const [syncBanner, setSyncBanner] = useState(null);
 
-  // Catalog State (Live API + Offline Fallback)
+  // Backend Live Data State (FastAPI EcoRaíces Web)
+  const [serverStats, setServerStats] = useState(null);
   const [apiSpecies, setApiSpecies] = useState([]);
   const [apiCategories, setApiCategories] = useState([]);
+  const [apiCommunities, setApiCommunities] = useState([]);
+  const [communitiesLoading, setCommunitiesLoading] = useState(false);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState(null);
+  const [remoteTrees, setRemoteTrees] = useState([]);
 
-  // Profile & Settings State
-  const [serverUrl, setServerUrl] = useState(DEFAULT_API_BASE_URL);
-  const [userName, setUserName] = useState('Yelfran David Hernández Iguaran');
-  const [userEmail, setUserEmail] = useState('yelfrandavid@gmail.com');
-  const [userUsername, setUserUsername] = useState('yelfrandavid');
+  // Profile & Settings State (Sin datos personales ficticios cuando no hay sesión)
+  const serverUrl = DEFAULT_API_BASE_URL;
+  const [userName, setUserName] = useState('Guardabosques EcoRaíces');
+  const [userEmail, setUserEmail] = useState('');
+  const [userUsername, setUserUsername] = useState('guardabosques');
   const [userRole, setUserRole] = useState('Guardabosques Comunitario');
   const [userTerritory, setUserTerritory] = useState('Riohacha');
-  const [userBio, setUserBio] = useState('Comprometido con la reforestación y conservación del Bosque Seco Tropical en La Guajira.');
+  const [userBio, setUserBio] = useState('Monitoreo y conservación de la biodiversidad forestal.');
   const [token, setToken] = useState('');
   const [isGuestMode, setIsGuestMode] = useState(false);
-  const [remoteTrees, setRemoteTrees] = useState([]);
   const [showTerritoryModal, setShowTerritoryModal] = useState(false);
   const [territorySearch, setTerritorySearch] = useState('');
   const [profileSaveBanner, setProfileSaveBanner] = useState(null);
   const [profileSubTab, setProfileSubTab] = useState('datos'); // 'datos' | 'arboles' | 'medallas' | 'outbox'
 
-  // Estados de Autenticación con Dokploy (Login / Registro)
-  const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
+  // Estados de Autenticación (Login / Registro)
+  const [authMode, setAuthMode] = useState('login');
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authName, setAuthName] = useState('');
@@ -131,7 +120,6 @@ export default function App() {
   const [authError, setAuthError] = useState('');
   const [authSuccess, setAuthSuccess] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState(null);
 
   // Modal Ficha Botánica Detallada
   const [selectedSpeciesDetail, setSelectedSpeciesDetail] = useState(null);
@@ -144,9 +132,10 @@ export default function App() {
         await getDB();
         await refreshStats();
 
-        // 1. Cargar preferencias persistidas en lote (una sola consulta a disco)
+        // Limpiar cualquier URL de servidor guardada en versiones previas
+        AsyncStorage.removeItem('ecoraices_server_url').catch(() => {});
+
         const keys = [
-          'ecoraices_server_url',
           'ecoraices_user_name',
           'ecoraices_user_email',
           'ecoraices_user_username',
@@ -159,7 +148,7 @@ export default function App() {
         const map = Object.fromEntries(entries);
 
         if (!isMounted) return;
-        if (map['ecoraices_server_url']) setServerUrl(map['ecoraices_server_url']);
+        const activeBaseUrl = DEFAULT_API_BASE_URL;
         if (map['ecoraices_user_name']) setUserName(map['ecoraices_user_name']);
         if (map['ecoraices_user_email']) setUserEmail(map['ecoraices_user_email']);
         if (map['ecoraices_user_username']) setUserUsername(map['ecoraices_user_username']);
@@ -167,20 +156,21 @@ export default function App() {
         if (map['ecoraices_user_bio']) setUserBio(map['ecoraices_user_bio']);
         if (map['ecoraices_user_territory']) {
           setUserTerritory(map['ecoraices_user_territory']);
-          setMunicipio(map['ecoraices_user_territory']);
+          setMunicipio(map['ecoraices_user_territory'].split(',')[0].trim());
         }
         if (map['ecoraices_auth_token']) {
           setToken(map['ecoraices_auth_token']);
-          fetchRemoteProfile(map['ecoraices_auth_token']);
+          fetchRemoteProfile(map['ecoraices_auth_token'], activeBaseUrl);
         }
 
-        // 2. Disparar GPS y API en segundo plano con retardo de 120ms para que la UI responda instantáneamente
         setTimeout(() => {
           if (!isMounted) return;
           fetchCurrentLocation(true);
-          loadLiveSpeciesCatalog();
-          fetchRemoteObservations();
-        }, 120);
+          fetchServerStats(activeBaseUrl);
+          loadLiveSpeciesCatalog(activeBaseUrl);
+          fetchRemoteObservations(activeBaseUrl);
+          fetchRemoteCommunities(activeBaseUrl);
+        }, 100);
       } catch (err) {
         console.warn('Error inicializando app:', err);
       }
@@ -193,25 +183,128 @@ export default function App() {
     };
   }, []);
 
-  const fetchRemoteProfile = async (authToken = token) => {
-    if (!authToken) return;
+  const getCleanBaseUrl = (customUrl) => {
+    return (customUrl || DEFAULT_API_BASE_URL).trim().replace(/\/+$/, '');
+  };
+
+  // 1. Estadísticas Globales Reales (GET /api/stats)
+  const fetchServerStats = async (baseUrl) => {
+    const clean = getCleanBaseUrl(baseUrl);
     try {
-      const response = await fetch(`${serverUrl}/api/users/me/profile`, {
+      const res = await fetch(`${clean}/api/stats`);
+      if (res.ok) {
+        const data = await res.json();
+        setServerStats(data);
+        AsyncStorage.setItem('ecoraices_cached_stats', JSON.stringify(data));
+      }
+    } catch (_) {
+      const cached = await AsyncStorage.getItem('ecoraices_cached_stats');
+      if (cached) setServerStats(JSON.parse(cached));
+    }
+  };
+
+  // 2. Comunidades Reales (GET /api/communities)
+  const fetchRemoteCommunities = async (baseUrl) => {
+    setCommunitiesLoading(true);
+    const clean = getCleanBaseUrl(baseUrl);
+    try {
+      const res = await fetch(`${clean}/api/communities`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setApiCommunities(data);
+          AsyncStorage.setItem('ecoraices_cached_communities', JSON.stringify(data));
+        }
+      } else {
+        const cached = await AsyncStorage.getItem('ecoraices_cached_communities');
+        if (cached) setApiCommunities(JSON.parse(cached));
+      }
+    } catch (_) {
+      const cached = await AsyncStorage.getItem('ecoraices_cached_communities');
+      if (cached) {
+        setApiCommunities(JSON.parse(cached));
+      } else if (apiCommunities.length === 0) {
+        setApiCommunities(GUAJIRA_COMUNIDADES);
+      }
+    } finally {
+      setCommunitiesLoading(false);
+    }
+  };
+
+  // 3. Catálogo de Especies y Categorías Reales (GET /api/species & GET /api/categories)
+  const loadLiveSpeciesCatalog = async (baseUrl) => {
+    setCatalogLoading(true);
+    const clean = getCleanBaseUrl(baseUrl);
+    try {
+      const [specRes, catRes] = await Promise.all([
+        fetch(`${clean}/api/species`).then((r) => (r.ok ? r.json() : [])),
+        fetch(`${clean}/api/categories`).then((r) => (r.ok ? r.json() : []))
+      ]);
+
+      if (Array.isArray(specRes) && specRes.length > 0) {
+        setApiSpecies(specRes);
+        AsyncStorage.setItem('ecoraices_cached_species', JSON.stringify(specRes));
+      } else {
+        const cached = await AsyncStorage.getItem('ecoraices_cached_species');
+        if (cached) setApiSpecies(JSON.parse(cached));
+      }
+
+      if (Array.isArray(catRes) && catRes.length > 0) {
+        setApiCategories(catRes);
+        AsyncStorage.setItem('ecoraices_cached_categories', JSON.stringify(catRes));
+      } else {
+        const cachedCats = await AsyncStorage.getItem('ecoraices_cached_categories');
+        if (cachedCats) setApiCategories(JSON.parse(cachedCats));
+      }
+    } catch (_) {
+      const cached = await AsyncStorage.getItem('ecoraices_cached_species');
+      if (cached) setApiSpecies(JSON.parse(cached));
+      const cachedCats = await AsyncStorage.getItem('ecoraices_cached_categories');
+      if (cachedCats) setApiCategories(JSON.parse(cachedCats));
+    } finally {
+      setCatalogLoading(false);
+    }
+  };
+
+  // 4. Observaciones Reales (GET /api/observations)
+  const fetchRemoteObservations = async (baseUrl) => {
+    const clean = getCleanBaseUrl(baseUrl);
+    try {
+      const response = await fetch(`${clean}/api/observations?limit=250`);
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data)) {
+          setRemoteTrees(data);
+          AsyncStorage.setItem('ecoraices_cached_observations', JSON.stringify(data));
+        }
+      }
+    } catch (_) {
+      const cached = await AsyncStorage.getItem('ecoraices_cached_observations');
+      if (cached) setRemoteTrees(JSON.parse(cached));
+    }
+  };
+
+  // 5. Perfil Real del Usuario Autenticado (GET /api/users/me/profile)
+  const fetchRemoteProfile = async (authToken = token, baseUrl) => {
+    if (!authToken) return;
+    const clean = getCleanBaseUrl(baseUrl);
+    try {
+      const response = await fetch(`${clean}/api/users/me/profile`, {
         headers: {
           Authorization: `Bearer ${authToken}`
         }
       });
       if (response.ok) {
         const data = await response.json();
-        if (data && data.profile) {
-          const p = data.profile;
+        const p = data?.profile || data?.user || data;
+        if (p) {
           if (p.name) setUserName(p.name);
           if (p.email) setUserEmail(p.email);
           if (p.username) setUserUsername(p.username);
           if (p.bio) setUserBio(p.bio);
           if (p.location) {
             setUserTerritory(p.location);
-            setMunicipio(p.location);
+            setMunicipio(p.location.split(',')[0].trim());
           }
           if (p.role) setUserRole(p.role);
 
@@ -225,45 +318,7 @@ export default function App() {
           ]);
         }
       }
-    } catch (err) {
-      console.log('Modo offline / Perfil remoto no accesible:', err.message);
-    }
-  };
-
-  const handleTestConnection = async () => {
-    setConnectionStatus('testing');
-    const cleanUrl = (serverUrl || DEFAULT_API_BASE_URL).trim().replace(/\/+$/, '');
-    const startTime = Date.now();
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
-    try {
-      const res = await fetch(`${cleanUrl}/api/health`, { signal: controller.signal });
-      clearTimeout(timeoutId);
-      const latency = Date.now() - startTime;
-      if (res.ok) {
-        const data = await res.json();
-        setConnectionStatus({
-          ok: true,
-          latency,
-          server: cleanUrl.replace(/^https?:\/\//, ''),
-          message: data.message || 'FastAPI backend en línea'
-        });
-      } else {
-        setConnectionStatus({
-          ok: false,
-          latency,
-          error: `El servidor respondió con código HTTP ${res.status}`
-        });
-      }
-    } catch (err) {
-      clearTimeout(timeoutId);
-      setConnectionStatus({
-        ok: false,
-        error: err.name === 'AbortError'
-          ? 'Tiempo de espera agotado (8s). Servidor no responde.'
-          : 'No se pudo conectar al servidor. Revisa tu internet o la URL.'
-      });
-    }
+    } catch (_) {}
   };
 
   const handleLogin = async () => {
@@ -274,7 +329,7 @@ export default function App() {
       return;
     }
     setIsAuthLoading(true);
-    const cleanUrl = (serverUrl || DEFAULT_API_BASE_URL).trim().replace(/\/+$/, '');
+    const cleanUrl = getCleanBaseUrl();
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 12000);
     try {
@@ -310,7 +365,7 @@ export default function App() {
           if (u.role) setUserRole(u.role);
           if (u.location) {
             setUserTerritory(u.location);
-            setMunicipio(u.location);
+            setMunicipio(u.location.split(',')[0].trim());
           }
           await AsyncStorage.multiSet([
             ['ecoraices_user_name', u.name || ''],
@@ -322,19 +377,19 @@ export default function App() {
 
         setAuthPassword('');
         setAuthSuccess('¡Sesión iniciada exitosamente!');
-        fetchRemoteProfile(data.token);
-        fetchRemoteObservations();
+        fetchRemoteProfile(data.token, cleanUrl);
+        fetchRemoteObservations(cleanUrl);
+        fetchServerStats(cleanUrl);
+        fetchRemoteCommunities(cleanUrl);
       } else {
         throw new Error('No se recibió el token de autenticación.');
       }
     } catch (err) {
       clearTimeout(timeoutId);
       if (err.name === 'AbortError') {
-        setAuthError('Tiempo de espera agotado (12s). El servidor Dokploy tardó demasiado en responder.');
-      } else if (err.message && err.message.includes('Network request failed')) {
-        setAuthError(`No se pudo conectar a ${cleanUrl.replace(/^https?:\/\//, '')}. Verifica tu conexión a internet o el estado del servidor.`);
+        setAuthError('Tiempo de espera agotado (12s). El servidor tardó demasiado en responder.');
       } else {
-        setAuthError(err.message || 'Error de conexión con el servidor Dokploy.');
+        setAuthError(err.message || 'Error de conexión con el servidor EcoRaíces.');
       }
     } finally {
       setIsAuthLoading(false);
@@ -353,7 +408,7 @@ export default function App() {
       return;
     }
     setIsAuthLoading(true);
-    const cleanUrl = (serverUrl || DEFAULT_API_BASE_URL).trim().replace(/\/+$/, '');
+    const cleanUrl = getCleanBaseUrl();
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 12000);
     try {
@@ -396,21 +451,16 @@ export default function App() {
 
         setAuthPassword('');
         setAuthSuccess('¡Cuenta creada y sesión iniciada exitosamente!');
-        fetchRemoteProfile(data.token);
-        fetchRemoteObservations();
+        fetchRemoteProfile(data.token, cleanUrl);
+        fetchRemoteObservations(cleanUrl);
+        fetchServerStats(cleanUrl);
       } else {
         setAuthSuccess('¡Cuenta creada exitosamente! Por favor inicia sesión.');
         setAuthMode('login');
       }
     } catch (err) {
       clearTimeout(timeoutId);
-      if (err.name === 'AbortError') {
-        setAuthError('Tiempo de espera agotado (12s). El servidor Dokploy tardó demasiado en responder.');
-      } else if (err.message && err.message.includes('Network request failed')) {
-        setAuthError(`No se pudo conectar a ${cleanUrl.replace(/^https?:\/\//, '')}. Verifica tu conexión a internet o el estado del servidor.`);
-      } else {
-        setAuthError(err.message || 'No se pudo crear la cuenta.');
-      }
+      setAuthError(err.message || 'No se pudo crear la cuenta.');
     } finally {
       setIsAuthLoading(false);
     }
@@ -419,7 +469,7 @@ export default function App() {
   const handleLogout = () => {
     Alert.alert(
       'Cerrar Sesión',
-      '¿Estás seguro de que deseas cerrar sesión? Tus árboles registrados en el dispositivo SQLite permanecerán a salvo para sincronizarse luego.',
+      '¿Estás seguro de que deseas cerrar sesión? Tus árboles registrados en la cola local permanecerán guardados.',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -427,14 +477,22 @@ export default function App() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await AsyncStorage.removeItem('ecoraices_auth_token');
+              await AsyncStorage.multiRemove([
+                'ecoraices_auth_token',
+                'ecoraices_user_name',
+                'ecoraices_user_email',
+                'ecoraices_user_username',
+                'ecoraices_user_role'
+              ]);
               setToken('');
               setIsGuestMode(false);
+              setUserName('Guardabosques EcoRaíces');
+              setUserEmail('');
+              setUserUsername('guardabosques');
               setAuthEmail('');
               setAuthPassword('');
               setAuthError('');
               setAuthSuccess('');
-              Alert.alert('Sesión Cerrada', 'Has cerrado sesión exitosamente en este dispositivo.');
             } catch (err) {
               console.warn('Error al cerrar sesión:', err);
             }
@@ -454,10 +512,10 @@ export default function App() {
         ['ecoraices_user_bio', userBio],
         ['ecoraices_user_role', userRole]
       ]);
-      setMunicipio(userTerritory);
+      setMunicipio(userTerritory.split(',')[0].trim());
 
       if (token) {
-        fetch(`${serverUrl}/api/users/me/profile`, {
+        fetch(`${getCleanBaseUrl()}/api/users/me/profile`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -470,7 +528,7 @@ export default function App() {
             bio: userBio,
             location: userTerritory
           })
-        }).catch((err) => console.log('Sync profile error:', err.message));
+        }).catch(() => {});
       }
 
       setProfileSaveBanner('✓ Perfil y territorio actualizados exitosamente');
@@ -491,50 +549,27 @@ export default function App() {
     }
   };
 
-  // Cargar Catálogo desde la API de FastAPI
-  const loadLiveSpeciesCatalog = async () => {
-    setCatalogLoading(true);
-    try {
-      const [specRes, catRes] = await Promise.all([
-        fetch(`${serverUrl}/api/species`).then((r) => (r.ok ? r.json() : [])),
-        fetch(`${serverUrl}/api/categories`).then((r) => (r.ok ? r.json() : []))
-      ]);
-
-      if (Array.isArray(specRes) && specRes.length > 0) {
-        setApiSpecies(specRes);
-        AsyncStorage.setItem('ecoraices_cached_species', JSON.stringify(specRes));
-      } else {
-        // Intentar leer caché local
-        const cached = await AsyncStorage.getItem('ecoraices_cached_species');
-        if (cached) setApiSpecies(JSON.parse(cached));
+  const applyGpsLocationInfo = (nextCoords, resolvedInfo) => {
+    if (nextCoords) {
+      setCoords({
+        latitude: nextCoords.latitude,
+        longitude: nextCoords.longitude,
+        altitude: nextCoords.altitude ?? null
+      });
+      if (nextCoords.accuracy !== undefined && nextCoords.accuracy !== null) {
+        setGpsAccuracy(nextCoords.accuracy);
       }
-
-      if (Array.isArray(catRes) && catRes.length > 0) {
-        setApiCategories(catRes);
+    }
+    if (resolvedInfo) {
+      setDetectedLocation(resolvedInfo);
+      if (resolvedInfo.municipio && !resolvedInfo.isCoordsFallback) {
+        setMunicipio(resolvedInfo.municipio);
       }
-    } catch (err) {
-      console.log('[Catalog API] Offline o sin red, usando respaldo local');
-      const cached = await AsyncStorage.getItem('ecoraices_cached_species');
-      if (cached) {
-        setApiSpecies(JSON.parse(cached));
-      }
-    } finally {
-      setCatalogLoading(false);
     }
   };
 
-  const fetchRemoteObservations = async () => {
-    try {
-      const response = await fetch(`${serverUrl}/api/observations`);
-      if (response.ok) {
-        const data = await response.json();
-        if (Array.isArray(data)) {
-          setRemoteTrees(data);
-        }
-      }
-    } catch (e) {
-      console.log('Modo offline / Servidor no accesible:', e.message);
-    }
+  const handleMapLocationUpdate = (nextCoords, resolvedInfo) => {
+    applyGpsLocationInfo(nextCoords, resolvedInfo);
   };
 
   const fetchCurrentLocation = async (silent = false) => {
@@ -547,18 +582,23 @@ export default function App() {
         return;
       }
 
-      // 1. Obtener última posición conocida de inmediato (0ms, jamás congela la UI)
+      let bestCoords = null;
       const lastKnown = await Location.getLastKnownPositionAsync().catch(() => null);
       if (lastKnown && lastKnown.coords) {
-        setCoords({
+        bestCoords = {
           latitude: lastKnown.coords.latitude,
           longitude: lastKnown.coords.longitude,
-          altitude: lastKnown.coords.altitude
+          altitude: lastKnown.coords.altitude,
+          accuracy: lastKnown.coords.accuracy
+        };
+        setCoords({
+          latitude: bestCoords.latitude,
+          longitude: bestCoords.longitude,
+          altitude: bestCoords.altitude
         });
-        setGpsAccuracy(lastKnown.coords.accuracy);
+        setGpsAccuracy(bestCoords.accuracy);
       }
 
-      // 2. Afinar con satélites en segundo plano con timeout estricto de 3500ms
       const gpsPromise = Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced
       });
@@ -569,12 +609,31 @@ export default function App() {
       const location = await Promise.race([gpsPromise, timeoutPromise]).catch(() => null);
 
       if (location && location.coords) {
-        setCoords({
+        bestCoords = {
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
-          altitude: location.coords.altitude
+          altitude: location.coords.altitude,
+          accuracy: location.coords.accuracy
+        };
+        setCoords({
+          latitude: bestCoords.latitude,
+          longitude: bestCoords.longitude,
+          altitude: bestCoords.altitude
         });
-        setGpsAccuracy(location.coords.accuracy);
+        setGpsAccuracy(bestCoords.accuracy);
+      }
+
+      if (bestCoords) {
+        resolveLocationFromCoords(bestCoords.latitude, bestCoords.longitude, !silent)
+          .then((locInfo) => {
+            if (locInfo) {
+              setDetectedLocation(locInfo);
+              if (locInfo.municipio && !locInfo.isCoordsFallback) {
+                setMunicipio(locInfo.municipio);
+              }
+            }
+          })
+          .catch(() => {});
       }
     } catch (err) {
       if (!silent) console.log('Error GPS:', err.message);
@@ -619,6 +678,10 @@ export default function App() {
   };
 
   const handlePhotoSelect = () => {
+    if (Platform.OS === 'web') {
+      pickImageFromGallery();
+      return;
+    }
     Alert.alert(
       'Fotografía del Árbol',
       'Elige el método de captura:',
@@ -630,10 +693,19 @@ export default function App() {
     );
   };
 
+  const getScientificFor = (name) => {
+    const fromApi = apiSpecies.find((s) => (s.name || '').toLowerCase() === (name || '').toLowerCase());
+    if (fromApi && (fromApi.scientificName || fromApi.scientific_name)) {
+      return fromApi.scientificName || fromApi.scientific_name;
+    }
+    const found = GUAJIRA_ESPECIES_NATIVAS.find((s) => s.name.toLowerCase() === (name || '').toLowerCase());
+    return found ? found.scientific : '';
+  };
+
   const handleSaveTree = async () => {
     const finalSpecies = speciesName.trim();
     if (!finalSpecies) {
-      Alert.alert('Especie requerida', 'Por favor ingresa la especie o nombre común del árbol.');
+      Alert.alert('Especie requerida', 'Por favor ingresa o elige la especie del árbol.');
       return;
     }
 
@@ -654,45 +726,72 @@ export default function App() {
         localPhotoPath = await persistTreePhoto(photoUri);
       }
 
-      const clientUuid = 'tree-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
-      const currentNumber = sessionCount + 1;
+      const clientId = 'tree_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+      const matchedSpecies = apiSpecies.find(
+        (s) => (s.name || '').toLowerCase() === finalSpecies.toLowerCase()
+      );
+      const isSelectedIdReal = selectedSpeciesId && apiSpecies.some((s) => String(s.id) === String(selectedSpeciesId));
+      const resolvedSpeciesId = isSelectedIdReal ? selectedSpeciesId : (matchedSpecies?.id || null);
+      const isCommunityIdReal = selectedCommunityId && apiCommunities.some((c) => String(c.id) === String(selectedCommunityId));
+      const resolvedCommunityId = isCommunityIdReal ? selectedCommunityId : null;
+      const resolvedScientific = getScientificFor(finalSpecies);
 
-      await saveOfflineTree({
-        client_uuid: clientUuid,
-        species_name: finalSpecies,
-        scientific_name: getScientificFor(finalSpecies),
-        municipality: municipio.trim(),
+      const treePayload = {
+        clientId,
+        speciesId: resolvedSpeciesId,
+        communityId: resolvedCommunityId,
+        speciesName: finalSpecies,
+        scientificName: resolvedScientific,
+        municipio: municipio.trim(),
         latitude: coords.latitude,
         longitude: coords.longitude,
-        accuracy_meters: gpsAccuracy || 10,
-        height_meters: null,
-        diameter_cm: null,
-        health_state: healthState,
+        altitude: coords.altitude || null,
+        accuracy: gpsAccuracy || 10,
+        healthState,
         notes: notes.trim(),
-        local_photo_path: localPhotoPath
-      });
+        localImagePath: localPhotoPath,
+        observationDate: new Date().toISOString().split('T')[0]
+      };
 
-      // Incrementar contador de sesión
-      setSessionCount(currentNumber);
+      await saveOfflineTree(treePayload);
+      setSessionCount((prev) => prev + 1);
 
-      // Mostrar banner de éxito (fiel a la web .quick-alert.success)
-      setSaveSuccessBanner(`✓ Árbol "${finalSpecies}" guardado en SQLite offline (+30 pts)`);
-      setTimeout(() => {
-        setSaveSuccessBanner(null);
-      }, 4000);
-
-      // Resetear campos según continuousMode (Modo ráfaga)
-      setPhotoUri(null);
-      setNotes('');
-      if (continuousMode) {
-        setSpeciesName('');
-        // Conservamos el municipio y la ubicación caliente para el siguiente árbol en campo
-      } else {
-        setSpeciesName('');
+      // Si el usuario tiene sesión activa con token, intentamos sincronizar al instante con FastAPI
+      let syncedImmediately = false;
+      let immediateErr = null;
+      if (token) {
+        try {
+          await uploadSingleObservation(treePayload, getCleanBaseUrl(), token, {
+            species: apiSpecies,
+            communities: apiCommunities
+          });
+          await markTreeStatus(clientId, 'SYNCED', null);
+          syncedImmediately = true;
+          fetchRemoteObservations();
+          fetchServerStats();
+        } catch (syncErr) {
+          immediateErr = syncErr?.message || null;
+          await markTreeStatus(clientId, 'ERROR', immediateErr);
+        }
       }
 
-      // Actualizar estadísticas y refrescar GPS
-      refreshStats();
+      setSaveSuccessBanner(
+        syncedImmediately
+          ? `✓ Árbol "${finalSpecies}" subido en vivo al servidor EcoRaíces (+30 pts)`
+          : immediateErr
+          ? `✓ Guardado localmente en cola offline (pendiente: ${immediateErr})`
+          : `✓ Árbol "${finalSpecies}" guardado en cola offline (+30 pts)`
+      );
+      setTimeout(() => {
+        setSaveSuccessBanner(null);
+      }, 4500);
+
+      setPhotoUri(null);
+      setNotes('');
+      setSpeciesName('');
+      setSelectedSpeciesId(null);
+
+      await refreshStats();
       fetchCurrentLocation(true);
     } catch (err) {
       setSaveErrorBanner('Error al guardar: ' + err.message);
@@ -700,9 +799,52 @@ export default function App() {
     }
   };
 
+  const showSyncFeedback = (text, tone = 'info') => {
+    setSyncBanner({ text, tone });
+    setTimeout(() => {
+      setSyncBanner((prev) => (prev && prev.text === text ? null : prev));
+    }, 4500);
+  };
+
+  const handleRefreshAllData = async () => {
+    setIsSyncing(true);
+    try {
+      const cleanUrl = getCleanBaseUrl();
+      await Promise.all([
+        fetchServerStats(cleanUrl),
+        fetchRemoteObservations(cleanUrl),
+        fetchRemoteCommunities(cleanUrl),
+        loadLiveSpeciesCatalog(cleanUrl),
+        refreshStats()
+      ]);
+      showSyncFeedback('✓ Datos actualizados desde el servidor EcoRaíces', 'success');
+    } catch (_) {
+      showSyncFeedback('No se pudo conectar al servidor. Mostrando datos en caché.', 'error');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const handleStartSync = async () => {
     if (stats.pending === 0) {
-      Alert.alert('Al día', 'No hay registros pendientes de sincronizar en tu cola.');
+      await handleRefreshAllData();
+      return;
+    }
+
+    if (!token) {
+      showSyncFeedback('Inicia sesión en la pestaña Perfil para subir tus árboles.', 'error');
+      if (Platform.OS !== 'web') {
+        Alert.alert(
+          'Inicia Sesión para Sincronizar',
+          'Tus árboles están seguros en tu dispositivo. Inicia sesión en la pestaña Perfil para subirlos al servidor EcoRaíces.',
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Ir a Perfil', onPress: () => setActiveTab('profile') }
+          ]
+        );
+      } else {
+        setActiveTab('profile');
+      }
       return;
     }
 
@@ -712,89 +854,229 @@ export default function App() {
     try {
       const res = await syncOfflineOutbox({
         apiBaseUrl: serverUrl,
-        token: token || null,
+        token,
+        species: apiSpecies,
+        communities: apiCommunities,
         onProgress: (p) => setSyncProgress(p)
       });
 
-      Alert.alert(
-        'Sincronización Exitosa',
-        `Se subieron ${res.synced} árboles a Dokploy/FastAPI.${res.failed > 0 ? ` (${res.failed} con error)` : ''}`
-      );
-      refreshStats();
+      if (res.synced > 0) {
+        const msg = `✓ Se subieron ${res.synced} árbol(es) al servidor.${res.failed > 0 ? ` (${res.failed} con error)` : ''}`;
+        showSyncFeedback(msg, res.failed > 0 ? 'error' : 'success');
+        if (Platform.OS !== 'web') {
+          Alert.alert('Sincronización Exitosa', msg);
+        }
+      } else if (res.failed > 0) {
+        const errMsg = res.errors?.[0]?.error || 'No se pudieron subir los registros.';
+        showSyncFeedback(`⚠️ Error al sincronizar: ${errMsg}`, 'error');
+        if (Platform.OS !== 'web') {
+          Alert.alert('Error al Sincronizar', errMsg);
+        }
+      }
+      await refreshStats();
       fetchRemoteObservations();
+      fetchServerStats();
     } catch (err) {
-      Alert.alert('Error de sincronización', err.message);
+      const errMsg = err?.message || 'Error inesperado de sincronización';
+      showSyncFeedback(`⚠️ ${errMsg}`, 'error');
+      if (Platform.OS !== 'web') {
+        Alert.alert('Sincronización', errMsg);
+      }
     } finally {
       setIsSyncing(false);
       setSyncProgress(null);
     }
   };
 
-  const getScientificFor = (name) => {
-    const found = GUAJIRA_ESPECIES_NATIVAS.find((s) => s.name.toLowerCase() === name.toLowerCase());
-    return found ? found.scientific : 'Especie nativa';
-  };
-
-  // Combinar especies locales con las de la API para catálogo
-  const displaySpeciesCatalog = useMemo(() => {
-    const combined = [...GUAJIRA_ESPECIES_NATIVAS];
-    if (apiSpecies.length > 0) {
-      apiSpecies.forEach((as) => {
-        if (!combined.some((cs) => cs.name.toLowerCase() === (as.name || '').toLowerCase())) {
-          combined.push({
-            id: as.id || as.name,
-            name: as.name,
-            scientific: as.scientificName || as.scientific_name || 'Especie forestal',
-            family: as.category?.name || 'Flora Guajira',
-            icon: '🌱',
-            tag: as.status || 'Validado',
-            category: as.category?.name || 'General',
-            photo: as.imageUrl || 'https://ecoraices.neuraljira.tech/guajira-paisaje.webp',
-            status: as.status || 'Registrado',
-            isInvasive: (as.name || '').toLowerCase().includes('neem'),
-            botanicalDescription: as.description || 'Especie botánica registrada en la plataforma EcoRaíces.',
-            ecologicalValue: as.habitat || 'Conservación del bosque seco tropical de La Guajira.',
-            medicinalUses: 'Uso en programas de restauración biocultural.',
-            sightingsCount: as.observationsCount || 12
-          });
-        }
+  // Conteo real de observaciones por especie (sin números inventados)
+  const speciesObservationCounts = useMemo(() => {
+    const counts = {};
+    remoteTrees.forEach((rt) => {
+      const sId = rt.speciesId || rt.species?.id;
+      const sName = (rt.species?.name || rt.name || '').toLowerCase();
+      if (sId) counts[sId] = (counts[sId] || 0) + 1;
+      if (sName) counts[sName] = (counts[sName] || 0) + 1;
+    });
+    outboxTrees
+      .filter((t) => t.syncStatus !== 'SYNCED')
+      .forEach((t) => {
+        const sId = t.speciesId;
+        const sName = (t.speciesName || t.species_name || '').toLowerCase();
+        if (sId) counts[sId] = (counts[sId] || 0) + 1;
+        if (sName) counts[sName] = (counts[sName] || 0) + 1;
       });
-    }
+    return counts;
+  }, [remoteTrees, outboxTrees]);
 
-    return combined.filter((sp) => {
-      const matchSearch = (sp.name + ' ' + sp.scientific).toLowerCase().includes(catalogSearch.toLowerCase());
+  // Catálogo construido desde GET /api/species (61 especies reales) con conteo real de avistamientos
+  const displaySpeciesCatalog = useMemo(() => {
+    const cleanBase = getCleanBaseUrl();
+    const sourceList =
+      apiSpecies.length > 0
+        ? apiSpecies.map((as) => {
+            let photoUrl = as.imageUrl || 'https://ecoraices.neuraljira.tech/guajira-paisaje.webp';
+            if (photoUrl.startsWith('/')) {
+              photoUrl = `${cleanBase}${photoUrl}`;
+            }
+            const realCount =
+              speciesObservationCounts[as.id] ||
+              speciesObservationCounts[(as.name || '').toLowerCase()] ||
+              0;
+
+            return {
+              id: as.id,
+              name: as.name,
+              scientific: as.scientificName || as.scientific_name || 'Especie forestal',
+              family: as.family || as.category?.name || 'Flora Tropical',
+              gbifKey: as.gbifKey || null,
+              icon: '🌱',
+              tag: as.category?.name || 'Catálogo Oficial',
+              category: as.category?.name || 'General',
+              categoryId: as.categoryId || as.category?.id || null,
+              photo: photoUrl,
+              status: as.status || 'Validado',
+              isInvasive: (as.name || '').toLowerCase().includes('neem'),
+              botanicalDescription: as.description || null,
+              ecologicalValue: as.habitat || as.category?.description || null,
+              sightingsCount: realCount
+            };
+          })
+        : GUAJIRA_ESPECIES_NATIVAS.map((sp) => ({
+            ...sp,
+            sightingsCount: speciesObservationCounts[(sp.name || '').toLowerCase()] || 0
+          }));
+
+    return sourceList.filter((sp) => {
+      const matchSearch = (
+        (sp.name || '') + ' ' +
+        (sp.scientific || '') + ' ' +
+        (sp.family || '')
+      )
+        .toLowerCase()
+        .includes(catalogSearch.toLowerCase());
       if (!matchSearch) return false;
-      if (selectedCategoryFilter && sp.category !== selectedCategoryFilter) return false;
+      if (
+        selectedCategoryFilter &&
+        sp.category !== selectedCategoryFilter &&
+        sp.categoryId !== selectedCategoryFilter
+      ) {
+        return false;
+      }
       return true;
     });
-  }, [apiSpecies, catalogSearch, selectedCategoryFilter]);
+  }, [apiSpecies, catalogSearch, selectedCategoryFilter, speciesObservationCounts, serverUrl]);
 
-  // Lista de todos los árboles para el mapa 3D (unifica SQLite local y servidor Dokploy)
+  // Lista 100% real de árboles para el Mapa 3D (deduplicando cola local sincronizada y servidor FastAPI)
   const allMapTrees = useMemo(() => {
-    return [
-      ...outboxTrees.map((t) => ({
+    const cleanBase = getCleanBaseUrl();
+    const remoteIds = new Set(remoteTrees.map((rt) => String(rt.id)));
+
+    const pendingOrUnsyncedLocal = outboxTrees
+      .filter((t) => !remoteIds.has(String(t.clientId)) && t.syncStatus !== 'SYNCED')
+      .map((t) => ({
         ...t,
         name: t.speciesName || t.species_name || 'Árbol Censado',
         species_name: t.speciesName || t.species_name || 'Árbol Censado',
         scientific_name: t.scientificName || t.scientific_name || '',
         municipality: t.municipio || t.municipality || 'La Guajira',
-        verified: t.syncStatus === 'SYNCED' || t.sync_status === 'SYNCED'
-      })),
-      ...remoteTrees.map((rt) => ({
+        verified: false
+      }));
+
+    const formattedRemote = remoteTrees.map((rt) => {
+      let img = rt.imageUrl || null;
+      if (img && img.startsWith('/')) {
+        img = `${cleanBase}${img}`;
+      }
+      return {
         ...rt,
+        imageUrl: img,
         name: rt.species?.name || rt.speciesName || rt.species_name || rt.name || 'Árbol Registrado',
         species_name: rt.species?.name || rt.speciesName || rt.species_name || rt.name || 'Árbol Registrado',
         scientific_name: rt.species?.scientificName || rt.scientific_name || '',
-        municipality: rt.municipio || rt.municipality || 'La Guajira',
-        verified: rt.status === 'APPROVED' || rt.verified || true
-      }))
-    ];
-  }, [outboxTrees, remoteTrees]);
+        municipality: rt.municipio || rt.municipality || 'Colombia',
+        verified: rt.status === 'APPROVED' || Boolean(rt.verified)
+      };
+    });
 
-  // Cálculo de Gamificación y Medallas del usuario
+    return [...pendingOrUnsyncedLocal, ...formattedRemote];
+  }, [outboxTrees, remoteTrees, serverUrl]);
+
+  // Registro directo de árbol en el Catastro Arbóreo 3D desde el mapa
+  const handleQuickCreateTreeFromMap = async ({
+    latitude,
+    longitude,
+    speciesName: spName,
+    speciesId: spId,
+    treeHeight,
+    healthState: health,
+    municipio: muni
+  }) => {
+    const finalSpecies = (spName || '').trim();
+    if (!finalSpecies) {
+      throw new Error('Ingresa o elige la especie del árbol.');
+    }
+
+    const clientId = 'tree_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+    const matchedSpecies = apiSpecies.find(
+      (s) => (s.name || '').toLowerCase() === finalSpecies.toLowerCase()
+    );
+    const isSelectedIdReal = spId && apiSpecies.some((s) => String(s.id) === String(spId));
+    const resolvedSpeciesId = isSelectedIdReal ? spId : (matchedSpecies?.id || null);
+    const resolvedScientific = getScientificFor(finalSpecies);
+    const resolvedMuni = (muni || detectedLocation?.municipio || municipio || 'Sin municipio').trim();
+
+    const treePayload = {
+      clientId,
+      speciesId: resolvedSpeciesId,
+      communityId: null,
+      speciesName: finalSpecies,
+      scientificName: resolvedScientific,
+      municipio: resolvedMuni,
+      latitude: Number(latitude),
+      longitude: Number(longitude),
+      altitude: null,
+      treeHeight: Number(treeHeight) || 8,
+      heightMeters: Number(treeHeight) || 8,
+      accuracy: gpsAccuracy || 5,
+      healthState: health || 'Sano y vigoroso',
+      notes: `Altura: ${Number(treeHeight) || 8}m. Registrado en Catastro 3D.`,
+      localImagePath: null,
+      observationDate: new Date().toISOString().split('T')[0]
+    };
+
+    await saveOfflineTree(treePayload);
+    setSessionCount((prev) => prev + 1);
+
+    let syncedImmediately = false;
+    if (token) {
+      try {
+        await uploadSingleObservation(treePayload, getCleanBaseUrl(), token, {
+          species: apiSpecies,
+          communities: apiCommunities
+        });
+        await markTreeStatus(clientId, 'SYNCED', null);
+        syncedImmediately = true;
+        await Promise.all([
+          fetchRemoteObservations(),
+          fetchServerStats()
+        ]);
+      } catch (syncErr) {
+        await markTreeStatus(clientId, 'ERROR', syncErr?.message || null);
+      }
+    }
+
+    await refreshStats();
+    return { clientId, syncedImmediately };
+  };
+
+  // Cálculo de Gamificación y Medallas del usuario basado en registros reales
   const gamification = useMemo(() => {
-    return calculateUserGamification(allMapTrees, GUAJIRA_COMUNIDADES.length);
-  }, [allMapTrees]);
+    return calculateUserGamification(allMapTrees, apiCommunities.length || 1);
+  }, [allMapTrees, apiCommunities.length]);
+
+  const hasSyncError = useMemo(() => {
+    return outboxTrees.some((t) => (t.syncStatus || t.sync_status) === 'ERROR');
+  }, [outboxTrees]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -804,57 +1086,74 @@ export default function App() {
         translucent={Platform.OS === 'android'}
       />
 
-      {/* Barra de Cabecera Superior (Estilo Oficial EcoRaíces Mobile) */}
+      {/* Barra de Cabecera Superior */}
       <Header
         onLogoPress={() => setActiveTab('home')}
         pendingCount={stats.pending}
+        hasSyncError={hasSyncError}
         isSyncing={isSyncing}
         onSyncPress={handleStartSync}
+        onRefreshPress={handleRefreshAllData}
       />
+
+      {/* Banner de estado de sincronización visible en Web y Android/iOS */}
+      {syncBanner && (
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={() => setSyncBanner(null)}
+          style={[
+            styles.syncBanner,
+            syncBanner.tone === 'success' && styles.syncBannerSuccess,
+            syncBanner.tone === 'error' && styles.syncBannerError
+          ]}
+        >
+          <Text style={styles.syncBannerText} numberOfLines={2}>
+            {syncBanner.text}
+          </Text>
+          <Text style={styles.syncBannerClose}>✕</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Contenido Principal según Pestaña Activa */}
       <View style={styles.contentArea}>
-        {/* ============================================================== */}
-        {/* 1. INICIO (PANELES 1 & 7: Hero, Métricas, Gamificación, Misión)*/}
-        {/* ============================================================== */}
+        {/* 1. INICIO CONECTADO A /api/stats Y /api/observations */}
         {activeTab === 'home' && (
           <HomeScreen
             displaySpeciesCatalog={displaySpeciesCatalog}
             outboxTrees={outboxTrees}
+            remoteTrees={remoteTrees}
+            apiCommunities={apiCommunities}
+            serverStats={serverStats}
+            serverUrl={serverUrl}
             gamification={gamification}
             onNavigateToCapture={() => setActiveTab('capture')}
             onNavigateToMap={() => setActiveTab('map3d')}
             onNavigateToAbout={() => setActiveTab('about')}
             onNavigateToProfile={() => setActiveTab('profile')}
+            onNavigateToCommunities={() => setActiveTab('communities')}
           />
         )}
 
-        {/* ============================================================== */}
-        {/* SOBRE NOSOTROS (MIRROR OFICIAL DE nosotros.astro EN MOBILE)    */}
-        {/* ============================================================== */}
+        {/* SOBRE NOSOTROS */}
         {activeTab === 'about' && (
           <AboutScreen
             onNavigateBack={() => setActiveTab('home')}
           />
         )}
 
-        {/* ============================================================== */}
-        {/* 2. MAPA 3D CON HERRAMIENTAS TRANSPORTE MOBILE (PANEL GRANDE)    */}
-        {/* ============================================================== */}
+        {/* 2. MAPA 3D VECTORIAL CON CATASTRO ARBÓREO 3D */}
         {activeTab === 'map3d' && (
           <Map3DView
             trees={allMapTrees}
+            speciesCatalog={displaySpeciesCatalog}
             userCoords={coords}
-            onTreeSelected={(tree) => {
-              Alert.alert('Árbol Seleccionado', `${tree.species_name} en ${tree.municipality}`);
-            }}
+            detectedLocation={detectedLocation}
+            onLocationUpdate={handleMapLocationUpdate}
+            onQuickCreateTree={handleQuickCreateTreeFromMap}
           />
         )}
 
-        {/* ============================================================== */}
-        {/* ============================================================== */}
-        {/* 3. CAPTURA DE CAMPO (DISEÑO ORIGINAL WEB CON BOTÓN DÓNDE ESTOY) */}
-        {/* ============================================================== */}
+        {/* 3. CAPTURA DE CAMPO CON AUTOCOMPLETADO DEL CATÁLOGO Y COMUNIDADES REALES */}
         {activeTab === 'capture' && (
           <CaptureScreen
             coords={coords}
@@ -865,8 +1164,15 @@ export default function App() {
             saveErrorBanner={saveErrorBanner}
             speciesName={speciesName}
             setSpeciesName={setSpeciesName}
+            selectedSpeciesId={selectedSpeciesId}
+            setSelectedSpeciesId={setSelectedSpeciesId}
+            displaySpeciesCatalog={displaySpeciesCatalog}
+            apiCommunities={apiCommunities}
+            selectedCommunityId={selectedCommunityId}
+            setSelectedCommunityId={setSelectedCommunityId}
             municipio={municipio}
             setMunicipio={setMunicipio}
+            onOpenTerritoryModal={() => setShowTerritoryModal(true)}
             extraOptionsOpen={extraOptionsOpen}
             setExtraOptionsOpen={setExtraOptionsOpen}
             photoUri={photoUri}
@@ -883,41 +1189,41 @@ export default function App() {
           />
         )}
 
-        {/* ============================================================== */}
-        {/* 4. CATÁLOGO CONECTADO A API WEB + CACHÉ OFFLINE (PANEL 4 & 5)   */}
-        {/* ============================================================== */}
+        {/* 4. CATÁLOGO CONECTADO A /api/species, /api/categories Y /api/species/{id} */}
         {activeTab === 'catalog' && (
           <CatalogScreen
             displaySpeciesCatalog={displaySpeciesCatalog}
+            apiCategories={apiCategories}
+            selectedCategoryFilter={selectedCategoryFilter}
+            setSelectedCategoryFilter={setSelectedCategoryFilter}
             catalogLoading={catalogLoading}
             catalogSearch={catalogSearch}
             setCatalogSearch={setCatalogSearch}
             selectedSpeciesDetail={selectedSpeciesDetail}
             setSelectedSpeciesDetail={setSelectedSpeciesDetail}
+            serverUrl={serverUrl}
             onSelectSpeciesForCapture={(sp) => {
               setSpeciesName(sp.name);
+              setSelectedSpeciesId(sp.id);
               setActiveTab('capture');
             }}
           />
         )}
 
-        {/* ============================================================== */}
-        {/* 5. COMUNIDADES (IMÁGENES LOCALES SOLAMENTE - PANEL 6)          */}
-        {/* ============================================================== */}
+        {/* 5. COMUNIDADES CONECTADAS A /api/communities */}
         {activeTab === 'communities' && (
           <CommunitiesScreen
-            communities={GUAJIRA_COMUNIDADES}
+            communities={apiCommunities}
+            communitiesLoading={communitiesLoading}
+            onRefreshCommunities={() => fetchRemoteCommunities()}
             localAssets={LOCAL_COMMUNITY_ASSETS}
-            onJoinCommunity={(com) => Alert.alert('Comunidad', 'Te has vinculado al nodo de ' + com.name + '.')}
+            serverUrl={serverUrl}
+            token={token}
+            onNavigateToProfile={() => setActiveTab('profile')}
           />
         )}
 
-        {/* ============================================================== */}
-        {/* 6. PERFIL Y SISTEMA COMPLETO DE MEDALLAS (PANEL 8)             */}
-        {/* ============================================================== */}
-        {/* ============================================================== */}
-        {/* 6. PERFIL Y SISTEMA COMPLETO DE MEDALLAS (MIRROR DE LA WEB)   */}
-        {/* ============================================================== */}
+        {/* 6. PERFIL, MIS ÁRBOLES, MEDALLAS Y COLA DE SINCRONIZACIÓN */}
         {activeTab === 'profile' && (
           <ProfileScreen
             token={token}
@@ -969,9 +1275,6 @@ export default function App() {
             syncProgress={syncProgress}
             handleStartSync={handleStartSync}
             serverUrl={serverUrl}
-            setServerUrl={setServerUrl}
-            connectionStatus={connectionStatus}
-            handleTestConnection={handleTestConnection}
             onNavigateToCapture={() => setActiveTab('capture')}
           />
         )}
@@ -993,8 +1296,7 @@ export default function App() {
         }}
       />
 
-
-      {/* Barra de Navegación Inferior Cockpit */}
+      {/* Barra de Navegación Inferior */}
       <BottomNav
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -1008,6 +1310,33 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#ffffff',
     paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 28) : 0
+  },
+  syncBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: '#0f172a',
+    gap: 8
+  },
+  syncBannerSuccess: {
+    backgroundColor: '#065f46'
+  },
+  syncBannerError: {
+    backgroundColor: '#b91c1c'
+  },
+  syncBannerText: {
+    flex: 1,
+    color: '#ffffff',
+    fontSize: 11.5,
+    fontWeight: '700'
+  },
+  syncBannerClose: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 13,
+    fontWeight: '800',
+    paddingHorizontal: 4
   },
   contentArea: {
     flex: 1,

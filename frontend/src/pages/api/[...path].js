@@ -75,7 +75,7 @@ export async function ALL({ request, params }) {
   console.error(`[Proxy] ALL CANDIDATES FAILED for ${request.method} /api/${path}:`, lastError?.message);
   return new Response(JSON.stringify({
     error: "Backend proxy error",
-    detail: `No se pudo conectar al backend en ninguna dirección candidata (última intentada: ${lastTargetUrl})`
+    detail: "Servicio temporalmente no disponible. Intenta nuevamente en unos segundos."
   }), {
     status: 502,
     headers: { "Content-Type": "application/json" }

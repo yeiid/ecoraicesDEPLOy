@@ -265,3 +265,87 @@ export const CONOCE_ECORAICES = {
     { icon: '🌱', title: 'Soberanía Botánica', desc: 'Control consciente del Neem invasor y siembra de flora nativa.' }
   ]
 };
+
+export const GUAJIRA_PIONEER_TREES = [
+  {
+    id: 'guajira-pio-1',
+    species_name: 'Trupillo',
+    scientific_name: 'Prosopis juliflora',
+    municipality: 'Riohacha',
+    latitude: 11.5462,
+    longitude: -72.9082,
+    verified: true,
+    health_state: 'Sano y vigoroso'
+  },
+  {
+    id: 'guajira-pio-2',
+    species_name: 'Neem Guajiro',
+    scientific_name: 'Azadirachta indica',
+    municipality: 'Riohacha',
+    latitude: 11.5428,
+    longitude: -72.9051,
+    verified: true,
+    health_state: 'Monitoreo Alelopático'
+  },
+  {
+    id: 'guajira-pio-3',
+    species_name: 'Dividivi',
+    scientific_name: 'Libidibia coriaria',
+    municipality: 'Riohacha',
+    latitude: 11.5485,
+    longitude: -72.9025,
+    verified: true,
+    health_state: 'Con floración o frutos'
+  },
+  {
+    id: 'guajira-pio-4',
+    species_name: 'Guayacán de Bola',
+    scientific_name: 'Bulnesia arborea',
+    municipality: 'Riohacha',
+    latitude: 11.5398,
+    longitude: -72.9112,
+    verified: true,
+    health_state: 'Con floración o frutos'
+  },
+  {
+    id: 'guajira-pio-5',
+    species_name: 'Guayacán de Bola',
+    scientific_name: 'Bulnesia arborea',
+    municipality: 'Dibulla',
+    latitude: 11.2732,
+    longitude: -73.3095,
+    verified: true,
+    health_state: 'Sano y vigoroso'
+  },
+  {
+    id: 'guajira-pio-6',
+    species_name: 'Dividivi',
+    scientific_name: 'Libidibia coriaria',
+    municipality: 'Manaure',
+    latitude: 11.7758,
+    longitude: -72.4452,
+    verified: true,
+    health_state: 'Sano y vigoroso'
+  },
+  {
+    id: 'guajira-pio-7',
+    species_name: 'Cardón Guajiro',
+    scientific_name: 'Stenocereus griseus',
+    municipality: 'Uribia',
+    latitude: 11.7145,
+    longitude: -72.0158,
+    verified: true,
+    health_state: 'Sano y vigoroso'
+  },
+  {
+    id: 'guajira-pio-8',
+    species_name: 'Trupillo',
+    scientific_name: 'Prosopis juliflora',
+    municipality: 'Macuira',
+    latitude: 12.0972,
+    longitude: -71.3275,
+    verified: true,
+    health_state: 'Sano y vigoroso'
+  }
+];
+

@@ -19,7 +19,10 @@ let observations = [];
 let users = [];
 
 try {
-  const data = await apiGet("/admin/dashboard");
+  const cookieHeader = Astro.request.headers.get("cookie") || "";
+  const data = await apiGet("/admin/dashboard", {
+    headers: cookieHeader ? { Cookie: cookieHeader } : {},
+  });
   
   obsCount = data.stats.obsCount;
   obsPending = data.stats.obsPending;

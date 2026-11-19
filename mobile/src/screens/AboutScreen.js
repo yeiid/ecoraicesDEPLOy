@@ -122,7 +122,7 @@ export default function AboutScreen({ onNavigateBack }) {
           <View style={{ flex: 1 }}>
             <Text style={styles.aboutPillarHead}>Mapeo Dinámico Cockpit</Text>
             <Text style={styles.aboutPillarText}>
-              Renderizamos capas geoespaciales interactivas y fichas botánicas servidas desde infraestructura FastAPI + Dokploy.
+              Renderizamos capas geoespaciales interactivas y fichas botánicas conectadas en tiempo real con el catastro de EcoRaíces.
             </Text>
           </View>
         </View>

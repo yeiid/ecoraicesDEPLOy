@@ -10,9 +10,20 @@ import { colors, shadows } from '../theme';
 export default function Header({
   onLogoPress,
   pendingCount = 0,
+  hasSyncError = false,
   isSyncing = false,
-  onSyncPress
+  onSyncPress,
+  onRefreshPress
 }) {
+  const handleActionPress = () => {
+    if (isSyncing) return;
+    if (pendingCount > 0) {
+      if (onSyncPress) onSyncPress();
+    } else if (onRefreshPress) {
+      onRefreshPress();
+    }
+  };
+
   return (
     <View style={styles.topHeader}>
       <TouchableOpacity
@@ -28,32 +39,54 @@ export default function Header({
         <Text style={styles.headerBrandText}>ECORAÍCES</Text>
       </TouchableOpacity>
 
-      {/* Sync Pill con estado de sincronización SQLite / Dokploy */}
-      <View style={styles.headerSyncPill}>
+      {/* Sync Pill con estado real de sincronización SQLite / Servidor */}
+      <View
+        style={[
+          styles.headerSyncPill,
+          hasSyncError && pendingCount > 0 && styles.headerSyncPillError
+        ]}
+      >
         <View
           style={[
             styles.headerSyncDot,
-            pendingCount > 0 ? styles.dotPending : styles.dotSynced
+            hasSyncError && pendingCount > 0
+              ? styles.dotError
+              : pendingCount > 0
+              ? styles.dotPending
+              : styles.dotSynced
           ]}
         />
         <Text style={styles.headerSyncText} numberOfLines={1}>
-          {pendingCount > 0 ? `${pendingCount} por subir` : 'Al día'}
+          {isSyncing
+            ? 'Subiendo...'
+            : pendingCount > 0
+            ? `${pendingCount} por subir`
+            : 'Al día'}
         </Text>
         <TouchableOpacity
           style={[
             styles.headerSyncBtn,
-            (isSyncing || pendingCount === 0) && styles.headerSyncBtnDisabled
+            hasSyncError && pendingCount > 0 && styles.headerSyncBtnError,
+            pendingCount === 0 && styles.headerSyncBtnRefresh,
+            isSyncing && styles.headerSyncBtnDisabled
           ]}
-          onPress={onSyncPress}
-          disabled={isSyncing || pendingCount === 0}
+          onPress={handleActionPress}
+          disabled={isSyncing}
           activeOpacity={0.8}
         >
           {isSyncing ? (
             <ActivityIndicator size="small" color="#ffffff" />
+          ) : pendingCount > 0 ? (
+            <>
+              <Ionicons name="cloud-upload-outline" size={12} color="#ffffff" style={{ marginRight: 3 }} />
+              <Text style={styles.headerSyncBtnText}>
+                {hasSyncError ? 'Reintentar' : 'Subir'}
+              </Text>
+            </>
           ) : (
             <>
-              <Ionicons name="sync" size={12} color="#ffffff" style={{ marginRight: 3 }} />
-              <Text style={styles.headerSyncBtnText}>Subir</Text>
+              <Ionicons name="refresh" size={12} color={colors.primary} style={{ marginRight: 3 }} />
+              <Text style={styles.headerSyncRefreshText}>Actualizar</Text>
             </>
           )}
         </TouchableOpacity>
@@ -100,6 +133,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e2e8f0'
   },
+  headerSyncPillError: {
+    backgroundColor: '#fef2f2',
+    borderColor: '#fecaca'
+  },
   headerSyncDot: {
     width: 8,
     height: 8,
@@ -111,6 +148,9 @@ const styles = StyleSheet.create({
   dotSynced: {
     backgroundColor: '#10b981'
   },
+  dotError: {
+    backgroundColor: '#dc2626'
+  },
   headerSyncText: {
     fontSize: 11,
     fontWeight: '700',
@@ -119,16 +159,29 @@ const styles = StyleSheet.create({
   headerSyncBtn: {
     backgroundColor: colors.primary,
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center'
   },
+  headerSyncBtnError: {
+    backgroundColor: '#dc2626'
+  },
+  headerSyncBtnRefresh: {
+    backgroundColor: '#ecfdf5',
+    borderWidth: 1,
+    borderColor: '#a7f3d0'
+  },
   headerSyncBtnDisabled: {
-    opacity: 0.5
+    opacity: 0.6
   },
   headerSyncBtnText: {
     color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '800'
+  },
+  headerSyncRefreshText: {
+    color: colors.primary,
     fontSize: 10,
     fontWeight: '800'
   }

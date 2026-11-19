@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_
 
 from app.db.database import get_db
-from app.models import Observation, Species, User, Category, Comment
+from app.models import Observation, Species, User, Category, Comment, Community
 from .users import get_current_user_id
 
 router = APIRouter(
@@ -21,7 +21,27 @@ router = APIRouter(
 
 UPLOADS_DIR = Path(os.getenv("UPLOADS_DIR", "/app/public/uploads/observations"))
 
-async def sync_observation_to_postgis(species, observation):
+import re
+
+def _extract_height_meters(obs) -> float:
+    """Obtiene la altura arbórea en metros desde notas ('Altura: Xm') o altitud válida de copa (2..45m)."""
+    notes_txt = getattr(obs, "notes", None) or ""
+    match = re.search(r"Altura:\s*(\d+(?:\.\d+)?)\s*m", notes_txt, flags=re.IGNORECASE)
+    if match:
+        val = float(match.group(1))
+        if 2.0 <= val <= 45.0:
+            return val
+    alt = getattr(obs, "altitude", None)
+    if alt is not None:
+        try:
+            alt_f = float(alt)
+            if 2.0 <= alt_f <= 45.0:
+                return alt_f
+        except (TypeError, ValueError):
+            pass
+    return 10.0
+
+async def sync_observation_to_postgis(species, observation, explicit_height: Optional[float] = None):
     postgis_url = os.getenv("POSTGIS_URL")
     if not postgis_url:
         print("[PostGIS Sync] POSTGIS_URL no definido. La sincronización geoespacial estará desactivada.")
@@ -31,8 +51,10 @@ async def sync_observation_to_postgis(species, observation):
         import asyncpg
         conn = await asyncpg.connect(postgis_url)
         
-        measuredHeight = float(observation.altitude) if observation.altitude is not None else None
-        height = measuredHeight if measuredHeight is not None and measuredHeight > 0 else 12.0
+        if explicit_height is not None and 2.0 <= float(explicit_height) <= 45.0:
+            height = float(explicit_height)
+        else:
+            height = _extract_height_meters(observation)
         
         speciesName = "Árbol Registrado"
         if species:
@@ -69,6 +91,64 @@ async def sync_observation_to_postgis(species, observation):
     except Exception as e:
         print(f"[PostGIS Sync] Error al sincronizar con PostGIS: {e}")
         return None
+
+@router.get("/geojson")
+def get_observations_geojson(
+    limit: int = 500,
+    db: Session = Depends(get_db)
+):
+    """Devuelve el Catastro Arbóreo en formato GeoJSON (RFC 7946) listo para capas WebGL 3D (fill-extrusion) y GIS."""
+    limit = max(1, min(limit, 1000))
+    observations = db.query(Observation).order_by(Observation.createdAt.desc()).limit(limit).all()
+    species_ids = {o.speciesId for o in observations if o.speciesId}
+    species_map = {s.id: s for s in db.query(Species).filter(Species.id.in_(species_ids)).all()} if species_ids else {}
+    category_ids = {s.categoryId for s in species_map.values() if getattr(s, 'categoryId', None)}
+    category_map = {c.id: c for c in db.query(Category).filter(Category.id.in_(category_ids)).all()} if category_ids else {}
+
+    features = []
+    for obs in observations:
+        if obs.latitude is None or obs.longitude is None:
+            continue
+        sp = species_map.get(obs.speciesId)
+        cat = category_map.get(getattr(sp, 'categoryId', None)) if sp else None
+        sp_name = sp.name if sp else "Árbol Registrado"
+        sci_name = getattr(sp, 'scientificName', None) if sp else None
+        low = f"{sp_name} {sci_name or ''}".lower()
+        is_invasive = any(k in low for k in ("neem", "nim", "azadirachta"))
+        height_m = _extract_height_meters(obs)
+        canopy_r = round(max(2.2, min(6.0, height_m * 0.42)), 2)
+
+        features.append({
+            "type": "Feature",
+            "id": obs.id,
+            "geometry": {
+                "type": "Point",
+                "coordinates": [float(obs.longitude), float(obs.latitude)]
+            },
+            "properties": {
+                "id": obs.id,
+                "speciesId": obs.speciesId,
+                "speciesName": sp_name,
+                "scientificName": sci_name,
+                "category": cat.name if cat else None,
+                "municipio": obs.municipio,
+                "heightMeters": height_m,
+                "canopyRadiusMeters": canopy_r,
+                "trunkRadiusMeters": round(max(0.38, canopy_r * 0.14), 2),
+                "status": obs.status,
+                "verified": obs.status == "APPROVED",
+                "isInvasive": is_invasive,
+                "imageUrl": obs.imageUrl,
+                "notes": obs.notes,
+                "observationDate": obs.observationDate.isoformat() if obs.observationDate else None,
+            }
+        })
+
+    return {
+        "type": "FeatureCollection",
+        "name": "ecoraices_catastro_arboreo",
+        "features": features
+    }
 
 @router.get("")
 @router.get("/")
@@ -118,6 +198,7 @@ def get_observations(
             "latitude": obs.latitude,
             "longitude": obs.longitude,
             "altitude": obs.altitude,
+            "heightMeters": _extract_height_meters(obs),
             "municipio": obs.municipio,
             "estadoConservacion": obs.estadoConservacion,
             "notes": obs.notes,
@@ -166,6 +247,7 @@ async def create_observation(
     latitude: float = Form(...),
     longitude: float = Form(...),
     altitude: Optional[float] = Form(None),
+    alturaArbol: Optional[float] = Form(None),
     municipio: Optional[str] = Form(None),
     estadoConservacion: Optional[str] = Form(None),
     notes: Optional[str] = Form(None),
@@ -176,6 +258,9 @@ async def create_observation(
     from sqlalchemy.exc import IntegrityError
 
     user_id = get_current_user_id(request)
+    if not db.query(User).filter(User.id == user_id).first():
+        raise HTTPException(status_code=401, detail="Sesión inválida o usuario no encontrado. Inicia sesión nuevamente.")
+
     clean_client_id = clientId.strip()[:64] if clientId and clientId.strip() else None
 
     # Idempotencia para sincronización offline (Web PWA y App React Native):
@@ -200,99 +285,165 @@ async def create_observation(
                 "status": existing_obs.status,
                 "deduplicated": True,
             }
-    
-    # Resolver especie si no se envió speciesId preexistente
-    if not speciesId or not speciesId.strip():
+
+    # Validar si el speciesId enviado realmente existe en el catálogo remoto
+    resolved_species_id = speciesId.strip() if speciesId and speciesId.strip() else None
+    if resolved_species_id:
+        existing_by_id = db.query(Species).filter(Species.id == resolved_species_id).first()
+        if not existing_by_id:
+            resolved_species_id = None
+
+    # Resolver especie por nombre común o científico si no se envió un speciesId válido
+    if not resolved_species_id:
         if not nombreComunitario or not nombreComunitario.strip():
             raise HTTPException(status_code=400, detail="Debes indicar el nombre comunitario o local del árbol.")
-        
+
         comm_name = nombreComunitario.strip()
         sci_prop = (nombreCientificoPropuesto or "").strip()
-        
-        # Buscar si ya existe una especie con este nombre
+
         existing_sp = db.query(Species).filter(Species.name.ilike(comm_name)).first()
+        if not existing_sp and sci_prop:
+            existing_sp = db.query(Species).filter(Species.scientificName.ilike(sci_prop)).first()
+
         if existing_sp:
-            speciesId = existing_sp.id
+            resolved_species_id = existing_sp.id
         else:
             first_cat = db.query(Category).first()
+            if not first_cat:
+                first_cat = Category(
+                    id="c" + uuid.uuid4().hex[:24],
+                    name="Flora General",
+                    description="Categoría creada automáticamente para observaciones comunitarias."
+                )
+                db.add(first_cat)
+                db.flush()
+
             new_sci = sci_prop if sci_prop else f"Pendiente ({comm_name[:18]} - {uuid.uuid4().hex[:6]})"
             new_sp = Species(
                 id="c" + uuid.uuid4().hex[:24],
                 name=comm_name,
                 scientificName=new_sci,
-                categoryId=first_cat.id if first_cat else None,
+                categoryId=first_cat.id,
                 status="PENDIENTE_VALIDACION",
                 description=f"Ejemplar registrado por la comunidad en {municipio or 'el territorio'}. Pendiente de validación taxonómica por la red local."
             )
             db.add(new_sp)
-            db.commit()
-            db.refresh(new_sp)
-            speciesId = new_sp.id
+            try:
+                db.commit()
+                db.refresh(new_sp)
+                resolved_species_id = new_sp.id
+            except IntegrityError:
+                db.rollback()
+                fallback_sp = (
+                    db.query(Species).filter(Species.scientificName.ilike(new_sci)).first()
+                    or db.query(Species).filter(Species.name.ilike(comm_name)).first()
+                )
+                if fallback_sp:
+                    resolved_species_id = fallback_sp.id
+                else:
+                    retry_sp = Species(
+                        id="c" + uuid.uuid4().hex[:24],
+                        name=comm_name,
+                        scientificName=f"{new_sci[:40]} ({uuid.uuid4().hex[:6]})",
+                        categoryId=first_cat.id,
+                        status="PENDIENTE_VALIDACION",
+                        description=f"Ejemplar registrado por la comunidad en {municipio or 'el territorio'}."
+                    )
+                    db.add(retry_sp)
+                    db.commit()
+                    db.refresh(retry_sp)
+                    resolved_species_id = retry_sp.id
 
-    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
-    
+    # Validar communityId si fue enviado para evitar errores de clave foránea con IDs offline
+    resolved_community_id = None
+    if communityId and communityId.strip():
+        comm_obj = db.query(Community).filter(Community.id == communityId.strip()).first()
+        if comm_obj:
+            resolved_community_id = comm_obj.id
+
     image_url = None
     file_path = None
     if image and image.filename:
-        ext = "".join(Path(image.filename).suffixes)
-        if not ext:
-            ext = ".jpg"
-        file_name = f"{uuid.uuid4().hex}-{int(time.time() * 1000)}{ext}"
-        file_path = UPLOADS_DIR / file_name
-        # Streaming write in 1 MiB chunks with 10 MiB cap — avoids loading into RAM
-        MAX_IMAGE_SIZE = 10 * 1024 * 1024
-        size = 0
-        with open(file_path, "wb") as f:
-            while True:
-                chunk = await image.read(1 * 1024 * 1024)
-                if not chunk:
-                    break
-                size += len(chunk)
-                if size > MAX_IMAGE_SIZE:
-                    f.close()
-                    file_path.unlink(missing_ok=True)
-                    raise HTTPException(status_code=413, detail="Image exceeds 10 MiB")
-                f.write(chunk)
-            
-        image_url = f"/uploads/observations/{file_name}"
+        try:
+            UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+            ext = "".join(Path(image.filename).suffixes)
+            if not ext or len(ext) > 10:
+                ext = ".jpg"
+            file_name = f"{uuid.uuid4().hex}-{int(time.time() * 1000)}{ext}"
+            file_path = UPLOADS_DIR / file_name
+            # Streaming write in 1 MiB chunks with 10 MiB cap — avoids loading into RAM
+            MAX_IMAGE_SIZE = 10 * 1024 * 1024
+            size = 0
+            with open(file_path, "wb") as f:
+                while True:
+                    chunk = await image.read(1 * 1024 * 1024)
+                    if not chunk:
+                        break
+                    size += len(chunk)
+                    if size > MAX_IMAGE_SIZE:
+                        f.close()
+                        file_path.unlink(missing_ok=True)
+                        raise HTTPException(status_code=413, detail="La imagen supera el tamaño máximo de 10 MiB")
+                    f.write(chunk)
+
+            if size > 0:
+                image_url = f"/uploads/observations/{file_name}"
+            else:
+                file_path.unlink(missing_ok=True)
+                file_path = None
+        except HTTPException:
+            raise
+        except OSError as upload_err:
+            print(f"[Observations Upload] No se pudo guardar imagen en disco: {upload_err}")
+            if file_path is not None:
+                file_path.unlink(missing_ok=True)
+                file_path = None
+            image_url = None
     elif imageUrl and imageUrl.strip().startswith("/uploads/"):
         image_url = imageUrl.strip()
-        
-    # parse datetime from iso string
-    # handling 'Z' suffix if present
-    if observationDate.endswith('Z'):
-        observationDate = observationDate[:-1]
-    parsed_date = datetime.fromisoformat(observationDate)
-    
+
+    # Parsear fecha ISO de manera segura
+    clean_date = (observationDate or "").strip()
+    if clean_date.endswith("Z"):
+        clean_date = clean_date[:-1]
+    try:
+        parsed_date = datetime.fromisoformat(clean_date) if clean_date else datetime.utcnow()
+    except ValueError:
+        parsed_date = datetime.utcnow()
+
     full_notes = notes or ""
+    if alturaArbol is not None and 2.0 <= alturaArbol <= 45.0:
+        if not re.search(r"Altura:\s*\d", full_notes, flags=re.IGNORECASE):
+            full_notes = f"Altura: {round(alturaArbol, 1)}m. {full_notes}".strip()
     if estadoFitosanitario and estadoFitosanitario.strip():
         fit_note = f"Condición de salud: {estadoFitosanitario.strip()}"
         full_notes = f"{fit_note}. {full_notes}".strip()
 
-    status_initial = "PENDING_VALIDATION" if not nombreCientificoPropuesto else "PENDING"
-    
+    # ObservationStatus enum en PostgreSQL solo admite PENDING | APPROVED | REJECTED
+    status_initial = "PENDING"
+
     observation = Observation(
         id=clean_client_id if clean_client_id else uuid.uuid4().hex,
-        speciesId=speciesId,
+        speciesId=resolved_species_id,
         userId=user_id,
-        communityId=communityId.strip() if communityId and communityId.strip() else None,
+        communityId=resolved_community_id,
         observationDate=parsed_date,
         latitude=latitude,
         longitude=longitude,
         altitude=altitude,
-        municipio=municipio,
+        municipio=municipio.strip() if municipio and municipio.strip() else None,
         estadoConservacion=estadoConservacion,
         notes=full_notes if full_notes else None,
         imageUrl=image_url,
         status=status_initial,
         verificationNotes=verificationNotes.strip() if verificationNotes and verificationNotes.strip() else None
     )
-    
+
     db.add(observation)
     try:
         db.commit()
         db.refresh(observation)
-    except IntegrityError:
+    except IntegrityError as ie:
         db.rollback()
         if file_path is not None:
             file_path.unlink(missing_ok=True)
@@ -308,6 +459,7 @@ async def create_observation(
                     "latitude": existing_obs.latitude,
                     "longitude": existing_obs.longitude,
                     "altitude": existing_obs.altitude,
+                    "heightMeters": _extract_height_meters(existing_obs),
                     "municipio": existing_obs.municipio,
                     "estadoConservacion": existing_obs.estadoConservacion,
                     "notes": existing_obs.notes,
@@ -315,11 +467,12 @@ async def create_observation(
                     "status": existing_obs.status,
                     "deduplicated": True,
                 }
-        raise
-    
-    species = db.query(Species).filter(Species.id == speciesId).first()
-    asyncio.create_task(sync_observation_to_postgis(species, observation))
-    
+        print(f"[Observations Create] IntegrityError: {ie}")
+        raise HTTPException(status_code=400, detail="No se pudo guardar la observación por conflicto de datos relacionados.")
+
+    species = db.query(Species).filter(Species.id == resolved_species_id).first()
+    asyncio.create_task(sync_observation_to_postgis(species, observation, alturaArbol))
+
     return {
         "id": observation.id,
         "speciesId": observation.speciesId,
@@ -329,6 +482,7 @@ async def create_observation(
         "latitude": observation.latitude,
         "longitude": observation.longitude,
         "altitude": observation.altitude,
+        "heightMeters": _extract_height_meters(observation),
         "municipio": observation.municipio,
         "estadoConservacion": observation.estadoConservacion,
         "notes": observation.notes,
@@ -347,7 +501,7 @@ def validate_observation_community(
     obs = db.query(Observation).filter(Observation.id == id).first()
     if not obs:
         raise HTTPException(status_code=404, detail="Observación no encontrada")
-        
+
     user = db.query(User).filter(User.id == user_id).first()
     author_name = user.name or user.username if user else "Validador comunitario"
 
@@ -389,8 +543,8 @@ def validate_observation_community(
         obs.verifiedById = user_id
         obs.verifiedAt = datetime.utcnow()
     else:
-        obs.status = "COMMUNITY_VALIDATED"
-        
+        obs.status = "PENDING"
+
     db.commit()
     db.refresh(obs)
     return {"message": "Validación comunitaria registrada con éxito", "status": obs.status}

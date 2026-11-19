@@ -1,9 +1,9 @@
 /**
  * EcoRaíces Mobile · Pantalla de Catálogo de Especies & Ficha Botánica
- * Búsqueda en tiempo real, listado de especies nativas, visor de avistamientos y modal de ficha botánica completa.
+ * Conectado a GET /api/species, GET /api/categories y GET /api/species/{id} de FastAPI sin conteos ficticios.
  */
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -20,23 +20,62 @@ import { colors, shadows } from '../theme';
 
 export default function CatalogScreen({
   displaySpeciesCatalog = [],
+  apiCategories = [],
+  selectedCategoryFilter = null,
+  setSelectedCategoryFilter,
   catalogLoading = false,
   catalogSearch = '',
   setCatalogSearch,
   selectedSpeciesDetail,
   setSelectedSpeciesDetail,
-  onSelectSpeciesForCapture
+  onSelectSpeciesForCapture,
+  serverUrl = 'https://ecoraices.neuraljira.tech'
 }) {
+  const [liveSpeciesDetail, setLiveSpeciesDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  // Consultar GET /api/species/{id} en vivo cuando el usuario abre una especie del catálogo
+  useEffect(() => {
+    let isMounted = true;
+    if (!selectedSpeciesDetail || !selectedSpeciesDetail.id) {
+      setLiveSpeciesDetail(null);
+      return;
+    }
+
+    const fetchDetail = async () => {
+      setDetailLoading(true);
+      try {
+        const cleanUrl = (serverUrl || 'https://ecoraices.neuraljira.tech').replace(/\/+$/, '');
+        const res = await fetch(`${cleanUrl}/api/species/${selectedSpeciesDetail.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted) setLiveSpeciesDetail(data);
+        }
+      } catch (_) {
+        // Fallback silencioso a los datos ya cargados en memoria
+      } finally {
+        if (isMounted) setDetailLoading(false);
+      }
+    };
+
+    fetchDetail();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedSpeciesDetail, serverUrl]);
+
+  const activeObservations = liveSpeciesDetail?.observations || [];
+
   return (
     <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.catalogContent}>
-      {/* Tarjeta de Encabezado y Búsqueda */}
+      {/* Tarjeta de Encabezado, Búsqueda y Filtro por Categorías Reales */}
       <View style={styles.catalogHeaderCard}>
         <View style={styles.catalogTitleRow}>
-          <Text style={styles.catalogTitle}>Catálogo de Especies</Text>
+          <Text style={styles.catalogTitle}>Catálogo Botánico</Text>
           {catalogLoading && <ActivityIndicator size="small" color={colors.primary} />}
         </View>
         <Text style={styles.catalogSubtitle}>
-          Conectado con la API de FastAPI ({displaySpeciesCatalog.length} especies cargadas con fichas botánicas).
+          {displaySpeciesCatalog.length} especies sincronizadas desde el servidor EcoRaíces.
         </Text>
 
         {/* Buscador de especies */}
@@ -44,7 +83,7 @@ export default function CatalogScreen({
           <Ionicons name="search" size={16} color="#64748b" />
           <TextInput
             style={styles.catalogSearchInput}
-            placeholder="Buscar especie por nombre o nombre científico..."
+            placeholder="Buscar por nombre común, científico o familia..."
             placeholderTextColor="#94a3b8"
             value={catalogSearch}
             onChangeText={setCatalogSearch}
@@ -55,32 +94,88 @@ export default function CatalogScreen({
             </TouchableOpacity>
           )}
         </View>
+
+        {/* Píldoras de Categorías Reales de FastAPI (GET /api/categories) */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoriesFilterRow}
+        >
+          <TouchableOpacity
+            style={[
+              styles.catFilterChip,
+              !selectedCategoryFilter && styles.catFilterChipActive
+            ]}
+            onPress={() => setSelectedCategoryFilter && setSelectedCategoryFilter(null)}
+          >
+            <Text
+              style={[
+                styles.catFilterChipText,
+                !selectedCategoryFilter && styles.catFilterChipTextActive
+              ]}
+            >
+              🌿 Todas las categorías
+            </Text>
+          </TouchableOpacity>
+
+          {apiCategories.map((cat) => {
+            const isSelected =
+              selectedCategoryFilter === cat.id || selectedCategoryFilter === cat.name;
+            return (
+              <TouchableOpacity
+                key={cat.id}
+                style={[styles.catFilterChip, isSelected && styles.catFilterChipActive]}
+                onPress={() =>
+                  setSelectedCategoryFilter &&
+                  setSelectedCategoryFilter(isSelected ? null : cat.name)
+                }
+              >
+                <Text
+                  style={[
+                    styles.catFilterChipText,
+                    isSelected && styles.catFilterChipTextActive
+                  ]}
+                >
+                  {cat.name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
 
-      {/* Cuadrícula de Especies */}
+      {/* Cuadrícula de Especies Reales */}
       <View style={styles.speciesGrid}>
         {displaySpeciesCatalog.map((sp) => (
           <TouchableOpacity
             key={sp.id}
             style={styles.speciesGridCard}
             onPress={() => setSelectedSpeciesDetail && setSelectedSpeciesDetail(sp)}
+            activeOpacity={0.85}
           >
             <Image source={{ uri: sp.photo }} style={styles.speciesCardImg} />
             <View style={styles.speciesCardBody}>
               <View style={styles.speciesBadgeRow}>
-                <Text style={[styles.speciesTagBadge, sp.isInvasive && styles.speciesTagInvasive]}>
-                  {sp.tag}
+                <Text style={[styles.speciesTagBadge, sp.isInvasive && styles.speciesTagInvasive]} numberOfLines={1}>
+                  {sp.category || sp.tag}
                 </Text>
               </View>
-              <Text style={styles.speciesCardTitle}>{sp.name}</Text>
-              <Text style={styles.speciesCardScientific}>{sp.scientific}</Text>
-              <Text style={styles.speciesSightings}>📍 {sp.sightingsCount} avistamientos</Text>
+              <Text style={styles.speciesCardTitle} numberOfLines={1}>{sp.name}</Text>
+              <Text style={styles.speciesCardScientific} numberOfLines={1}>{sp.scientific}</Text>
+              <View style={styles.speciesCardFooter}>
+                <Text style={styles.speciesFamilyText} numberOfLines={1}>
+                  🧬 {sp.family || 'Flora Tropical'}
+                </Text>
+                {sp.sightingsCount > 0 ? (
+                  <Text style={styles.speciesSightings}>📍 {sp.sightingsCount}</Text>
+                ) : null}
+              </View>
             </View>
           </TouchableOpacity>
         ))}
       </View>
 
-      {/* Modal Ficha Botánica */}
+      {/* Modal Ficha Botánica Conectada a GET /api/species/{id} */}
       <Modal
         visible={Boolean(selectedSpeciesDetail)}
         animationType="slide"
@@ -104,30 +199,64 @@ export default function CatalogScreen({
                     <Text style={styles.modalSpeciesName}>{selectedSpeciesDetail.name}</Text>
                     <Text style={styles.modalScientific}>{selectedSpeciesDetail.scientific}</Text>
                     <View style={styles.modalBadgesRow}>
-                      <View style={styles.modalBadge}>
-                        <Text style={styles.modalBadgeText}>{selectedSpeciesDetail.family}</Text>
-                      </View>
-                      <View style={[styles.modalBadge, selectedSpeciesDetail.isInvasive && styles.modalBadgeInvasive]}>
-                        <Text style={styles.modalBadgeText}>{selectedSpeciesDetail.status}</Text>
-                      </View>
+                      {selectedSpeciesDetail.family ? (
+                        <View style={styles.modalBadge}>
+                          <Text style={styles.modalBadgeText}>Familia: {selectedSpeciesDetail.family}</Text>
+                        </View>
+                      ) : null}
+                      {selectedSpeciesDetail.category ? (
+                        <View style={styles.modalBadge}>
+                          <Text style={styles.modalBadgeText}>{selectedSpeciesDetail.category}</Text>
+                        </View>
+                      ) : null}
+                      {selectedSpeciesDetail.gbifKey ? (
+                        <View style={styles.modalBadge}>
+                          <Text style={styles.modalBadgeText}>GBIF #{selectedSpeciesDetail.gbifKey}</Text>
+                        </View>
+                      ) : null}
                     </View>
                   </View>
 
                   <View style={styles.modalSection}>
-                    <Text style={styles.modalSectionTitle}>📖 Descripción Botánica</Text>
-                    <Text style={styles.modalSectionText}>{selectedSpeciesDetail.botanicalDescription}</Text>
-                  </View>
-
-                  <View style={styles.modalSection}>
-                    <Text style={styles.modalSectionTitle}>🌿 Valor Ecológico en Bosque Seco</Text>
-                    <Text style={styles.modalSectionText}>{selectedSpeciesDetail.ecologicalValue}</Text>
-                  </View>
-
-                  <View style={styles.modalSection}>
-                    <Text style={styles.modalSectionTitle}>🍵 Usos Medicinales y Tradición</Text>
+                    <Text style={styles.modalSectionTitle}>📖 Descripción Taxonómica y Botánica</Text>
                     <Text style={styles.modalSectionText}>
-                      {selectedSpeciesDetail.medicinalUses || selectedSpeciesDetail.traditionalUses || 'No especificado.'}
+                      {liveSpeciesDetail?.description ||
+                        selectedSpeciesDetail.botanicalDescription ||
+                        `Especie vegetal (${selectedSpeciesDetail.scientific}) perteneciente a la familia ${selectedSpeciesDetail.family || 'botánica'} clasificada dentro de ${selectedSpeciesDetail.category || 'la flora del territorio'}.`}
                     </Text>
+                  </View>
+
+                  {(liveSpeciesDetail?.habitat || selectedSpeciesDetail.ecologicalValue) ? (
+                    <View style={styles.modalSection}>
+                      <Text style={styles.modalSectionTitle}>🌿 Hábitat y Valor Ecológico</Text>
+                      <Text style={styles.modalSectionText}>
+                        {liveSpeciesDetail?.habitat || selectedSpeciesDetail.ecologicalValue}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {/* Observaciones reales registradas de esta especie en el servidor */}
+                  <View style={styles.modalSection}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Text style={styles.modalSectionTitle}>
+                        📍 Avistamientos Registrados ({activeObservations.length || selectedSpeciesDetail.sightingsCount || 0})
+                      </Text>
+                      {detailLoading && <ActivityIndicator size="small" color={colors.primary} />}
+                    </View>
+                    {activeObservations.length > 0 ? (
+                      activeObservations.slice(0, 5).map((obs) => (
+                        <View key={obs.id} style={styles.modalObsRow}>
+                          <Text style={styles.modalObsText}>
+                            • {obs.municipio || 'Territorio'} ({Number(obs.latitude).toFixed(4)}, {Number(obs.longitude).toFixed(4)})
+                            {obs.user?.username ? ` — @${obs.user.username}` : ''}
+                          </Text>
+                        </View>
+                      ))
+                    ) : (
+                      <Text style={styles.modalSectionText}>
+                        Aún no hay ejemplares georreferenciados para esta especie en el servidor. ¡Sé el primero en registrarla en campo!
+                      </Text>
+                    )}
                   </View>
 
                   {onSelectSpeciesForCapture ? (
@@ -140,7 +269,7 @@ export default function CatalogScreen({
                       }}
                     >
                       <Text style={styles.modalRegisterActionBtnText}>
-                        🌿 Registrar este árbol en Campo
+                        🌿 Censar ejemplar de {selectedSpeciesDetail.name} en Campo
                       </Text>
                     </TouchableOpacity>
                   ) : null}
@@ -204,6 +333,31 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#0f172a'
   },
+  categoriesFilterRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10
+  },
+  catFilterChip: {
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#e2e8f0'
+  },
+  catFilterChipActive: {
+    backgroundColor: '#065f46',
+    borderColor: '#065f46'
+  },
+  catFilterChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569'
+  },
+  catFilterChipTextActive: {
+    color: '#ffffff'
+  },
   speciesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -230,7 +384,7 @@ const styles = StyleSheet.create({
     marginBottom: 4
   },
   speciesTagBadge: {
-    fontSize: 8,
+    fontSize: 8.5,
     fontWeight: '800',
     backgroundColor: '#dcfce7',
     color: colors.primary,
@@ -254,11 +408,22 @@ const styles = StyleSheet.create({
     color: '#64748b',
     marginTop: 1
   },
-  speciesSightings: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: colors.info,
+  speciesCardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginTop: 6
+  },
+  speciesFamilyText: {
+    fontSize: 9.5,
+    fontWeight: '600',
+    color: '#475569',
+    flex: 1
+  },
+  speciesSightings: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#059669'
   },
   modalOverlay: {
     flex: 1,
@@ -314,7 +479,8 @@ const styles = StyleSheet.create({
   },
   modalBadgesRow: {
     flexDirection: 'row',
-    gap: 8,
+    flexWrap: 'wrap',
+    gap: 6,
     marginTop: 8
   },
   modalBadge: {
@@ -323,11 +489,8 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 6
   },
-  modalBadgeInvasive: {
-    backgroundColor: '#fee2e2'
-  },
   modalBadgeText: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '700',
     color: '#475569'
   },
@@ -344,6 +507,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#334155',
     lineHeight: 18
+  },
+  modalObsRow: {
+    backgroundColor: '#f8fafc',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: '#e2e8f0'
+  },
+  modalObsText: {
+    fontSize: 11,
+    color: '#334155',
+    fontWeight: '600'
   },
   modalRegisterActionBtn: {
     backgroundColor: colors.primary,

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc
 from typing import List, Optional
@@ -10,6 +10,7 @@ from ...models.category import Category
 from ...models.observation import Observation
 from ...schemas.species import SpeciesResponse, SpeciesDetailResponse, SpeciesCreate
 from ...schemas.category import CategoryResponse
+from .users import get_current_user_id
 
 router = APIRouter(
     prefix="",
@@ -17,7 +18,8 @@ router = APIRouter(
 )
 
 @router.post("/species", response_model=SpeciesResponse, status_code=status.HTTP_201_CREATED)
-def create_species(species: SpeciesCreate, db: Session = Depends(get_db)):
+def create_species(request: Request, species: SpeciesCreate, db: Session = Depends(get_db)):
+    get_current_user_id(request)
     scientific_name = (species.scientificName or "").strip()
     if not scientific_name or scientific_name.lower() in ["especie por identificar", "pendiente de validación", "pendiente de validacion"]:
         scientific_name = f"Pendiente ({species.name.strip()[:18]} - {uuid.uuid4().hex[:6]})"

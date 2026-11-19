@@ -311,8 +311,9 @@ const mapMarker = observation
               <MapComponent
                 id="observation-detail-map"
                 center={[observation.latitude, observation.longitude]}
-                zoom={14}
+                zoom={17}
                 readOnly={true}
+                initial3D={true}
                 markers={mapMarker ? [mapMarker] : []}
                 height="480px"
               />

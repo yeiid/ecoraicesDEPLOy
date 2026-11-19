@@ -3,7 +3,7 @@
  * Guarda las fotos en el directorio protegido del sistema que no se borra con la caché.
  */
 
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 const TREES_DIR = FileSystem.documentDirectory + 'trees/';
 

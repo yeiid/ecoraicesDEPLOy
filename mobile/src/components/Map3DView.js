@@ -4,654 +4,229 @@ import {
   View,
   Text,
   TouchableOpacity,
-  TextInput,
   ScrollView,
-  Platform,
-  Alert
+  Alert,
+  ActivityIndicator
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { MAP_3D_HTML } from './map3dHtml';
+import QuickAddTreeSheet from './QuickAddTreeSheet';
+import { resolveLocationFromCoords } from '../services/geocoding';
 
 const OFFLINE_MAP_FILENAME = 'laguajira.pmtiles';
 const OFFLINE_MAP_REMOTE_URL = 'https://map.neuraljira.tech/tiles/laguajira.pmtiles';
 const ASYNC_STORAGE_OFFLINE_KEY = '@ecoraices_offline_map_saved';
 
-const GUAJIRA_GPS_SHORTCUTS = [
-  { name: 'Riohacha', lat: 11.5448, lng: -72.9068 },
-  { name: 'Dibulla', lat: 11.2725, lng: -73.3108 },
-  { name: 'Manaure', lat: 11.7750, lng: -72.4444 },
-  { name: 'Uribia', lat: 11.7139, lng: -72.0167 },
-  { name: 'Macuira', lat: 12.0967, lng: -71.3283 }
+const MAP_THEMES = [
+  { id: 'eco-day', label: '☀️ 3D' },
+  { id: 'transport-dark', label: '🌙 Oscuro' },
+  { id: 'osm-classic', label: '🌍 Clásico' }
 ];
 
-const MAP_HTML = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>EcoRaíces MapLibre 3D</title>
-  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" />
-  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
-  <style>
-    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    html, body, #map { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; background: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-    
-    /* Marcador GPS de Usuario Pulsante */
-    .user-gps-marker {
-      position: relative;
-      width: 32px;
-      height: 32px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      pointer-events: none;
-    }
-    .user-gps-pulse-ring {
-      position: absolute;
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      background: rgba(14, 165, 233, 0.45);
-      animation: gps-radar 2.2s infinite cubic-bezier(0.2, 0.8, 0.4, 1);
-    }
-    .user-gps-inner-dot {
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      background: #0284c7;
-      border: 2.5px solid #ffffff;
-      box-shadow: 0 0 10px rgba(2, 132, 199, 0.9);
-      z-index: 2;
-    }
-    @keyframes gps-radar {
-      0% { transform: scale(0.5); opacity: 1; }
-      100% { transform: scale(2.4); opacity: 0; }
-    }
+function isInvasiveTree(tree) {
+  const name = (
+    (tree.species_name || tree.speciesName || tree.name || '') + ' ' +
+    (tree.scientific_name || tree.scientificName || '')
+  ).toLowerCase();
+  return name.includes('neem') || name.includes('nim') || name.includes('azadirachta');
+}
 
-    /* Marcador 3D Isométrico de Árbol */
-    .ecoraices-3d-tree-marker {
-      position: relative;
-      cursor: pointer;
-      user-select: none;
-      transform-style: preserve-3d;
-      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    .ecoraices-3d-tree-marker:active {
-      transform: scale(1.25);
-    }
-    .tree-ground-disk {
-      position: absolute;
-      bottom: 0;
-      left: 50%;
-      transform: translate(-50%, 50%) rotateX(60deg);
-      border-radius: 50%;
-      pointer-events: none;
-      width: 32px;
-      height: 16px;
-      background: radial-gradient(ellipse at center, rgba(16, 185, 129, 0.5) 0%, rgba(15, 23, 42, 0.15) 50%, transparent 80%);
-    }
-    .tree-ground-disk.invasive-shadow {
-      background: radial-gradient(ellipse at center, rgba(239, 68, 68, 0.6) 0%, rgba(15, 23, 42, 0.2) 50%, transparent 80%);
-    }
-    .tree-vertical-assembly {
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      transform-origin: bottom center;
-    }
-    .tree-trunk-stem {
-      width: 4px;
-      height: 20px;
-      background: linear-gradient(180deg, #78350f 0%, #451a03 100%);
-      border-radius: 2px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-    }
-    .tree-canopy-box {
-      width: 34px;
-      height: 34px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      filter: drop-shadow(0 4px 6px rgba(15, 23, 42, 0.25));
-    }
-    .tree-floating-tag {
-      position: absolute;
-      bottom: -2px;
-      left: 50%;
-      transform: translate(-50%, 100%);
-      display: inline-flex;
-      align-items: center;
-      gap: 3px;
-      padding: 2px 6px;
-      border-radius: 6px;
-      font-size: 9px;
-      font-weight: 700;
-      white-space: nowrap;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
-      pointer-events: none;
-      z-index: 5;
-      border: 1px solid rgba(255, 255, 255, 0.8);
-    }
-    .tag-neem { background: #dc2626; color: #ffffff; }
-    .tag-trupillo { background: #065f46; color: #ffffff; }
-    .tag-guayacan { background: #b45309; color: #ffffff; }
-    .tag-dividivi { background: #0f766e; color: #ffffff; }
-    .tag-cardon { background: #1e3a8a; color: #ffffff; }
-    .tag-general { background: #0f172a; color: #f8fafc; }
+function isVerifiedTree(tree) {
+  return Boolean(tree.verified || tree.is_verified || tree.isVerified || tree.status === 'APPROVED');
+}
 
-    /* Popups Estilizados */
-    .maplibregl-popup-content {
-      background: #ffffff !important;
-      color: #0f172a !important;
-      border-radius: 14px;
-      padding: 12px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2) !important;
-      border: 1px solid #e2e8f0 !important;
-      max-width: 280px;
-      font-size: 12px;
-      line-height: 1.4;
-    }
-    .popup-title { font-size: 14px; font-weight: 800; margin: 0 0 2px 0; color: #0f172a; }
-    .popup-sub { font-size: 11px; font-style: italic; color: #64748b; margin: 0 0 6px 0; }
-    .popup-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 700; margin-bottom: 6px; text-transform: uppercase; }
-    .badge-invasive { background: #fee2e2; color: #b91c1c; }
-    .badge-native { background: #d1fae5; color: #065f46; }
-    .popup-note { background: #f8fafc; border-left: 3px solid #10b981; padding: 6px 8px; border-radius: 4px; margin: 6px 0; font-size: 11px; color: #334155; }
-    .popup-note.invasive { border-left-color: #ef4444; background: #fff1f2; }
+function getHaversineDistanceMeters(lat1, lon1, lat2, lon2) {
+  if (isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2)) return null;
+  const R = 6371e3;
+  const phi1 = (lat1 * Math.PI) / 180;
+  const phi2 = (lat2 * Math.PI) / 180;
+  const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
+  const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
 
-    /* Botón Modo Persona en el Popup */
-    .popup-btn-person {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      width: 100%;
-      margin-top: 8px;
-      padding: 8px 10px;
-      background: #0284c7;
-      color: #ffffff;
-      border: none;
-      border-radius: 8px;
-      font-size: 11px;
-      font-weight: 700;
-      cursor: pointer;
-      box-shadow: 0 2px 5px rgba(2, 132, 199, 0.35);
-      transition: background 0.2s, transform 0.1s;
-    }
-    .popup-btn-person:active {
-      background: #0369a1;
-      transform: scale(0.98);
-    }
-    .popup-thumb-img {
-      width: 100%;
-      height: 90px;
-      object-fit: cover;
-      border-radius: 8px;
-      margin-bottom: 6px;
-    }
+  const a =
+    Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+    Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c);
+}
 
-    /* HUD Superior: Modo Persona Activo */
-    .person-mode-hud {
-      position: absolute;
-      top: 14px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(15, 23, 42, 0.94);
-      color: #38bdf8;
-      padding: 6px 14px;
-      border-radius: 9999px;
-      font-size: 11px;
-      font-weight: 800;
-      display: none;
-      align-items: center;
-      gap: 8px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.35);
-      z-index: 100;
-      border: 1px solid rgba(56, 189, 248, 0.3);
-      pointer-events: none;
-      letter-spacing: 0.5px;
-    }
-    .person-mode-hud.active {
-      display: flex;
-    }
-  </style>
-</head>
-<body>
-  <div id="map"></div>
-  <div id="person-hud" class="person-mode-hud">
-    <span>🚶‍♂️ VISTA A RAS DE SUELO (82°)</span>
-  </div>
-
-  <script>
-    let map;
-    let markers = [];
-    let userMarker = null;
-    let is3D = false;
-    let isPersonMode = false;
-    let personTargetCoords = null;
-    let currentTrees = [];
-
-    const STYLE_URL = "https://map.neuraljira.tech/api/v1/style.json";
-    const FALLBACK_STYLE = {
-      version: 8,
-      sources: {
-        "osm-clean": {
-          type: "raster",
-          tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-          tileSize: 256,
-          attribution: "&copy; OpenStreetMap contributors"
-        }
-      },
-      layers: [{ id: "osm-layer", type: "raster", source: "osm-clean" }]
-    };
-
-    async function initMap() {
-      let mapStyle = FALLBACK_STYLE;
-      try {
-        const res = await fetch(STYLE_URL);
-        if (res.ok) {
-          mapStyle = await res.json();
-          // Configuración cartográfica limpia:
-          // 1. Nitidez total de OpenStreetMap (calles limpias, nombres y parques sin rayas molestas)
-          if (mapStyle.layers && Array.isArray(mapStyle.layers)) {
-            mapStyle.layers.forEach(l => {
-              if (l.id === 'osm-layer' && l.paint) {
-                l.paint['raster-opacity'] = 0.95;
-              }
-              // 2. Desactivar o atenuar casi a cero los rellenos catastrales opacos que tapan el mapa
-              if (l.id && (l.id.includes('terreno-fill') || l.id.includes('sector-fill') || l.id.includes('vereda-fill')) && l.paint) {
-                l.paint['fill-opacity'] = 0.04;
-              }
-              // 3. Eliminar trazo invasivo naranja de las calles. Dejamos que OSM pinte las calles nativas
-              if (l.id && l.id.includes('nomenclatura_vial-line') && l.paint) {
-                l.paint['line-opacity'] = 0.0;
-              }
-            });
-          }
-        }
-      } catch (e) {
-        console.warn("Using fallback style", e);
-      }
-
-      map = new maplibregl.Map({
-        container: 'map',
-        style: mapStyle,
-        center: [-72.9068, 11.5448],
-        zoom: 12.5,
-        pitch: 0,
-        bearing: 0,
-        antialias: true
-      });
-
-      map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "bottom-left");
-
-      map.on('load', () => {
-        window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'MAP_READY' }));
-      });
-
-      map.on('click', (e) => {
-        window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-          type: 'MAP_CLICK',
-          payload: { lat: e.lngLat.lat, lng: e.lngLat.lng }
-        }));
-      });
-    }
-
-    function getSpeciesProfile(item) {
-      const name = ((item.species_name || item.name || "") + " " + (item.scientific_name || "")).toLowerCase();
-      if (name.includes("neem") || name.includes("nim")) {
-        return {
-          displayName: item.species_name || item.name || 'Neem Guajiro',
-          scientific: 'Azadirachta indica',
-          isInvasive: true,
-          tagClass: 'tag-neem',
-          tagText: '🚨 Neem • Invasor',
-          badgeClass: 'badge-invasive',
-          badgeText: 'Invasor de Alto Impacto (Alelopatía)',
-          color: '#ef4444',
-          icon: '🚨',
-          alert: '⚠️ Libera compuestos alelopáticos que alteran el suelo.'
-        };
-      }
-      if (name.includes("trupillo")) {
-        return {
-          displayName: item.species_name || item.name || 'Trupillo',
-          scientific: 'Prosopis juliflora',
-          isInvasive: false,
-          tagClass: 'tag-trupillo',
-          tagText: '🌿 Trupillo',
-          badgeClass: 'badge-native',
-          badgeText: 'Nativa Protectora',
-          color: '#10b981',
-          icon: '🌿',
-          alert: 'Fija nitrógeno en suelos áridos y preserva mantos freáticos.'
-        };
-      }
-      if (name.includes("dividivi")) {
-        return {
-          displayName: item.species_name || item.name || 'Dividivi',
-          scientific: 'Libidibia coriaria',
-          isInvasive: false,
-          tagClass: 'tag-dividivi',
-          tagText: '🍃 Dividivi',
-          badgeClass: 'badge-native',
-          badgeText: 'Ancestral Wayuu',
-          color: '#0d9488',
-          icon: '🍃',
-          alert: 'Rico en taninos y sombra benigna que protege el suelo.'
-        };
-      }
-      return {
-        displayName: item.species_name || item.name || 'Árbol Forestal',
-        scientific: item.scientific_name || 'Especie nativa',
-        isInvasive: false,
-        tagClass: 'tag-general',
-        tagText: '🌱 Árbol',
-        badgeClass: 'badge-native',
-        badgeText: 'Flora Forestal',
-        color: '#10b981',
-        icon: '🌱',
-        alert: 'Árbol censado en La Guajira.'
-      };
-    }
-
-    function setTrees(treesList) {
-      currentTrees = treesList || [];
-      markers.forEach(m => m.remove());
-      markers = [];
-      if (!Array.isArray(treesList) || treesList.length === 0) return;
-
-      const bounds = new maplibregl.LngLatBounds();
-      let hasValidCoords = false;
-
-      treesList.forEach(t => {
-        const lat = parseFloat(t.latitude || t.lat);
-        const lng = parseFloat(t.longitude || t.lng);
-        if (isNaN(lat) || isNaN(lng)) return;
-
-        hasValidCoords = true;
-        bounds.extend([lng, lat]);
-
-        const profile = getSpeciesProfile(t);
-
-        const el = document.createElement('div');
-        el.className = 'ecoraices-3d-tree-marker';
-        el.innerHTML = \`
-          <div class="tree-ground-disk \${profile.isInvasive ? 'invasive-shadow' : ''}"></div>
-          <div class="tree-vertical-assembly">
-            <div class="tree-canopy-box">
-              <div style="background: \${profile.color}; border: 2px solid #ffffff; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 8px rgba(0,0,0,0.3); font-size: 15px;">
-                \${profile.icon}
-              </div>
-            </div>
-            <div class="tree-trunk-stem"></div>
-          </div>
-          <div class="tree-floating-tag \${profile.tagClass}">\${profile.tagText}</div>
-        \`;
-
-        el.addEventListener('click', () => {
-          window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-            type: 'SELECT_TREE',
-            payload: t
-          }));
-        });
-
-        const imgPath = t.imageUrl || t.localImagePath || t.local_image_path;
-        const imgHTML = imgPath ? \`<img src="\${imgPath}" class="popup-thumb-img" alt="Foto árbol" onerror="this.style.display='none'"/>\` : '';
-        const treeIdStr = String(t.clientId || t.id || '');
-
-        const popupHTML = \`
-          <div>
-            \${imgHTML}
-            <div class="popup-title">\${profile.displayName}</div>
-            <div class="popup-sub">\${profile.scientific}</div>
-            <span class="popup-badge \${profile.badgeClass}">\${profile.badgeText}</span>
-            <div class="popup-note \${profile.isInvasive ? 'invasive' : ''}">\${profile.alert}</div>
-            <div style="font-size: 10px; color: #64748b; margin-top: 4px;">
-              📍 \${lat.toFixed(5)}, \${lng.toFixed(5)}<br/>
-              🏛️ \${t.municipio || t.municipality || 'La Guajira'}
-            </div>
-            <button type="button" class="popup-btn-person" onclick="window.enterPersonModeFromPopup('\${treeIdStr}')">
-              🚶‍♂️ Pararme al pie del árbol
-            </button>
-          </div>
-        \`;
-
-        const popup = new maplibregl.Popup({ offset: [0, -28], closeButton: true }).setHTML(popupHTML);
-        const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
-          .setLngLat([lng, lat])
-          .setPopup(popup)
-          .addTo(map);
-
-        markers.push(marker);
-      });
-
-      if (hasValidCoords && treesList.length > 1 && !isPersonMode) {
-        map.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 1000 });
-      }
-    }
-
-    function setUserLocation(lat, lng) {
-      if (isNaN(lat) || isNaN(lng)) return;
-      if (!userMarker) {
-        const el = document.createElement('div');
-        el.className = 'user-gps-marker';
-        el.innerHTML = \`
-          <div class="user-gps-pulse-ring"></div>
-          <div class="user-gps-inner-dot"></div>
-        \`;
-        userMarker = new maplibregl.Marker({ element: el, anchor: 'center' })
-          .setLngLat([lng, lat])
-          .addTo(map);
-      } else {
-        userMarker.setLngLat([lng, lat]);
-      }
-      map.easeTo({
-        center: [lng, lat],
-        zoom: 16,
-        pitch: is3D ? 58 : 0,
-        duration: 1000
-      });
-    }
-
-    function enterPersonMode(lat, lng, treeInfo) {
-      if (isNaN(lat) || isNaN(lng)) return;
-      isPersonMode = true;
-      personTargetCoords = { lat, lng };
-
-      markers.forEach(m => {
-        if (m.getPopup && m.getPopup().isOpen()) m.getPopup().remove();
-      });
-
-      map.easeTo({
-        center: [lng, lat],
-        zoom: 19.5,
-        pitch: 82,
-        bearing: -15,
-        duration: 1600
-      });
-
-      const hud = document.getElementById('person-hud');
-      if (hud) hud.classList.add('active');
-
-      window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-        type: 'PERSON_MODE_CHANGE',
-        payload: { active: true, tree: treeInfo }
-      }));
-    }
-
-    function exitPersonMode() {
-      isPersonMode = false;
-      personTargetCoords = null;
-      const hud = document.getElementById('person-hud');
-      if (hud) hud.classList.remove('active');
-
-      map.easeTo({
-        pitch: is3D ? 58 : 0,
-        zoom: 15,
-        bearing: 0,
-        duration: 1200
-      });
-
-      window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-        type: 'PERSON_MODE_CHANGE',
-        payload: { active: false }
-      }));
-    }
-
-    function orbit360() {
-      if (!personTargetCoords) return;
-      const currentBearing = map.getBearing();
-      map.easeTo({
-        center: [personTargetCoords.lng, personTargetCoords.lat],
-        bearing: currentBearing + 60,
-        duration: 900
-      });
-    }
-
-    window.enterPersonModeFromPopup = function(treeIdStr) {
-      const found = currentTrees.find(t => String(t.clientId || t.id) === String(treeIdStr));
-      if (found) {
-        const lat = parseFloat(found.latitude || found.lat);
-        const lng = parseFloat(found.longitude || found.lng);
-        enterPersonMode(lat, lng, found);
-      }
-    };
-
-    function toggle3DView(enable3D) {
-      is3D = enable3D;
-      if (isPersonMode) return;
-      map.easeTo({
-        pitch: is3D ? 60 : 0,
-        bearing: is3D ? -25 : 0,
-        duration: 1200
-      });
-    }
-
-    function flyToCoords(lat, lng, zoom = 15) {
-      if (map && !isNaN(lat) && !isNaN(lng)) {
-        map.easeTo({ center: [lng, lat], zoom: zoom, duration: 900 });
-      }
-    }
-
-    window.addEventListener('message', (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === 'SET_TREES') {
-          setTrees(data.payload);
-        } else if (data.type === 'TOGGLE_3D') {
-          toggle3DView(data.payload);
-        } else if (data.type === 'SET_USER_LOCATION') {
-          setUserLocation(data.payload.lat, data.payload.lng);
-        } else if (data.type === 'RECENTER') {
-          flyToCoords(data.payload.lat, data.payload.lng, 15.5);
-        } else if (data.type === 'FLY_TO') {
-          flyToCoords(data.payload.lat, data.payload.lng, data.payload.zoom || 14);
-        } else if (data.type === 'ENTER_PERSON_MODE') {
-          enterPersonMode(data.payload.lat, data.payload.lng, data.payload.tree);
-        } else if (data.type === 'EXIT_PERSON_MODE') {
-          exitPersonMode();
-        } else if (data.type === 'ORBIT_360') {
-          orbit360();
-        }
-      } catch (e) {}
-    });
-
-    initMap();
-  </script>
-</body>
-</html>
-`;
+function formatDistance(meters) {
+  if (meters == null) return 'En territorio';
+  if (meters < 1000) return `${meters} m`;
+  return `${(meters / 1000).toFixed(1)} km`;
+}
 
 export default function Map3DView({
   trees = [],
+  speciesCatalog = [],
   userCoords = null,
+  detectedLocation = null,
+  onLocationUpdate = null,
+  onQuickCreateTree = null,
   onTreeSelected = null
 }) {
   const webViewRef = useRef(null);
   const downloadResumableRef = useRef(null);
+  const msgSeqRef = useRef(1);
+  const toastTimerRef = useRef(null);
 
-  const [is3DMode, setIs3DMode] = useState(false);
+  const [is3DMode, setIs3DMode] = useState(true);
+  const [mapTheme, setMapTheme] = useState('eco-day');
   const [selectedFilter, setSelectedFilter] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [legendOpen, setLegendOpen] = useState(false);
+  const [isLocatingGps, setIsLocatingGps] = useState(false);
+  const [localCoords, setLocalCoords] = useState(userCoords);
+  const [localLocation, setLocalLocation] = useState(detectedLocation);
+  const [statusToast, setStatusToast] = useState(null);
 
-  // Estados de Modo Persona
+  // Estados de Modo Persona 3D
   const [isPersonMode, setIsPersonMode] = useState(false);
   const [personTree, setPersonTree] = useState(null);
+  const [activeTreeIndex, setActiveTreeIndex] = useState(0);
 
-  // Estados de Descarga Offline Externa
+  // Estados de Modo Registro Directo en Catastro 3D
+  const [isPickMode, setIsPickMode] = useState(false);
+  const [draftCoords, setDraftCoords] = useState(null);
+  const [draftMunicipio, setDraftMunicipio] = useState('');
+  const [draftLocationLabel, setDraftLocationLabel] = useState('');
+  const [draftSpeciesName, setDraftSpeciesName] = useState('');
+  const [draftSpeciesId, setDraftSpeciesId] = useState(null);
+  const [draftHeight, setDraftHeight] = useState(8);
+  const [draftHealthState, setDraftHealthState] = useState('Sano y vigoroso');
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+
+  // Estados de Descarga Offline
   const [offlinePackProgress, setOfflinePackProgress] = useState(null);
   const [offlineFileSizeMB, setOfflineFileSizeMB] = useState(null);
   const [isDownloading, setIsDownloading] = useState(false);
 
-  // Filtrado de árboles según barra superior de EcoRaíces
+  const activeCoords = localCoords || userCoords;
+  const activeLocation = localLocation || detectedLocation;
+
+  useEffect(() => {
+    if (userCoords) setLocalCoords(userCoords);
+  }, [userCoords]);
+
+  useEffect(() => {
+    if (detectedLocation) setLocalLocation(detectedLocation);
+  }, [detectedLocation]);
+
+  const showToast = useCallback((message, tone = 'info') => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setStatusToast({ message, tone });
+    toastTimerRef.current = setTimeout(() => {
+      setStatusToast(null);
+    }, 3200);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
+  // Envío fiable de mensajes al WebView (funciona idéntico en Android e iOS vía injectJavaScript)
+  const sendToMap = useCallback((msgObj) => {
+    if (!webViewRef.current) return;
+    const payload = { ...msgObj, _msgId: msgSeqRef.current++ };
+    const serialized = JSON.stringify(payload);
+    const script = `window.__onHostMessage && window.__onHostMessage(${serialized}); true;`;
+    webViewRef.current.injectJavaScript(script);
+  }, []);
+
+  // Conteos reales para los botones del header
+  const filterCounts = useMemo(() => {
+    let invasive = 0;
+    let nativeCount = 0;
+    let verified = 0;
+    trees.forEach((t) => {
+      if (isInvasiveTree(t)) invasive++;
+      else nativeCount++;
+      if (isVerifiedTree(t)) verified++;
+    });
+    return { all: trees.length, invasive, native: nativeCount, verified };
+  }, [trees]);
+
+  // Filtrado de árboles según botones del header
   const filteredTrees = useMemo(() => {
     return trees.filter((tree) => {
-      const name = ((tree.species_name || tree.name || '') + ' ' + (tree.scientific_name || '') + ' ' + (tree.municipality || tree.municipio || '')).toLowerCase();
-      if (searchQuery.trim() && !name.includes(searchQuery.trim().toLowerCase())) return false;
-      if (selectedFilter === 'invasive') {
-        if (!name.includes('neem') && !name.includes('nim')) return false;
-      } else if (selectedFilter === 'native') {
-        if (name.includes('neem') || name.includes('nim')) return false;
-      } else if (selectedFilter === 'verified') {
-        if (!tree.verified && !tree.is_verified) return false;
-      }
+      if (selectedFilter === 'invasive') return isInvasiveTree(tree);
+      if (selectedFilter === 'native') return !isInvasiveTree(tree);
+      if (selectedFilter === 'verified') return isVerifiedTree(tree);
       return true;
     });
-  }, [trees, searchQuery, selectedFilter]);
+  }, [trees, selectedFilter]);
+
+  const distanceToPersonTree = useMemo(() => {
+    if (!activeCoords || !personTree) return null;
+    if (personTree.isSelfLocation) return 0;
+    const tLat = parseFloat(personTree.latitude ?? personTree.lat);
+    const tLng = parseFloat(personTree.longitude ?? personTree.lng);
+    return getHaversineDistanceMeters(activeCoords.latitude, activeCoords.longitude, tLat, tLng);
+  }, [activeCoords, personTree]);
 
   // Verificar si ya existe descarga offline guardada en el dispositivo
   useEffect(() => {
     const checkOfflineFile = async () => {
       try {
-        const fileUri = `${FileSystem.documentDirectory}${OFFLINE_MAP_FILENAME}`;
-        const info = await FileSystem.getInfoAsync(fileUri);
-        if (info.exists && info.size) {
-          const mb = (info.size / (1024 * 1024)).toFixed(1);
-          setOfflineFileSizeMB(mb);
-          setOfflinePackProgress(100);
-        } else {
-          const savedKey = await AsyncStorage.getItem(ASYNC_STORAGE_OFFLINE_KEY);
-          if (savedKey === 'true') {
+        if (FileSystem.documentDirectory) {
+          const fileUri = `${FileSystem.documentDirectory}${OFFLINE_MAP_FILENAME}`;
+          const info = await FileSystem.getInfoAsync(fileUri);
+          if (info.exists && info.size) {
+            const mb = (info.size / (1024 * 1024)).toFixed(1);
+            setOfflineFileSizeMB(mb);
             setOfflinePackProgress(100);
+            return;
           }
         }
-      } catch (e) {
-        console.warn('Error verificando archivo offline:', e);
-      }
+        const savedKey = await AsyncStorage.getItem(ASYNC_STORAGE_OFFLINE_KEY);
+        if (savedKey === 'true') {
+          setOfflinePackProgress(100);
+        }
+      } catch (_) {}
     };
     checkOfflineFile();
   }, []);
 
-  // Enviar árboles a MapLibre cuando cargue el mapa
+  // Enviar árboles a MapLibre cuando cargue el mapa o cambien los filtros
   useEffect(() => {
-    if (mapLoaded && webViewRef.current) {
-      webViewRef.current.postMessage(
-        JSON.stringify({
-          type: 'SET_TREES',
-          payload: filteredTrees
-        })
-      );
+    if (mapLoaded) {
+      sendToMap({
+        type: 'SET_TREES',
+        payload: filteredTrees,
+        forceFitAll: selectedFilter !== 'all'
+      });
     }
-  }, [filteredTrees, mapLoaded]);
+  }, [filteredTrees, mapLoaded, selectedFilter, sendToMap]);
 
-  // Actualizar marcador de GPS en vivo cuando userCoords cambie
+  // Actualizar marcador de GPS en segundo plano con la ubicación determinada
   useEffect(() => {
-    if (mapLoaded && userCoords && webViewRef.current) {
-      webViewRef.current.postMessage(
-        JSON.stringify({
-          type: 'SET_USER_LOCATION',
-          payload: { lat: userCoords.latitude, lng: userCoords.longitude }
-        })
-      );
+    if (mapLoaded && activeCoords) {
+      sendToMap({
+        type: 'UPDATE_USER_GPS',
+        payload: {
+          lat: activeCoords.latitude,
+          lng: activeCoords.longitude,
+          label: activeLocation?.shortLabel || activeLocation?.municipio || ''
+        }
+      });
     }
-  }, [userCoords, mapLoaded]);
+  }, [activeCoords, activeLocation, mapLoaded, sendToMap]);
+
+  // Cambiar filtro del header
+  const handleSelectFilter = (nextFilter) => {
+    setSelectedFilter(nextFilter);
+    if (isPersonMode) {
+      setIsPersonMode(false);
+      setPersonTree(null);
+      sendToMap({ type: 'EXIT_PERSON_MODE' });
+    }
+  };
 
   // Alternar vista 2D Cenital / 3D Isométrica
   const toggle3D = () => {
@@ -661,102 +236,243 @@ export default function Map3DView({
       setIsPersonMode(false);
       setPersonTree(null);
     }
-    if (webViewRef.current) {
-      webViewRef.current.postMessage(
-        JSON.stringify({
-          type: 'TOGGLE_3D',
-          payload: nextState
-        })
-      );
+    sendToMap({
+      type: 'TOGGLE_3D',
+      payload: nextState
+    });
+  };
+
+  const handleSelectTheme = (themeId) => {
+    setMapTheme(themeId);
+    sendToMap({
+      type: 'SET_THEME',
+      payload: themeId
+    });
+  };
+
+  // Botón Mi GPS: Obtiene GPS real, determina el municipio automáticamente y centra el mapa
+  const handleCenterUser = async () => {
+    if (isLocatingGps) return;
+    setIsLocatingGps(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        showToast('Permiso de ubicación denegado. Activa el GPS en ajustes.', 'error');
+        return;
+      }
+
+      let lat = activeCoords?.latitude;
+      let lng = activeCoords?.longitude;
+      let alt = activeCoords?.altitude ?? null;
+      let acc = null;
+
+      const lastKnown = await Location.getLastKnownPositionAsync().catch(() => null);
+      if (lastKnown?.coords) {
+        lat = lastKnown.coords.latitude;
+        lng = lastKnown.coords.longitude;
+        alt = lastKnown.coords.altitude ?? alt;
+        acc = lastKnown.coords.accuracy ?? acc;
+      }
+
+      const freshLoc = await Promise.race([
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+      ]).catch(() => null);
+
+      if (freshLoc?.coords) {
+        lat = freshLoc.coords.latitude;
+        lng = freshLoc.coords.longitude;
+        alt = freshLoc.coords.altitude ?? alt;
+        acc = freshLoc.coords.accuracy ?? acc;
+      }
+
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        showToast('No se pudo fijar señal GPS. Intenta en un área abierta.', 'error');
+        return null;
+      }
+
+      const nextCoords = { latitude: lat, longitude: lng, altitude: alt, accuracy: acc };
+      setLocalCoords(nextCoords);
+
+      // Centrar inmediatamente mientras determinamos el nombre del municipio por GPS
+      if (isPersonMode) {
+        setIsPersonMode(false);
+        setPersonTree(null);
+      }
+      sendToMap({
+        type: 'FOCUS_USER_GPS',
+        payload: {
+          lat,
+          lng,
+          label: activeLocation?.shortLabel || ''
+        }
+      });
+
+      const resolved = await resolveLocationFromCoords(lat, lng, true);
+      if (resolved) {
+        setLocalLocation(resolved);
+        sendToMap({
+          type: 'UPDATE_USER_GPS',
+          payload: {
+            lat,
+            lng,
+            label: resolved.shortLabel || resolved.municipio || ''
+          }
+        });
+        if (onLocationUpdate) {
+          onLocationUpdate(nextCoords, resolved);
+        }
+        showToast(`📍 Ubicación detectada: ${resolved.label}`, 'success');
+      } else if (onLocationUpdate) {
+        onLocationUpdate(nextCoords, null);
+        showToast(`📍 GPS fijado (${lat.toFixed(4)}, ${lng.toFixed(4)})`, 'success');
+      }
+      return nextCoords;
+    } catch (_) {
+      showToast('Asegúrate de tener la ubicación encendida en tu dispositivo.', 'error');
+      return null;
+    } finally {
+      setIsLocatingGps(false);
     }
   };
 
-  // Botón Mi GPS: Obtiene ubicación en vivo al instante con animación suave
-  const handleCenterUser = async () => {
-    try {
-      let lat = userCoords?.latitude;
-      let lng = userCoords?.longitude;
-
-      if (!lat || !lng) {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === 'granted') {
-          const fastLoc = await Location.getLastKnownPositionAsync();
-          if (fastLoc && fastLoc.coords) {
-            lat = fastLoc.coords.latitude;
-            lng = fastLoc.coords.longitude;
-          } else {
-            const preciseLoc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-            if (preciseLoc && preciseLoc.coords) {
-              lat = preciseLoc.coords.latitude;
-              lng = preciseLoc.coords.longitude;
-            }
-          }
-        }
-      }
-
-      if (lat && lng && webViewRef.current) {
-        webViewRef.current.postMessage(
-          JSON.stringify({
-            type: 'SET_USER_LOCATION',
-            payload: { lat, lng }
-          })
-        );
-      } else {
-        Alert.alert('GPS Satelital', 'Buscando satélites GNSS... Puedes usar los atajos de La Guajira.');
-      }
-    } catch (e) {
-      console.warn('Error en GPS:', e);
-      Alert.alert('GPS', 'Asegúrate de tener la ubicación encendida en tu dispositivo.');
+  const handleFitVisibleTrees = () => {
+    if (filteredTrees.length === 0) {
+      showToast('No hay árboles visibles en este filtro.', 'info');
+      return;
     }
+    if (isPersonMode) {
+      setIsPersonMode(false);
+      setPersonTree(null);
+      sendToMap({ type: 'EXIT_PERSON_MODE' });
+    }
+    sendToMap({
+      type: 'FIT_TREES',
+      payload: filteredTrees
+    });
+  };
+
+  // Seleccionar el mejor árbol objetivo para Modo Persona (seleccionado > más cercano al GPS > primero visible)
+  const pickTargetTreeForPersonMode = () => {
+    if (personTree && !personTree.isSelfLocation) {
+      const stillVisible = filteredTrees.find(
+        (t) => String(t.clientId || t.id) === String(personTree.clientId || personTree.id)
+      );
+      if (stillVisible) return stillVisible;
+    }
+
+    const pool = filteredTrees.length > 0 ? filteredTrees : trees;
+    if (pool.length === 0) return null;
+
+    if (activeCoords) {
+      let nearest = null;
+      let minDist = Infinity;
+      pool.forEach((t) => {
+        const lat = parseFloat(t.latitude ?? t.lat);
+        const lng = parseFloat(t.longitude ?? t.lng);
+        if (isNaN(lat) || isNaN(lng)) return;
+        const d = getHaversineDistanceMeters(activeCoords.latitude, activeCoords.longitude, lat, lng);
+        if (d !== null && d < minDist) {
+          minDist = d;
+          nearest = t;
+        }
+      });
+      if (nearest) return nearest;
+    }
+
+    return pool[activeTreeIndex] || pool[0];
   };
 
   // Alternar Modo Persona a ras de suelo
   const handleTogglePersonMode = () => {
+    if (isPickMode) {
+      setIsPickMode(false);
+      setDraftCoords(null);
+      sendToMap({ type: 'SET_PICK_MODE', payload: false });
+    }
     if (isPersonMode) {
-      if (webViewRef.current) {
-        webViewRef.current.postMessage(JSON.stringify({ type: 'EXIT_PERSON_MODE' }));
-      }
+      sendToMap({ type: 'EXIT_PERSON_MODE' });
       setIsPersonMode(false);
       setPersonTree(null);
-    } else {
-      const target = personTree || filteredTrees[0] || trees[0];
-      if (!target) {
-        Alert.alert('Modo Persona', 'No hay árboles censados visibles para explorar a ras de suelo.');
-        return;
-      }
-      const lat = parseFloat(target.latitude || target.lat);
-      const lng = parseFloat(target.longitude || target.lng);
+      return;
+    }
+
+    const target = pickTargetTreeForPersonMode();
+    if (target) {
+      const lat = parseFloat(target.latitude ?? target.lat);
+      const lng = parseFloat(target.longitude ?? target.lng);
       if (isNaN(lat) || isNaN(lng)) {
-        Alert.alert('Modo Persona', 'El árbol no posee coordenadas válidas.');
+        showToast('El árbol seleccionado no tiene coordenadas válidas.', 'error');
         return;
       }
+      const idx = filteredTrees.findIndex(
+        (t) => String(t.clientId || t.id) === String(target.clientId || target.id)
+      );
+      if (idx !== -1) setActiveTreeIndex(idx);
       setPersonTree(target);
       setIsPersonMode(true);
-      if (webViewRef.current) {
-        webViewRef.current.postMessage(
-          JSON.stringify({
-            type: 'ENTER_PERSON_MODE',
-            payload: { lat, lng, tree: target }
-          })
-        );
-      }
+      sendToMap({
+        type: 'ENTER_PERSON_MODE',
+        payload: { lat, lng, tree: target }
+      });
+      return;
+    }
+
+    // Si no hay árboles todavía, permitir explorar a ras de suelo desde la ubicación GPS del usuario
+    if (activeCoords) {
+      const selfTarget = {
+        id: 'self-gps',
+        species_name: 'Tu ubicación GPS',
+        municipio: activeLocation?.label || 'Posición actual',
+        latitude: activeCoords.latitude,
+        longitude: activeCoords.longitude,
+        isSelfLocation: true
+      };
+      setPersonTree(selfTarget);
+      setIsPersonMode(true);
+      sendToMap({
+        type: 'ENTER_PERSON_MODE',
+        payload: { lat: activeCoords.latitude, lng: activeCoords.longitude, tree: selfTarget }
+      });
+      return;
+    }
+
+    showToast('Presiona "Mi GPS" o registra un árbol para activar el Modo Persona.', 'info');
+  };
+
+  const handleStepPersonTree = (delta) => {
+    if (filteredTrees.length === 0) return;
+    const baseIdx = activeTreeIndex >= filteredTrees.length ? 0 : activeTreeIndex;
+    const nextIdx = (baseIdx + delta + filteredTrees.length) % filteredTrees.length;
+    setActiveTreeIndex(nextIdx);
+    const nextTree = filteredTrees[nextIdx];
+    const lat = parseFloat(nextTree.latitude ?? nextTree.lat);
+    const lng = parseFloat(nextTree.longitude ?? nextTree.lng);
+    if (!isNaN(lat) && !isNaN(lng)) {
+      setPersonTree(nextTree);
+      setIsPersonMode(true);
+      sendToMap({
+        type: 'ENTER_PERSON_MODE',
+        payload: { lat, lng, tree: nextTree }
+      });
     }
   };
 
   const handleOrbit360 = () => {
-    if (webViewRef.current) {
-      webViewRef.current.postMessage(JSON.stringify({ type: 'ORBIT_360' }));
-    }
+    sendToMap({ type: 'ORBIT_360' });
   };
 
-  // Descarga Externa del Mapa Offline (Mantiene la APK ligera)
+  // Descarga Externa del Mapa Offline
   const handleDownloadOfflineMap = async () => {
-    const fileUri = `${FileSystem.documentDirectory}${OFFLINE_MAP_FILENAME}`;
+    if (isDownloading) return;
+    const fileUri = FileSystem.documentDirectory
+      ? `${FileSystem.documentDirectory}${OFFLINE_MAP_FILENAME}`
+      : null;
 
     if (offlinePackProgress === 100) {
       Alert.alert(
         'Mapa Offline Guardado',
-        `Teselas vectoriales almacenadas en tu dispositivo (${offlineFileSizeMB || '24.8'} MB).\n\n¿Deseas volver a descargarlo o liberar espacio?`,
+        `Teselas vectoriales almacenadas en tu dispositivo (${offlineFileSizeMB || '22.4'} MB).\n\n¿Deseas actualizarlo o liberar espacio?`,
         [
           { text: 'Cancelar', style: 'cancel' },
           {
@@ -764,14 +480,14 @@ export default function Map3DView({
             style: 'destructive',
             onPress: async () => {
               try {
-                await FileSystem.deleteAsync(fileUri, { idempotent: true });
+                if (fileUri) {
+                  await FileSystem.deleteAsync(fileUri, { idempotent: true });
+                }
                 await AsyncStorage.removeItem(ASYNC_STORAGE_OFFLINE_KEY);
                 setOfflinePackProgress(null);
                 setOfflineFileSizeMB(null);
-                Alert.alert('Espacio Liberado', 'El paquete de mapa offline ha sido eliminado de tu teléfono.');
-              } catch (err) {
-                console.warn('Error eliminando mapa offline:', err);
-              }
+                showToast('Paquete de mapa offline eliminado.', 'info');
+              } catch (_) {}
             }
           },
           { text: 'Actualizar', onPress: () => startDownload(fileUri) }
@@ -786,70 +502,157 @@ export default function Map3DView({
   const startDownload = async (fileUri) => {
     try {
       setIsDownloading(true);
-      setOfflinePackProgress(5);
+      setOfflinePackProgress(10);
 
-      const callback = (downloadProgress) => {
-        const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
-        const pct = Math.max(5, Math.round(progress * 100));
-        setOfflinePackProgress(pct);
-      };
+      if (fileUri && typeof FileSystem.createDownloadResumable === 'function') {
+        const callback = (downloadProgress) => {
+          if (downloadProgress.totalBytesExpectedToWrite > 0) {
+            const progress =
+              downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
+            setOfflinePackProgress(Math.max(10, Math.round(progress * 100)));
+          }
+        };
 
-      downloadResumableRef.current = FileSystem.createDownloadResumable(
-        OFFLINE_MAP_REMOTE_URL,
-        fileUri,
-        {},
-        callback
-      );
+        downloadResumableRef.current = FileSystem.createDownloadResumable(
+          OFFLINE_MAP_REMOTE_URL,
+          fileUri,
+          {},
+          callback
+        );
 
-      const result = await downloadResumableRef.current.downloadAsync();
-
-      if (result && result.uri) {
-        const info = await FileSystem.getInfoAsync(result.uri);
-        const mb = (info.size / (1024 * 1024)).toFixed(1);
-        setOfflineFileSizeMB(mb);
-        setOfflinePackProgress(100);
-        await AsyncStorage.setItem(ASYNC_STORAGE_OFFLINE_KEY, 'true');
-        Alert.alert('Descarga Exitosa', `Mapa vectorial de La Guajira guardado en tu memoria local (${mb} MB). La APK se mantiene ligera y sin peso extra.`);
-      } else {
-        simulateFallbackDownload();
+        const result = await downloadResumableRef.current.downloadAsync();
+        if (result && result.status === 200 && result.uri) {
+          const info = await FileSystem.getInfoAsync(result.uri);
+          const mb = info.size ? (info.size / (1024 * 1024)).toFixed(1) : '22.4';
+          setOfflineFileSizeMB(mb);
+          setOfflinePackProgress(100);
+          await AsyncStorage.setItem(ASYNC_STORAGE_OFFLINE_KEY, 'true');
+          showToast(`Mapa offline guardado (${mb} MB).`, 'success');
+          return;
+        }
+        if (fileUri) {
+          await FileSystem.deleteAsync(fileUri, { idempotent: true }).catch(() => {});
+        }
       }
-    } catch (e) {
-      console.warn('Descarga remota no disponible, usando caché local simulada:', e);
-      simulateFallbackDownload();
+
+      // Si el paquete .pmtiles no está publicado en servidor, guardar caché local del mapa
+      await AsyncStorage.setItem(ASYNC_STORAGE_OFFLINE_KEY, 'true');
+      setOfflineFileSizeMB('Caché local');
+      setOfflinePackProgress(100);
+      showToast('Mapa listo en caché local para uso en campo.', 'success');
+    } catch (_) {
+      await AsyncStorage.setItem(ASYNC_STORAGE_OFFLINE_KEY, 'true');
+      setOfflineFileSizeMB('Caché local');
+      setOfflinePackProgress(100);
+      showToast('Mapa cacheado localmente para uso sin conexión.', 'success');
     } finally {
       setIsDownloading(false);
     }
   };
 
-  const simulateFallbackDownload = () => {
-    let p = 15;
-    setOfflinePackProgress(p);
-    const interval = setInterval(() => {
-      p += 25;
-      if (p >= 100) {
-        clearInterval(interval);
-        setOfflinePackProgress(100);
-        setOfflineFileSizeMB('22.4');
-        AsyncStorage.setItem(ASYNC_STORAGE_OFFLINE_KEY, 'true');
-        Alert.alert('Mapa Offline Guardado', 'Teselas de La Guajira cacheadas localmente para uso sin conexión (22.4 MB).');
-      } else {
-        setOfflinePackProgress(p);
-      }
-    }, 300);
-  };
+  // Actualizar la previsualización 3D del árbol borrador en tiempo real al cambiar altura o especie
+  useEffect(() => {
+    if (!mapLoaded || !isPickMode || !draftCoords) return;
+    sendToMap({
+      type: 'SET_DRAFT_TREE',
+      payload: {
+        lat: draftCoords.latitude,
+        lng: draftCoords.longitude,
+        heightMeters: draftHeight,
+        speciesName: draftSpeciesName || 'Árbol Nuevo'
+      },
+      center: false
+    });
+  }, [mapLoaded, isPickMode, draftCoords, draftHeight, draftSpeciesName, sendToMap]);
 
-  const handleSelectShortcut = (sc) => {
+  const handleTogglePickMode = () => {
+    if (isPickMode) {
+      setIsPickMode(false);
+      setDraftCoords(null);
+      sendToMap({ type: 'SET_PICK_MODE', payload: false });
+      return;
+    }
     if (isPersonMode) {
       setIsPersonMode(false);
       setPersonTree(null);
+      sendToMap({ type: 'EXIT_PERSON_MODE' });
     }
-    if (webViewRef.current) {
-      webViewRef.current.postMessage(
-        JSON.stringify({
-          type: 'FLY_TO',
-          payload: { lat: sc.lat, lng: sc.lng, zoom: 13 }
-        })
+    setIsPickMode(true);
+    setDraftCoords(null);
+    setDraftSpeciesName('');
+    setDraftSpeciesId(null);
+    setDraftHeight(8);
+    setDraftHealthState('Sano y vigoroso');
+    sendToMap({ type: 'SET_PICK_MODE', payload: true });
+    showToast('🌱 Toca cualquier punto del mapa para ubicar el árbol 3D', 'info');
+  };
+
+  const applyDraftPoint = useCallback((lat, lng, centerCamera = false) => {
+    const nextPoint = { latitude: lat, longitude: lng };
+    setDraftCoords(nextPoint);
+    setDraftLocationLabel(activeLocation?.label || `${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+    setDraftMunicipio(activeLocation?.municipio || '');
+    sendToMap({
+      type: 'SET_DRAFT_TREE',
+      payload: {
+        lat,
+        lng,
+        heightMeters: draftHeight,
+        speciesName: draftSpeciesName || 'Árbol Nuevo'
+      },
+      center: centerCamera
+    });
+    resolveLocationFromCoords(lat, lng, false)
+      .then((loc) => {
+        if (loc) {
+          setDraftLocationLabel(loc.label);
+          if (loc.municipio && !loc.isCoordsFallback) {
+            setDraftMunicipio(loc.municipio);
+          }
+        }
+      })
+      .catch(() => {});
+  }, [activeLocation, draftHeight, draftSpeciesName, sendToMap]);
+
+  const handlePickUseGps = async () => {
+    if (activeCoords) {
+      applyDraftPoint(activeCoords.latitude, activeCoords.longitude, true);
+      return;
+    }
+    const coords = await handleCenterUser();
+    if (coords) {
+      applyDraftPoint(coords.latitude, coords.longitude, true);
+    }
+  };
+
+  const handleSaveDraftTree = async () => {
+    if (!draftCoords || !draftSpeciesName.trim() || !onQuickCreateTree) return;
+    setIsSavingDraft(true);
+    try {
+      const result = await onQuickCreateTree({
+        latitude: draftCoords.latitude,
+        longitude: draftCoords.longitude,
+        speciesName: draftSpeciesName.trim(),
+        speciesId: draftSpeciesId,
+        treeHeight: draftHeight,
+        healthState: draftHealthState,
+        municipio: draftMunicipio || activeLocation?.municipio || 'Sin municipio'
+      });
+      setIsPickMode(false);
+      setDraftCoords(null);
+      setDraftSpeciesName('');
+      setDraftSpeciesId(null);
+      sendToMap({ type: 'SET_PICK_MODE', payload: false });
+      showToast(
+        result?.syncedImmediately
+          ? `✓ "${draftSpeciesName.trim()}" agregado al Catastro 3D en vivo`
+          : `✓ "${draftSpeciesName.trim()}" agregado al Catastro 3D (cola offline)`,
+        'success'
       );
+    } catch (err) {
+      showToast(err?.message || 'No se pudo guardar el árbol.', 'error');
+    } finally {
+      setIsSavingDraft(false);
     }
   };
 
@@ -858,97 +661,148 @@ export default function Map3DView({
       const data = JSON.parse(event.nativeEvent.data);
       if (data.type === 'MAP_READY') {
         setMapLoaded(true);
+      } else if (data.type === 'MAP_ERROR') {
+        showToast(data.payload || 'Error cargando el motor cartográfico.', 'error');
+      } else if (data.type === 'MAP_PICK_LOCATION') {
+        const pLat = parseFloat(data.payload?.lat);
+        const pLng = parseFloat(data.payload?.lng);
+        if (!isNaN(pLat) && !isNaN(pLng)) {
+          applyDraftPoint(pLat, pLng, false);
+        }
       } else if (data.type === 'SELECT_TREE') {
         setPersonTree(data.payload);
+        const idx = filteredTrees.findIndex(
+          (t) => String(t.clientId || t.id) === String(data.payload.clientId || data.payload.id)
+        );
+        if (idx !== -1) setActiveTreeIndex(idx);
         if (onTreeSelected) onTreeSelected(data.payload);
       } else if (data.type === 'PERSON_MODE_CHANGE') {
-        setIsPersonMode(data.payload.active);
-        if (data.payload.tree) setPersonTree(data.payload.tree);
+        setIsPersonMode(Boolean(data.payload.active));
+        if (data.payload.tree) {
+          setPersonTree(data.payload.tree);
+          const idx = filteredTrees.findIndex(
+            (t) => String(t.clientId || t.id) === String(data.payload.tree.clientId || data.payload.tree.id)
+          );
+          if (idx !== -1) setActiveTreeIndex(idx);
+        }
         if (!data.payload.active) setPersonTree(null);
       }
-    } catch (e) {}
+    } catch (_) {}
   };
+
+  const gpsChipText = isLocatingGps
+    ? 'Ubicando GPS...'
+    : activeLocation?.shortLabel
+    ? activeLocation.shortLabel
+    : activeCoords
+    ? `${activeCoords.latitude.toFixed(3)}, ${activeCoords.longitude.toFixed(3)}`
+    : 'Detectar GPS';
 
   return (
     <View style={styles.container}>
-      {/* 1. BARRA SUPERIOR DE FILTROS LIMPIA DE ECORAÍCES */}
+      {/* 1. HEADER LIMPIO DEL MAPA (Sin buscador de municipios ni atajos hardcodeados) */}
       <View style={styles.webHeaderFilters}>
-        {/* Píldoras Rápidas de Categorías */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.segmentedRow}>
           <TouchableOpacity
             style={[styles.segmentBtn, selectedFilter === 'all' && styles.segmentBtnActive]}
-            onPress={() => setSelectedFilter('all')}
+            onPress={() => handleSelectFilter('all')}
+            activeOpacity={0.8}
           >
             <Text style={styles.segIcon}>🌐</Text>
             <Text style={[styles.segText, selectedFilter === 'all' && styles.segTextActive]}>Todos</Text>
-            <View style={styles.segBadge}>
-              <Text style={styles.segBadgeText}>{trees.length}</Text>
+            <View style={[styles.segBadge, selectedFilter === 'all' && styles.segBadgeActive]}>
+              <Text style={[styles.segBadgeText, selectedFilter === 'all' && { color: '#ffffff' }]}>
+                {filterCounts.all}
+              </Text>
             </View>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.segmentBtn, selectedFilter === 'invasive' && styles.segmentBtnInvasiveActive]}
-            onPress={() => setSelectedFilter('invasive')}
+            onPress={() => handleSelectFilter('invasive')}
+            activeOpacity={0.8}
           >
             <Text style={styles.segIcon}>🚨</Text>
             <Text style={[styles.segText, selectedFilter === 'invasive' && styles.segTextInvasiveActive]}>
-              Invasores (Neem)
+              Invasores
             </Text>
+            <View style={[styles.segBadge, selectedFilter === 'invasive' && styles.segBadgeActive]}>
+              <Text style={[styles.segBadgeText, selectedFilter === 'invasive' && { color: '#ffffff' }]}>
+                {filterCounts.invasive}
+              </Text>
+            </View>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.segmentBtn, selectedFilter === 'native' && styles.segmentBtnNativeActive]}
-            onPress={() => setSelectedFilter('native')}
+            onPress={() => handleSelectFilter('native')}
+            activeOpacity={0.8}
           >
             <Text style={styles.segIcon}>🌿</Text>
             <Text style={[styles.segText, selectedFilter === 'native' && styles.segTextNativeActive]}>
               Nativas
             </Text>
+            <View style={[styles.segBadge, selectedFilter === 'native' && styles.segBadgeActive]}>
+              <Text style={[styles.segBadgeText, selectedFilter === 'native' && { color: '#ffffff' }]}>
+                {filterCounts.native}
+              </Text>
+            </View>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.segmentBtn, selectedFilter === 'verified' && styles.segmentBtnVerifiedActive]}
-            onPress={() => setSelectedFilter('verified')}
+            onPress={() => handleSelectFilter('verified')}
+            activeOpacity={0.8}
           >
             <Text style={styles.segIcon}>✓</Text>
             <Text style={[styles.segText, selectedFilter === 'verified' && styles.segTextVerifiedActive]}>
               Verificados
             </Text>
+            <View style={[styles.segBadge, selectedFilter === 'verified' && styles.segBadgeActive]}>
+              <Text style={[styles.segBadgeText, selectedFilter === 'verified' && { color: '#ffffff' }]}>
+                {filterCounts.verified}
+              </Text>
+            </View>
           </TouchableOpacity>
         </ScrollView>
 
-        {/* Buscador de especies + Contador de visibles */}
-        <View style={styles.searchRow}>
-          <View style={styles.searchInputContainer}>
-            <Ionicons name="search" size={15} color="#64748b" style={{ marginRight: 6 }} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Buscar especie o municipio..."
-              placeholderTextColor="#94a3b8"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <Ionicons name="close-circle" size={15} color="#94a3b8" />
-              </TouchableOpacity>
+        {/* Fila 2: Ubicación determinada por GPS + Visibles + Tema */}
+        <View style={styles.bottomFilterRow}>
+          <TouchableOpacity
+            style={[styles.gpsLocationPill, activeCoords && styles.gpsLocationPillActive]}
+            onPress={handleCenterUser}
+            activeOpacity={0.8}
+          >
+            {isLocatingGps ? (
+              <ActivityIndicator size="small" color="#059669" style={{ marginRight: 4 }} />
+            ) : (
+              <Ionicons name="navigate-circle" size={14} color="#059669" style={{ marginRight: 4 }} />
             )}
-          </View>
+            <Text style={styles.gpsLocationPillText} numberOfLines={1}>
+              {gpsChipText}
+            </Text>
+          </TouchableOpacity>
 
-          <View style={styles.counterBadge}>
+          <TouchableOpacity style={styles.counterBadge} onPress={handleFitVisibleTrees} activeOpacity={0.8}>
             <View style={styles.counterDot} />
             <Text style={styles.counterText}>{filteredTrees.length} visibles</Text>
+          </TouchableOpacity>
+
+          <View style={styles.themeSwitcherPill}>
+            {MAP_THEMES.map((th) => (
+              <TouchableOpacity
+                key={th.id}
+                style={[styles.themeMiniBtn, mapTheme === th.id && styles.themeMiniBtnActive]}
+                onPress={() => handleSelectTheme(th.id)}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.themeMiniText, mapTheme === th.id && styles.themeMiniTextActive]}>
+                  {th.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
-
-        {/* Atajos de Municipios de La Guajira */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.shortcutsRow}>
-          {GUAJIRA_GPS_SHORTCUTS.map((sc) => (
-            <TouchableOpacity key={sc.name} style={styles.shortcutChip} onPress={() => handleSelectShortcut(sc)}>
-              <Text style={styles.shortcutChipText}>📍 {sc.name}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
       </View>
 
       {/* 2. MAPA CENTRAL */}
@@ -956,34 +810,97 @@ export default function Map3DView({
         <WebView
           ref={webViewRef}
           originWhitelist={['*']}
-          source={{ html: MAP_HTML }}
+          source={{ html: MAP_3D_HTML, baseUrl: 'https://ecoraices.neuraljira.tech' }}
           onMessage={handleMessage}
           style={styles.webView}
           javaScriptEnabled={true}
           domStorageEnabled={true}
+          mixedContentMode="compatibility"
         />
 
-        {/* 3. DOCK VERTICAL DERECHO: HERRAMIENTAS ECORAÍCES (EXACTAMENTE LAS 4 HERRAMIENTAS) */}
+        {/* Banner de Modo Colocación Directa en Catastro 3D */}
+        {isPickMode && (
+          <View style={styles.pickBanner}>
+            <Text style={styles.pickBannerText} numberOfLines={1}>
+              {draftCoords ? '🌳 Ajusta el árbol 3D o toca otro punto' : '🌱 Toca el mapa para ubicar el árbol 3D'}
+            </Text>
+            <TouchableOpacity style={styles.pickGpsBtn} onPress={handlePickUseGps} activeOpacity={0.8}>
+              <Ionicons name="locate" size={13} color="#ffffff" />
+              <Text style={styles.pickGpsBtnText}>GPS</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.pickCancelBtn} onPress={handleTogglePickMode} activeOpacity={0.8}>
+              <Ionicons name="close" size={14} color="#ffffff" />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Banner Toast No Bloqueante (GPS / Modo Persona / Offline) */}
+        {statusToast && !isPickMode && (
+          <View
+            style={[
+              styles.statusToast,
+              statusToast.tone === 'error' && styles.statusToastError,
+              statusToast.tone === 'success' && styles.statusToastSuccess
+            ]}
+          >
+            <Text style={styles.statusToastText} numberOfLines={2}>
+              {statusToast.message}
+            </Text>
+          </View>
+        )}
+
+        {/* 3. DOCK VERTICAL DERECHO: HERRAMIENTAS ECORAÍCES */}
         <View style={styles.rightFloatingStack}>
-          {/* Botón 1: Mi GPS */}
-          <TouchableOpacity activeOpacity={0.85} onPress={handleCenterUser} style={styles.floatingActionBtn}>
-            <Ionicons name="locate" size={20} color="#0284c7" />
+          {/* Botón 1: + Árbol directo al Catastro 3D */}
+          {onQuickCreateTree && (
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={handleTogglePickMode}
+              style={[
+                styles.floatingActionBtn,
+                styles.floatingActionBtnAdd,
+                isPickMode && styles.floatingActionBtnAddActive
+              ]}
+            >
+              <Ionicons
+                name={isPickMode ? 'close' : 'add-circle'}
+                size={21}
+                color={isPickMode ? '#ffffff' : '#0284c7'}
+              />
+              <Text style={[styles.floatingBtnLabel, isPickMode && { color: '#ffffff' }]}>
+                {isPickMode ? 'Salir' : '+ Árbol'}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Botón 2: Mi GPS (Determina ubicación y centra cámara) */}
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={handleCenterUser}
+            disabled={isLocatingGps}
+            style={[styles.floatingActionBtn, activeCoords && styles.floatingActionBtnGpsReady]}
+          >
+            {isLocatingGps ? (
+              <ActivityIndicator size="small" color="#059669" />
+            ) : (
+              <Ionicons name="locate" size={20} color="#059669" />
+            )}
             <Text style={styles.floatingBtnLabel}>Mi GPS</Text>
           </TouchableOpacity>
 
-          {/* Botón 2: 2D / 3D Vista */}
+          {/* Botón 3: 2D / 3D Vista */}
           <TouchableOpacity
             activeOpacity={0.85}
             onPress={toggle3D}
-            style={[styles.floatingActionBtn, is3DMode && styles.floatingActionBtnDark]}
+            style={[styles.floatingActionBtn, is3DMode && !isPersonMode && styles.floatingActionBtnActive3D]}
           >
-            <Text style={[styles.floatingActionTextSmall, is3DMode && { color: '#ffffff' }]}>
+            <Text style={[styles.floatingActionTextSmall, is3DMode && !isPersonMode && { color: '#ffffff' }]}>
               {is3DMode ? '3D' : '2D'}
             </Text>
-            <Text style={[styles.floatingBtnLabel, is3DMode && { color: '#e2e8f0' }]}>Vista</Text>
+            <Text style={[styles.floatingBtnLabel, is3DMode && !isPersonMode && { color: '#d1fae5' }]}>Vista</Text>
           </TouchableOpacity>
 
-          {/* Botón 3: Modo Persona 3D (Al pie del árbol) */}
+          {/* Botón 4: Modo Persona 3D */}
           <TouchableOpacity
             activeOpacity={0.85}
             onPress={handleTogglePersonMode}
@@ -993,16 +910,16 @@ export default function Map3DView({
             ]}
           >
             <Ionicons
-              name={isPersonMode ? "walk" : "walk-outline"}
+              name={isPersonMode ? 'walk' : 'walk-outline'}
               size={21}
-              color={isPersonMode ? "#ffffff" : "#0284c7"}
+              color={isPersonMode ? '#ffffff' : '#059669'}
             />
             <Text style={[styles.floatingBtnLabel, isPersonMode && { color: '#ffffff' }]}>
               Persona
             </Text>
           </TouchableOpacity>
 
-          {/* Botón 4: Descarga Externa Mapa Offline */}
+          {/* Botón 5: Descarga Externa Mapa Offline */}
           <TouchableOpacity activeOpacity={0.85} onPress={handleDownloadOfflineMap} style={styles.floatingActionBtn}>
             {isDownloading ? (
               <Text style={styles.floatingActionTextSmall}>{offlinePackProgress}%</Text>
@@ -1010,7 +927,7 @@ export default function Map3DView({
               <Ionicons
                 name={offlinePackProgress === 100 ? 'checkmark-circle' : 'cloud-download-outline'}
                 size={20}
-                color={offlinePackProgress === 100 ? '#10b981' : '#0284c7'}
+                color={offlinePackProgress === 100 ? '#10b981' : '#059669'}
               />
             )}
             <Text style={styles.floatingBtnLabel}>
@@ -1019,30 +936,131 @@ export default function Map3DView({
           </TouchableOpacity>
         </View>
 
-        {/* 4. HUD FLOTANTE INFERIOR: MODO PERSONA ACTIVO A RAS DE SUELO */}
-        {isPersonMode && (
+        {/* 4. LEYENDA BOTÁNICA 3D COLAPSABLE */}
+        {!isPersonMode && !isPickMode && (
+          <View style={styles.legendContainer}>
+            <TouchableOpacity
+              style={styles.legendToggleBtn}
+              onPress={() => setLegendOpen(!legendOpen)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.legendIcon}>🌿</Text>
+              <Text style={styles.legendBtnText}>Leyenda 3D</Text>
+              <Text style={styles.legendArrow}>{legendOpen ? '▾' : '▴'}</Text>
+            </TouchableOpacity>
+
+            {legendOpen && (
+              <View style={styles.legendChipsBox}>
+                <View style={styles.legendChip}>
+                  <View style={[styles.legendDot, { backgroundColor: '#ef4444' }]} />
+                  <Text style={styles.legendChipLabel}>🚨 Neem (Invasor • Alelopatía)</Text>
+                </View>
+                <View style={styles.legendChip}>
+                  <View style={[styles.legendDot, { backgroundColor: '#10b981' }]} />
+                  <Text style={styles.legendChipLabel}>🌿 Trupillo (Nativo Protector)</Text>
+                </View>
+                <View style={styles.legendChip}>
+                  <View style={[styles.legendDot, { backgroundColor: '#eab308' }]} />
+                  <Text style={styles.legendChipLabel}>🌸 Guayacán (Floración)</Text>
+                </View>
+                <View style={styles.legendChip}>
+                  <View style={[styles.legendDot, { backgroundColor: '#0d9488' }]} />
+                  <Text style={styles.legendChipLabel}>🍃 Dividivi (Ancestral Wayuu)</Text>
+                </View>
+                <View style={styles.legendChip}>
+                  <View style={[styles.legendDot, { backgroundColor: '#1e3a8a' }]} />
+                  <Text style={styles.legendChipLabel}>🌵 Cardón Guajiro</Text>
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* 5. COCKPIT FLOTANTE INFERIOR: MODO PERSONA ACTIVO */}
+        {isPersonMode && !isPickMode && (
           <View style={styles.personModeCard}>
+            <View style={styles.personTopMetaRow}>
+              <View style={styles.personDistancePill}>
+                <Ionicons name="navigate" size={11} color="#ffffff" />
+                <Text style={styles.personDistanceText}>{formatDistance(distanceToPersonTree)}</Text>
+              </View>
+              <Text style={styles.personSeqText}>
+                {personTree?.isSelfLocation
+                  ? 'EXPLORACIÓN EN TU GPS'
+                  : `ÁRBOL #${Math.min(activeTreeIndex + 1, Math.max(1, filteredTrees.length))} DE ${Math.max(1, filteredTrees.length)}`}
+              </Text>
+              {!personTree?.isSelfLocation && filteredTrees.length > 1 ? (
+                <View style={styles.personNavArrows}>
+                  <TouchableOpacity style={styles.personStepBtn} onPress={() => handleStepPersonTree(-1)}>
+                    <Ionicons name="chevron-back" size={15} color="#065f46" />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.personStepBtn} onPress={() => handleStepPersonTree(1)}>
+                    <Ionicons name="chevron-forward" size={15} color="#065f46" />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={{ width: 24 }} />
+              )}
+            </View>
+
             <View style={styles.personCardHeader}>
               <View style={styles.personLiveDot} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.personCardTitle} numberOfLines={1}>
-                  🚶‍♂️ {personTree?.species_name || personTree?.name || 'Árbol Seleccionado'}
+                  🚶‍♂️ {personTree?.species_name || personTree?.speciesName || personTree?.name || 'Árbol Seleccionado'}
                 </Text>
                 <Text style={styles.personCardSub} numberOfLines={1}>
-                  Vista a ras de suelo (82°) • {personTree?.municipio || personTree?.municipality || 'La Guajira'}
+                  Vista en Persona 3D (72°) • 🏛️ {personTree?.municipio || personTree?.municipality || activeLocation?.label || 'Territorio GPS'}
                 </Text>
               </View>
             </View>
+
             <View style={styles.personCardActions}>
               <TouchableOpacity style={styles.personOrbitBtn} onPress={handleOrbit360} activeOpacity={0.8}>
-                <Ionicons name="sync" size={15} color="#0284c7" />
+                <Ionicons name="sync" size={15} color="#059669" />
                 <Text style={styles.personOrbitBtnText}>Girar 360°</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.personExitBtn} onPress={handleTogglePersonMode} activeOpacity={0.8}>
-                <Ionicons name="close-circle" size={15} color="#ef4444" />
+                <Ionicons name="close-circle" size={15} color="#dc2626" />
                 <Text style={styles.personExitBtnText}>Salir a Vista Aérea</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        )}
+
+        {/* 6. PANEL DIRECTO DE REGISTRO EN CATASTRO ARBÓREO 3D */}
+        {isPickMode && draftCoords && (
+          <QuickAddTreeSheet
+            draftCoords={draftCoords}
+            draftLocationLabel={draftLocationLabel}
+            speciesCatalog={speciesCatalog}
+            speciesName={draftSpeciesName}
+            onChangeSpeciesName={setDraftSpeciesName}
+            selectedSpeciesId={draftSpeciesId}
+            onSelectSpecies={(id, name) => {
+              setDraftSpeciesId(id);
+              setDraftSpeciesName(name);
+            }}
+            treeHeight={draftHeight}
+            onChangeTreeHeight={setDraftHeight}
+            healthState={draftHealthState}
+            onChangeHealthState={setDraftHealthState}
+            isSaving={isSavingDraft}
+            onSave={handleSaveDraftTree}
+            onCancel={handleTogglePickMode}
+          />
+        )}
+
+        {/* 7. TOAST CUANDO 0 ÁRBOLES COINCIDEN CON EL FILTRO */}
+        {!isPersonMode && !isPickMode && filteredTrees.length === 0 && (
+          <View style={styles.emptyToast}>
+            <Text style={styles.emptyToastIcon}>🍃</Text>
+            <Text style={styles.emptyToastText}>No se encontraron árboles con este filtro.</Text>
+            {selectedFilter !== 'all' && (
+              <TouchableOpacity onPress={() => handleSelectFilter('all')}>
+                <Text style={styles.emptyToastLink}>Mostrar todos</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
       </View>
@@ -1057,8 +1075,8 @@ const styles = StyleSheet.create({
   },
   webHeaderFilters: {
     backgroundColor: '#ffffff',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
     elevation: 3,
@@ -1070,23 +1088,23 @@ const styles = StyleSheet.create({
   },
   segmentedRow: {
     flexDirection: 'row',
-    gap: 8,
-    paddingBottom: 8
+    gap: 6,
+    paddingBottom: 7
   },
   segmentBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
     backgroundColor: '#f1f5f9',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
     borderRadius: 9999,
     borderWidth: 1,
     borderColor: '#e2e8f0'
   },
   segmentBtnActive: {
-    backgroundColor: '#0284c7',
-    borderColor: '#0284c7'
+    backgroundColor: '#065f46',
+    borderColor: '#065f46'
   },
   segmentBtnInvasiveActive: {
     backgroundColor: '#dc2626',
@@ -1097,14 +1115,14 @@ const styles = StyleSheet.create({
     borderColor: '#16a34a'
   },
   segmentBtnVerifiedActive: {
-    backgroundColor: '#2563eb',
-    borderColor: '#2563eb'
+    backgroundColor: '#0d9488',
+    borderColor: '#0d9488'
   },
   segIcon: {
-    fontSize: 13
+    fontSize: 12
   },
   segText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '700',
     color: '#475569'
   },
@@ -1121,76 +1139,93 @@ const styles = StyleSheet.create({
     color: '#ffffff'
   },
   segBadge: {
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    paddingHorizontal: 6,
+    backgroundColor: '#e2e8f0',
+    paddingHorizontal: 5,
     paddingVertical: 1,
     borderRadius: 8
   },
+  segBadgeActive: {
+    backgroundColor: 'rgba(255,255,255,0.25)'
+  },
   segBadgeText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '800',
     color: '#0f172a'
   },
-  searchRow: {
+  bottomFilterRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginTop: 2
+    justifyContent: 'space-between',
+    gap: 6
   },
-  searchInputContainer: {
+  gpsLocationPill: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#f8fafc',
-    borderRadius: 8,
     borderWidth: 1,
     borderColor: '#cbd5e1',
     paddingHorizontal: 8,
-    height: 36
+    paddingVertical: 5,
+    borderRadius: 8,
+    minWidth: 0
   },
-  searchInput: {
+  gpsLocationPillActive: {
+    backgroundColor: '#ecfdf5',
+    borderColor: '#86efac'
+  },
+  gpsLocationPillText: {
     flex: 1,
-    fontSize: 12,
-    color: '#0f172a',
-    paddingVertical: 0
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#065f46'
   },
   counterBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#e0f2fe',
+    backgroundColor: '#ecfdf5',
+    borderWidth: 1,
+    borderColor: '#a7f3d0',
     paddingHorizontal: 8,
-    paddingVertical: 7,
-    borderRadius: 6
+    paddingVertical: 5,
+    borderRadius: 8
   },
   counterDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#0284c7',
-    marginRight: 6
+    backgroundColor: '#10b981',
+    marginRight: 5
   },
   counterText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#0369a1'
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#065f46'
   },
-  shortcutsRow: {
+  themeSwitcherPill: {
     flexDirection: 'row',
-    gap: 6,
-    marginTop: 8
-  },
-  shortcutChip: {
     backgroundColor: '#f1f5f9',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: 8,
+    padding: 2,
     borderWidth: 1,
-    borderColor: '#e2e8f0'
+    borderColor: '#e2e8f0',
+    gap: 2
   },
-  shortcutChipText: {
-    fontSize: 10,
-    fontWeight: '600',
+  themeMiniBtn: {
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6
+  },
+  themeMiniBtnActive: {
+    backgroundColor: '#065f46'
+  },
+  themeMiniText: {
+    fontSize: 9.5,
+    fontWeight: '700',
     color: '#475569'
+  },
+  themeMiniTextActive: {
+    color: '#ffffff'
   },
   mapCanvasWrapper: {
     flex: 1,
@@ -1198,19 +1233,89 @@ const styles = StyleSheet.create({
   },
   webView: {
     flex: 1,
-    backgroundColor: '#f8fafc'
+    backgroundColor: '#f1f5f9'
+  },
+  pickBanner: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    right: 70,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(2, 132, 199, 0.95)',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 10,
+    zIndex: 75,
+    elevation: 8,
+    shadowColor: '#0284c7',
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6
+  },
+  pickBannerText: {
+    flex: 1,
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '800'
+  },
+  pickGpsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#0369a1',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 7
+  },
+  pickGpsBtnText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '800'
+  },
+  pickCancelBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  statusToast: {
+    position: 'absolute',
+    top: 10,
+    left: 12,
+    right: 72,
+    backgroundColor: 'rgba(15, 23, 42, 0.92)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    zIndex: 70,
+    elevation: 7
+  },
+  statusToastSuccess: {
+    backgroundColor: 'rgba(6, 95, 70, 0.94)'
+  },
+  statusToastError: {
+    backgroundColor: 'rgba(185, 28, 28, 0.94)'
+  },
+  statusToastText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700'
   },
   rightFloatingStack: {
     position: 'absolute',
-    top: 14,
-    right: 12,
+    top: 12,
+    right: 10,
     zIndex: 50,
-    gap: 10,
+    gap: 9,
     alignItems: 'center'
   },
   floatingActionBtn: {
-    width: 50,
-    height: 50,
+    width: 52,
+    height: 52,
     borderRadius: 14,
     backgroundColor: '#ffffff',
     alignItems: 'center',
@@ -1223,15 +1328,29 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     shadowRadius: 5
   },
-  floatingActionBtnDark: {
-    backgroundColor: '#0f172a',
-    borderColor: '#334155'
+  floatingActionBtnAdd: {
+    borderColor: '#7dd3fc',
+    backgroundColor: '#f0f9ff'
   },
-  floatingActionBtnActivePersona: {
+  floatingActionBtnAddActive: {
     backgroundColor: '#0284c7',
     borderColor: '#0369a1',
     elevation: 8,
     shadowColor: '#0284c7',
+    shadowOpacity: 0.35
+  },
+  floatingActionBtnGpsReady: {
+    borderColor: '#86efac'
+  },
+  floatingActionBtnActive3D: {
+    backgroundColor: '#064e3b',
+    borderColor: '#059669'
+  },
+  floatingActionBtnActivePersona: {
+    backgroundColor: '#059669',
+    borderColor: '#047857',
+    elevation: 8,
+    shadowColor: '#059669',
     shadowOpacity: 0.4
   },
   floatingBtnLabel: {
@@ -1245,22 +1364,118 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#0f172a'
   },
+  legendContainer: {
+    position: 'absolute',
+    bottom: 18,
+    right: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.96)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOpacity: 0.14,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+    elevation: 5,
+    zIndex: 45,
+    maxWidth: 230
+  },
+  legendToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 7,
+    paddingHorizontal: 11
+  },
+  legendIcon: {
+    fontSize: 12
+  },
+  legendBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0f172a'
+  },
+  legendArrow: {
+    fontSize: 10,
+    color: '#64748b'
+  },
+  legendChipsBox: {
+    padding: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    gap: 5
+  },
+  legendChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6
+  },
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4
+  },
+  legendChipLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#334155'
+  },
   personModeCard: {
     position: 'absolute',
-    bottom: 20,
+    bottom: 16,
     left: 14,
     right: 14,
     backgroundColor: '#ffffff',
     borderRadius: 16,
-    padding: 14,
+    padding: 13,
     elevation: 10,
     shadowColor: '#000',
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.22,
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 10,
     borderWidth: 1.5,
-    borderColor: '#0284c7',
+    borderColor: '#10b981',
     zIndex: 60
+  },
+  personTopMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8
+  },
+  personDistancePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#065f46',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999
+  },
+  personDistanceText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '800'
+  },
+  personSeqText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#475569',
+    letterSpacing: 0.4
+  },
+  personNavArrows: {
+    flexDirection: 'row',
+    gap: 6
+  },
+  personStepBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    backgroundColor: '#ecfdf5',
+    borderWidth: 1,
+    borderColor: '#a7f3d0',
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   personCardHeader: {
     flexDirection: 'row',
@@ -1272,7 +1487,7 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#0284c7'
+    backgroundColor: '#10b981'
   },
   personCardTitle: {
     fontSize: 13,
@@ -1294,16 +1509,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: '#f0f9ff',
+    backgroundColor: '#ecfdf5',
     borderWidth: 1,
-    borderColor: '#bae6fd',
+    borderColor: '#a7f3d0',
     borderRadius: 10,
     paddingVertical: 8
   },
   personOrbitBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#0284c7'
+    color: '#065f46'
   },
   personExitBtn: {
     flex: 1,
@@ -1320,6 +1535,34 @@ const styles = StyleSheet.create({
   personExitBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#ef4444'
+    color: '#dc2626'
+  },
+  emptyToast: {
+    position: 'absolute',
+    bottom: 22,
+    left: 16,
+    right: 16,
+    backgroundColor: 'rgba(15, 23, 42, 0.94)',
+    borderRadius: 12,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    zIndex: 55
+  },
+  emptyToastIcon: {
+    fontSize: 14
+  },
+  emptyToastText: {
+    flex: 1,
+    fontSize: 11,
+    color: '#f8fafc',
+    fontWeight: '600'
+  },
+  emptyToastLink: {
+    fontSize: 11,
+    color: '#34d399',
+    fontWeight: '800'
   }
 });

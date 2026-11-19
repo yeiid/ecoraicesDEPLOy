@@ -8,56 +8,139 @@ const {
   markers = [],
   readOnly = false,
   interactiveMarker = null,
-  height = "560px"
+  height = "560px",
+  enableCadastreTools = false,
+  initial3D = false
 } = Astro.props;
 ---
 
 <div class="map-system-container light-theme-map" style={`--map-height: ${height};`}>
   <!-- Map Canvas -->
-  <div 
-    id={id} 
+  <div
+    id={id}
     class="astro-map"
     data-center={JSON.stringify(center)}
     data-zoom={zoom}
     data-markers={JSON.stringify(markers)}
     data-readonly={readOnly.toString()}
     data-interactive={interactiveMarker ? JSON.stringify(interactiveMarker) : ""}
+    data-cadastre-tools={enableCadastreTools.toString()}
+    data-initial-3d={initial3D.toString()}
   ></div>
 
-  <!-- Top Floating Controls: 2D / 3D Perspective Toggle -->
+  <!-- Top-Left Status Toast & Modo Persona HUD -->
+  <div id={`${id}-status-toast`} class="map-status-toast" role="status" aria-live="polite" hidden></div>
+
+  <div id={`${id}-person-hud`} class="map-person-hud" hidden>
+    <span class="person-hud-dot" aria-hidden="true"></span>
+    <span id={`${id}-person-hud-text`}>MODO PERSONA 3D • CATASTRO ARBÓREO</span>
+  </div>
+
+  <!-- Top Floating Controls: Catastro 3D Cockpit -->
   <div class="map-floating-top-controls">
-    <button 
-      type="button" 
-      id={`${id}-toggle-3d`} 
-      class="map-perspective-btn"
+    {enableCadastreTools && (
+      <button
+        type="button"
+        id={`${id}-btn-add-tree`}
+        class="map-tool-btn map-tool-add"
+        title="Agregar árbol directamente sobre el mapa 3D"
+        aria-pressed="false"
+      >
+        <span aria-hidden="true">＋</span>
+        <span class="tool-label">Árbol 3D</span>
+      </button>
+    )}
+
+    {enableCadastreTools && (
+      <button
+        type="button"
+        id={`${id}-btn-gps`}
+        class="map-tool-btn map-tool-gps"
+        title="Centrar mapa en mi ubicación GPS actual"
+      >
+        <span aria-hidden="true">📍</span>
+        <span class="tool-label">Mi GPS</span>
+      </button>
+    )}
+
+    <button
+      type="button"
+      id={`${id}-toggle-3d`}
+      class={`map-perspective-btn ${initial3D ? 'active-3d' : ''}`}
       title="Alternar perspectiva 2D cenital y 3D isométrica"
       aria-label="Cambiar vista 2D o 3D"
+      aria-pressed={initial3D ? "true" : "false"}
     >
-      <span class="perspective-icon">🌐</span>
-      <span class="perspective-text">3D</span>
+      <span class="perspective-icon" aria-hidden="true">{initial3D ? '🗺️' : '🌐'}</span>
+      <span class="perspective-text">{initial3D ? '2D' : '3D'}</span>
       <span class="perspective-badge">VISTA</span>
     </button>
+
+    {enableCadastreTools && (
+      <button
+        type="button"
+        id={`${id}-btn-persona`}
+        class="map-tool-btn map-tool-persona"
+        title="Explorar al pie de los árboles en Modo Persona 3D"
+        aria-pressed="false"
+      >
+        <span aria-hidden="true">🚶</span>
+        <span class="tool-label">Persona</span>
+      </button>
+    )}
   </div>
+
+  <!-- Floating Bottom Cockpit: Modo Persona 3D -->
+  {enableCadastreTools && (
+    <div id={`${id}-person-card`} class="person-mode-card" hidden>
+      <div class="person-meta-row">
+        <span id={`${id}-person-distance`} class="person-distance-pill">En territorio</span>
+        <span id={`${id}-person-seq`} class="person-seq-label">ÁRBOL #1</span>
+        <div class="person-nav-arrows">
+          <button type="button" id={`${id}-person-prev`} class="person-step-btn" aria-label="Árbol anterior" title="Árbol anterior">‹</button>
+          <button type="button" id={`${id}-person-next`} class="person-step-btn" aria-label="Siguiente árbol" title="Siguiente árbol">›</button>
+        </div>
+      </div>
+
+      <div class="person-title-row">
+        <span class="person-live-dot" aria-hidden="true"></span>
+        <div class="person-title-wrap">
+          <strong id={`${id}-person-title`} class="person-title">Árbol Seleccionado</strong>
+          <span id={`${id}-person-sub`} class="person-sub">Vista en Persona 3D (72°)</span>
+        </div>
+      </div>
+
+      <div class="person-actions-row">
+        <button type="button" id={`${id}-person-orbit`} class="person-orbit-btn">
+          ↻ Girar 360°
+        </button>
+        <button type="button" id={`${id}-person-exit`} class="person-exit-btn">
+          ✕ Salir a Vista Aérea
+        </button>
+      </div>
+    </div>
+  )}
 
   <!-- Bottom Right Collapsible Minimalist Legend -->
   <div class="map-floating-legend-container" id={`${id}-legend-container`}>
     <div class="legend-panel-minimal" id={`${id}-legend-panel`}>
-      <button 
-        type="button" 
-        class="legend-toggle-btn" 
-        id={`${id}-legend-toggle`} 
+      <button
+        type="button"
+        class="legend-toggle-btn"
+        id={`${id}-legend-toggle`}
         aria-label="Ver leyenda botánica"
+        aria-expanded="false"
         title="Mostrar / ocultar convenciones de especies"
       >
-        <span class="legend-icon">🌿</span>
+        <span class="legend-icon" aria-hidden="true">🌿</span>
         <span class="legend-btn-text">Leyenda 3D</span>
-        <span class="legend-arrow" id={`${id}-legend-arrow`}>▾</span>
+        <span class="legend-arrow" id={`${id}-legend-arrow`} aria-hidden="true">▾</span>
       </button>
 
       <div class="legend-content-chips" id={`${id}-legend-content`}>
         <div class="legend-chip chip-neem" title="Especie Invasora de Alto Impacto (Alelopatía)">
           <span class="legend-dot dot-red"></span>
-          <span class="legend-label">🚨 Neem (Invasor)</span>
+          <span class="legend-label">🚨 Neem (Invasor • Alelopatía)</span>
         </div>
         <div class="legend-chip chip-trupillo" title="Nativa Resiliente del Bosque Seco Guajiro">
           <span class="legend-dot dot-emerald"></span>
@@ -65,7 +148,7 @@ const {
         </div>
         <div class="legend-chip chip-guayacan" title="Especie Nativa en Floración">
           <span class="legend-dot dot-yellow"></span>
-          <span class="legend-label">🌸 Guayacán (Flor)</span>
+          <span class="legend-label">🌸 Guayacán (Floración)</span>
         </div>
         <div class="legend-chip chip-dividivi" title="Especie Ancestral y Medicinal">
           <span class="legend-dot dot-teal"></span>
@@ -73,14 +156,14 @@ const {
         </div>
         <div class="legend-chip chip-cardon" title="Cactácea Xerófila Guajira">
           <span class="legend-dot dot-cyan"></span>
-          <span class="legend-label">🌵 Cardón</span>
+          <span class="legend-label">🌵 Cardón Guajiro</span>
         </div>
       </div>
     </div>
   </div>
 
   <!-- Minimalist Coords Display (Bottom Left) -->
-  <div 
+  <div
     id={`${id}-coords`}
     class="map-coords-badge"
     style="display: none;"
@@ -112,38 +195,103 @@ const {
     overflow: hidden;
   }
 
-  /* Top Right 2D/3D Switcher */
+  /* Status Toast & Person HUD */
+  .map-status-toast {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    max-width: min(360px, calc(100% - 28px));
+    background: rgba(15, 23, 42, 0.92);
+    color: #f8fafc;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 8px 13px;
+    border-radius: 10px;
+    z-index: 25;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.22);
+    backdrop-filter: blur(8px);
+  }
+
+  .map-status-toast.tone-success {
+    background: rgba(6, 95, 70, 0.94);
+  }
+
+  .map-status-toast.tone-error {
+    background: rgba(185, 28, 28, 0.94);
+  }
+
+  .map-person-hud {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    background: rgba(6, 78, 59, 0.94);
+    color: #ecfdf5;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border: 1px solid rgba(52, 211, 153, 0.45);
+    box-shadow: 0 6px 18px rgba(6, 78, 59, 0.35);
+    z-index: 15;
+    max-width: calc(100% - 28px);
+  }
+
+  .map-person-hud[hidden],
+  .map-status-toast[hidden],
+  .person-mode-card[hidden] {
+    display: none !important;
+  }
+
+  .person-hud-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #34d399;
+    box-shadow: 0 0 8px #34d399;
+    flex-shrink: 0;
+  }
+
+  /* Top Right Floating Controls */
   .map-floating-top-controls {
     position: absolute;
     top: 14px;
-    right: 56px; /* Deja espacio para controles nativos (+ / -) */
-    z-index: 10;
+    right: 54px;
+    z-index: 14;
     display: flex;
-    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 7px;
     align-items: center;
-    max-width: calc(100% - 70px);
+    max-width: calc(100% - 68px);
   }
 
+  .map-tool-btn,
   .map-perspective-btn {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    background: rgba(255, 255, 255, 0.94);
+    gap: 5px;
+    background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     color: #0f172a;
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    padding: 6px 14px;
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    padding: 6px 12px;
     border-radius: 9999px;
     font-size: 12px;
     font-weight: 700;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.01em;
     cursor: pointer;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.09);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     user-select: none;
+    white-space: nowrap;
   }
 
+  .map-tool-btn:hover,
   .map-perspective-btn:hover {
     background: #ffffff;
     border-color: #10b981;
@@ -151,11 +299,46 @@ const {
     box-shadow: 0 4px 14px rgba(16, 185, 129, 0.2);
   }
 
+  .map-tool-btn:focus-visible,
+  .map-perspective-btn:focus-visible,
+  .legend-toggle-btn:focus-visible,
+  .person-step-btn:focus-visible,
+  .person-orbit-btn:focus-visible,
+  .person-exit-btn:focus-visible {
+    outline: 2px solid #0284c7;
+    outline-offset: 2px;
+  }
+
+  .map-tool-add {
+    background: #f0f9ff;
+    border-color: #7dd3fc;
+    color: #0369a1;
+  }
+
+  .map-tool-add.is-active {
+    background: #0284c7;
+    border-color: #0369a1;
+    color: #ffffff;
+    box-shadow: 0 0 14px rgba(2, 132, 199, 0.38);
+  }
+
+  .map-tool-gps.is-ready {
+    border-color: #86efac;
+    color: #065f46;
+  }
+
+  .map-tool-persona.is-active {
+    background: #059669;
+    border-color: #047857;
+    color: #ffffff;
+    box-shadow: 0 0 14px rgba(5, 150, 105, 0.38);
+  }
+
   .map-perspective-btn.active-3d {
     background: #064e3b;
     border-color: #059669;
     color: #34d399;
-    box-shadow: 0 0 14px rgba(16, 185, 129, 0.35);
+    box-shadow: 0 0 14px rgba(16, 185, 129, 0.32);
   }
 
   .perspective-badge {
@@ -164,7 +347,7 @@ const {
     background: rgba(0, 0, 0, 0.06);
     border-radius: 4px;
     color: #64748b;
-    font-weight: 600;
+    font-weight: 700;
   }
 
   .active-3d .perspective-badge {
@@ -172,12 +355,152 @@ const {
     color: #6ee7b7;
   }
 
+  /* Floating Person Mode Cockpit Card */
+  .person-mode-card {
+    position: absolute;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(440px, calc(100% - 28px));
+    background: rgba(255, 255, 255, 0.97);
+    backdrop-filter: blur(12px);
+    border: 1.5px solid #10b981;
+    border-radius: 16px;
+    padding: 13px 15px;
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.24);
+    z-index: 22;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .person-meta-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .person-distance-pill {
+    background: #065f46;
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 3px 9px;
+    border-radius: 999px;
+  }
+
+  .person-seq-label {
+    font-size: 10px;
+    font-weight: 800;
+    color: #475569;
+    letter-spacing: 0.04em;
+  }
+
+  .person-nav-arrows {
+    display: inline-flex;
+    gap: 6px;
+  }
+
+  .person-step-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    color: #065f46;
+    font-size: 16px;
+    font-weight: 800;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .person-step-btn:hover {
+    background: #d1fae5;
+  }
+
+  .person-title-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+
+  .person-live-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.7);
+    flex-shrink: 0;
+  }
+
+  .person-title-wrap {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .person-title {
+    font-size: 14px;
+    font-weight: 800;
+    color: #0f172a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .person-sub {
+    font-size: 11px;
+    color: #64748b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .person-actions-row {
+    display: flex;
+    gap: 10px;
+  }
+
+  .person-orbit-btn,
+  .person-exit-btn {
+    flex: 1;
+    border-radius: 10px;
+    padding: 8px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .person-orbit-btn {
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    color: #065f46;
+  }
+
+  .person-orbit-btn:hover {
+    background: #d1fae5;
+  }
+
+  .person-exit-btn {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #dc2626;
+  }
+
+  .person-exit-btn:hover {
+    background: #fee2e2;
+  }
+
   /* Bottom Right Minimalist Collapsible Legend */
   .map-floating-legend-container {
     position: absolute;
     bottom: 34px;
     right: 12px;
-    z-index: 10;
+    z-index: 12;
     max-width: calc(100% - 24px);
   }
 
@@ -192,7 +515,7 @@ const {
     border-radius: 12px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
     padding: 6px;
-    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: all 0.25s ease;
     max-width: 100%;
   }
 
@@ -208,7 +531,6 @@ const {
     cursor: pointer;
     padding: 4px 8px;
     border-radius: 8px;
-    transition: background 0.2s ease;
   }
 
   .legend-toggle-btn:hover {
@@ -217,7 +539,7 @@ const {
 
   .legend-arrow {
     font-size: 10px;
-    transition: transform 0.3s ease;
+    transition: transform 0.25s ease;
     color: #64748b;
   }
 
@@ -264,7 +586,7 @@ const {
   .dot-emerald { background-color: #10b981; box-shadow: 0 0 5px rgba(16, 185, 129, 0.6); }
   .dot-yellow { background-color: #eab308; box-shadow: 0 0 5px rgba(234, 179, 8, 0.6); }
   .dot-teal { background-color: #0d9488; box-shadow: 0 0 5px rgba(13, 148, 136, 0.6); }
-  .dot-cyan { background-color: #06b6d4; box-shadow: 0 0 5px rgba(6, 182, 212, 0.6); }
+  .dot-cyan { background-color: #1e3a8a; box-shadow: 0 0 5px rgba(30, 58, 138, 0.5); }
 
   /* Coords Display (Bottom Left) */
   .map-coords-badge {
@@ -288,19 +610,24 @@ const {
   @media (max-width: 768px) {
     .map-system-container,
     .astro-map {
-      min-height: min(var(--map-height, 560px), 62dvh);
+      min-height: min(var(--map-height, 560px), 68dvh);
     }
   }
 
   @media (max-width: 640px) {
     .map-floating-top-controls {
-      right: 48px;
+      right: 46px;
       top: 10px;
-      max-width: calc(100% - 58px);
+      max-width: calc(100% - 56px);
+      gap: 5px;
     }
+    .map-tool-btn,
     .map-perspective-btn {
-      padding: 5px 10px;
+      padding: 5px 9px;
       font-size: 11px;
+    }
+    .perspective-badge {
+      display: none;
     }
     .map-floating-legend-container {
       bottom: 32px;
@@ -318,155 +645,17 @@ const {
   }
 </style>
 
-<!-- Estilos globales para Marcadores 3D y Popups de Sustitución en Tema Claro -->
+<!-- Estilos globales para Popups del Catastro 3D, Marcador GPS y Avatar Persona -->
 <style is:global>
-  /* Marcador 3D Isométrico */
-  .ecoraices-3d-tree-marker {
-    position: relative;
-    cursor: pointer;
-    user-select: none;
-    transform-style: preserve-3d;
-    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-
-  .ecoraices-3d-tree-marker:hover {
-    z-index: 50 !important;
-    transform: scale(1.14);
-  }
-
-  /* Sombra / Disco de Suelo */
-  .tree-ground-disk {
-    position: absolute;
-    bottom: 0;
-    left: 50%;
-    transform: translate(-50%, 50%) rotateX(60deg);
-    border-radius: 50%;
-    pointer-events: none;
-  }
-
-  .tree-ground-disk.native-shadow {
-    width: 36px;
-    height: 18px;
-    background: radial-gradient(ellipse at center, rgba(16, 185, 129, 0.4) 0%, rgba(15, 23, 42, 0.15) 50%, transparent 80%);
-  }
-
-  /* Halo Alelopático de Neem (Impacto en Suelo de La Guajira) */
-  .tree-ground-disk.neem-hazard-ring {
-    width: 48px;
-    height: 24px;
-    background: radial-gradient(ellipse at center, rgba(239, 68, 68, 0.4) 0%, rgba(220, 38, 38, 0.15) 60%, transparent 85%);
-    border: 1.5px dashed #ef4444;
-    box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
-    animation: pulse-hazard-ring 2.5s infinite ease-in-out;
-  }
-
-  @keyframes pulse-hazard-ring {
-    0%, 100% {
-      transform: translate(-50%, 50%) rotateX(60deg) scale(1);
-      opacity: 0.85;
-    }
-    50% {
-      transform: translate(-50%, 50%) rotateX(60deg) scale(1.15);
-      opacity: 1;
-      box-shadow: 0 0 16px rgba(239, 68, 68, 0.8);
-    }
-  }
-
-  /* Estructura Vertical (Tronco + Copa) */
-  .tree-vertical-assembly {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    position: relative;
-    bottom: 0;
-  }
-
-  /* Tronco Isométrico */
-  .tree-trunk-stem {
-    width: 4px;
-    background: linear-gradient(to right, #78350f, #92400e, #451a03);
-    border-radius: 2px;
-    box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.35);
-    margin: 0 auto;
-    position: relative;
-    z-index: 1;
-  }
-
-  /* Copa del Árbol */
-  .tree-canopy-box {
-    position: relative;
-    z-index: 2;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    filter: drop-shadow(0 4px 6px rgba(15, 23, 42, 0.2));
-    transition: transform 0.25s ease;
-  }
-
-  .ecoraices-3d-tree-marker:hover .tree-canopy-box {
-    transform: translateY(-3px);
-  }
-
-  /* Tag Flotante Minimalista */
-  .tree-floating-tag {
-    position: absolute;
-    bottom: -2px;
-    left: 50%;
-    transform: translate(-50%, 100%);
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 2px 7px;
-    border-radius: 6px;
-    font-size: 10px;
-    font-weight: 700;
-    white-space: nowrap;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-    pointer-events: none;
-    z-index: 5;
-    border: 1px solid rgba(255, 255, 255, 0.8);
-  }
-
-  .tree-floating-tag.tag-neem {
-    background: #dc2626;
-    color: #ffffff;
-  }
-
-  .tree-floating-tag.tag-trupillo {
-    background: #065f46;
-    color: #ffffff;
-  }
-
-  .tree-floating-tag.tag-guayacan {
-    background: #b45309;
-    color: #ffffff;
-  }
-
-  .tree-floating-tag.tag-dividivi {
-    background: #0f766e;
-    color: #ffffff;
-  }
-
-  .tree-floating-tag.tag-cardon {
-    background: #1e3a8a;
-    color: #ffffff;
-  }
-
-  .tree-floating-tag.tag-general {
-    background: #0f172a;
-    color: #f8fafc;
-  }
-
-  /* Popup Limpio en Tema Claro */
   .ecoraices-map-popup .maplibregl-popup-content {
     background: #ffffff !important;
     color: #0f172a !important;
     border-radius: 14px;
     padding: 0;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15) !important;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.2) !important;
     border: 1px solid #e2e8f0 !important;
     overflow: hidden;
-    max-width: min(320px, calc(100vw - 48px));
+    max-width: min(325px, calc(100vw - 44px));
     font-family: inherit;
   }
 
@@ -485,10 +674,10 @@ const {
   }
 
   .popup-tree-card {
-    padding: 14px;
+    padding: 13px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 9px;
     background: #ffffff;
   }
 
@@ -500,38 +689,53 @@ const {
     border-top: 4px solid #10b981;
   }
 
+  .popup-thumb-img {
+    width: 100%;
+    height: 112px;
+    object-fit: cover;
+    border-radius: 8px;
+    display: block;
+    background: #f1f5f9;
+  }
+
   .popup-card-header {
     display: flex;
     align-items: flex-start;
-    gap: 10px;
+    gap: 9px;
   }
 
   .popup-header-icon {
-    font-size: 24px;
+    font-size: 22px;
     line-height: 1;
   }
 
   .popup-card-header h4 {
     margin: 0;
-    font-size: 15px;
+    font-size: 14.5px;
     font-weight: 800;
     color: #0f172a;
   }
 
   .popup-species-scientific {
-    font-size: 12px;
+    font-size: 11.5px;
     font-style: italic;
     color: #64748b;
     margin: 2px 0 0 0;
   }
 
+  .popup-badge-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 4px;
+  }
+
   .badge-category-alert {
     display: inline-block;
-    font-size: 10px;
-    font-weight: 700;
+    font-size: 9.5px;
+    font-weight: 800;
     padding: 2px 6px;
     border-radius: 4px;
-    margin-top: 4px;
     text-transform: uppercase;
   }
 
@@ -545,6 +749,28 @@ const {
     color: #065f46;
   }
 
+  .badge-cadastre-3d {
+    background: #e0f2fe;
+    color: #0369a1;
+  }
+
+  .cadastre-metrics-row {
+    display: flex;
+    gap: 6px;
+  }
+
+  .cadastre-metric-pill {
+    flex: 1;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 7px;
+    padding: 5px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #334155;
+    text-align: center;
+  }
+
   .allelopathy-box {
     background: #fff1f2;
     border: 1px solid #fecdd3;
@@ -553,6 +779,16 @@ const {
     font-size: 11px;
     line-height: 1.4;
     color: #9f1239;
+  }
+
+  .native-value-box {
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.22);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 11px;
+    line-height: 1.4;
+    color: #065f46;
   }
 
   .substitution-block {
@@ -567,9 +803,6 @@ const {
     font-weight: 700;
     color: #0f172a;
     margin: 0 0 6px 0;
-    display: flex;
-    align-items: center;
-    gap: 4px;
   }
 
   .substitution-options {
@@ -589,14 +822,15 @@ const {
     align-items: center;
   }
 
-  .sub-option-item span {
-    font-size: 14px;
-  }
-
   .sub-option-item b {
     font-size: 10px;
     color: #0f172a;
     margin-top: 2px;
+  }
+
+  .sub-option-item small {
+    font-size: 8.5px;
+    color: #64748b;
   }
 
   .popup-card-footer {
@@ -606,6 +840,7 @@ const {
     padding-top: 8px;
     border-top: 1px solid #e2e8f0;
     font-size: 11px;
+    gap: 8px;
   }
 
   .popup-coords {
@@ -618,15 +853,91 @@ const {
     font-weight: 700;
     color: #059669;
     text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    transition: color 0.2s ease;
+    white-space: nowrap;
   }
 
   .popup-detail-link:hover {
     color: #047857;
     text-decoration: underline;
+  }
+
+  .popup-btn-person {
+    width: 100%;
+    border: none;
+    border-radius: 8px;
+    background: #065f46;
+    color: #ffffff;
+    font-size: 11.5px;
+    font-weight: 800;
+    padding: 8px 10px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+  }
+
+  .popup-btn-person:hover {
+    background: #047857;
+  }
+
+  /* User GPS Marker */
+  .web-user-gps-marker {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: none;
+  }
+
+  .web-user-gps-label {
+    background: rgba(15, 23, 42, 0.9);
+    color: #f8fafc;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 2px 7px;
+    border-radius: 999px;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    border: 1px solid rgba(56, 189, 248, 0.5);
+  }
+
+  .web-user-gps-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #0284c7;
+    border: 2.5px solid #ffffff;
+    box-shadow: 0 0 0 6px rgba(14, 165, 233, 0.28);
+  }
+
+  /* Person Explorer Avatar Marker */
+  .web-person-avatar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: none;
+  }
+
+  .web-person-avatar-badge {
+    background: rgba(6, 78, 59, 0.94);
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 999px;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(6, 78, 59, 0.35);
+  }
+
+  .web-person-avatar-circle {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: #10b981;
+    border: 2.5px solid #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    box-shadow: 0 6px 14px rgba(16, 185, 129, 0.45);
   }
 </style>
 
@@ -635,11 +946,17 @@ const {
   const MAPLIBRE_JS_URL = maplibreJs;
   let cachedStyle = null;
 
+  const INTERACTIVE_TREE_LAYERS = [
+    'ecoraices-trees-3d-layer',
+    'ecoraices-trees-overview-dot',
+    'ecoraices-trees-footprint-fill',
+    'ecoraices-trees-labels'
+  ];
+
   // Servidor Cartográfico Propio 3D: map.neuraljira.tech
-  // Carga las capas 3D (r_construccion-3d, u_construccion-3d, nomenclaturas, veredas y terrenos)
   async function buildStyle() {
     if (cachedStyle) return cachedStyle;
-    
+
     try {
       sessionStorage.removeItem('ecoraices-light-map-style');
       sessionStorage.removeItem('ecoraices-clean-osm-v3');
@@ -655,10 +972,8 @@ const {
       if (!res.ok) throw new Error(`Style HTTP ${res.status}`);
       const style = await res.json();
 
-      // Ajustamos la capa base OSM a opacidad luminosa para tema claro óptimo
-      // conservando todas las extrusiones 3D de construcciones y parcelas de NeuralJira
       if (style.layers && Array.isArray(style.layers)) {
-        style.layers.forEach(l => {
+        style.layers.forEach((l) => {
           if (l.id === 'osm-layer' && l.paint) {
             l.paint['raster-opacity'] = 0.90;
           }
@@ -697,261 +1012,512 @@ const {
     }
   }
 
-  // Clasificación Botánica y Perfil Morfológico 3D
+  function haversineMeters(lat1, lng1, lat2, lng2) {
+    const R = 6371e3;
+    const p1 = (lat1 * Math.PI) / 180;
+    const p2 = (lat2 * Math.PI) / 180;
+    const dp = ((lat2 - lat1) * Math.PI) / 180;
+    const dl = ((lng2 - lng1) * Math.PI) / 180;
+    const a =
+      Math.sin(dp / 2) * Math.sin(dp / 2) +
+      Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) * Math.sin(dl / 2);
+    return Math.round(2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+  }
+
+  function formatDistance(meters) {
+    if (meters == null || isNaN(meters)) return 'En territorio';
+    if (meters < 1000) return `${meters} m`;
+    return `${(meters / 1000).toFixed(1)} km`;
+  }
+
+  /**
+   * Genera un anillo GeoJSON circular/poligonal en metros reales sobre la superficie terrestre.
+   */
+  function createCircleRing(lng, lat, radiusMeters, sides = 14, offsetLngM = 0, offsetLatM = 0) {
+    const latRad = (lat * Math.PI) / 180;
+    const mPerDegLat = 111320;
+    const mPerDegLng = 111320 * Math.max(0.1, Math.cos(latRad));
+    const cLng = lng + offsetLngM / mPerDegLng;
+    const cLat = lat + offsetLatM / mPerDegLat;
+    const ring = [];
+    for (let i = 0; i <= sides; i++) {
+      const angle = (i / sides) * Math.PI * 2;
+      const dx = Math.cos(angle) * radiusMeters;
+      const dy = Math.sin(angle) * radiusMeters;
+      ring.push([cLng + dx / mPerDegLng, cLat + dy / mPerDegLat]);
+    }
+    return ring;
+  }
+
+  function resolveTreeHeightMeters(item, defaultHeight) {
+    const explicit = parseFloat(item.heightMeters ?? item.treeHeight);
+    if (!isNaN(explicit) && explicit >= 2 && explicit <= 45) return explicit;
+
+    const notes = String(item.notes || '');
+    const match = notes.match(/Altura:\s*(\d+(?:\.\d+)?)\s*m/i);
+    if (match) {
+      const parsed = parseFloat(match[1]);
+      if (!isNaN(parsed) && parsed >= 2 && parsed <= 45) return parsed;
+    }
+
+    const alt = parseFloat(item.altitude);
+    if (!isNaN(alt) && alt >= 2 && alt <= 45) return alt;
+
+    return defaultHeight;
+  }
+
   function getTreeBotanicalProfile(data) {
     const rawName = (
       (data.species?.name || "") + " " +
       (data.species?.scientificName || "") + " " +
       (data.species?.commonName || "") + " " +
-      (data.name || "")
+      (data.speciesName || data.species_name || data.name || "")
     ).toLowerCase();
 
-    // 1. NEEM (Invasor de Alto Impacto)
     if (rawName.includes("neem") || rawName.includes("nim") || rawName.includes("azadirachta")) {
       return {
         type: "neem",
-        displayName: data.species?.name || "Neem Guajiro",
+        displayName: data.species?.name || data.speciesName || "Neem Guajiro",
         scientificName: "Azadirachta indica",
         isInvasive: true,
-        tagClass: "tag-neem",
-        shortTag: "🚨 Neem • Invasor",
+        badgeText: "Invasor • Alelopatía",
         icon: "🚨",
-        stemHeight: 28,
-        svgCanopy: `
-          <svg width="42" height="38" viewBox="0 0 42 38" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <ellipse cx="21" cy="20" rx="19" ry="17" fill="url(#neemGrad)" />
-            <ellipse cx="21" cy="18" rx="15" ry="13" fill="#b91c1c" />
-            <circle cx="15" cy="14" r="8" fill="#ef4444" />
-            <circle cx="27" cy="14" r="7" fill="#dc2626" />
-            <circle cx="21" cy="22" r="9" fill="#991b1b" />
-            <circle cx="21" cy="17" r="4" fill="#ffffff" fill-opacity="0.9" />
-            <path d="M21 14V17.5M21 19.5V20" stroke="#b91c1c" stroke-width="1.8" stroke-linecap="round" />
-            <defs>
-              <linearGradient id="neemGrad" x1="21" y1="3" x2="21" y2="37" gradientUnits="userSpaceOnUse">
-                <stop stop-color="#ef4444" />
-                <stop offset="1" stop-color="#7f1d1d" />
-              </linearGradient>
-            </defs>
-          </svg>
-        `
+        defaultHeight: 12.5,
+        canopyRatio: 0.44,
+        dotColor: "#dc2626",
+        trunkColor: "#5c2d16",
+        colorBase: "#991b1b",
+        colorMid: "#dc2626",
+        colorTop: "#ef4444",
+        footprintFill: "rgba(239, 68, 68, 0.24)",
+        footprintStroke: "#ef4444",
+        windShiftM: 0
       };
     }
 
-    // 2. TRUPILLO (Nativa Resiliente de La Guajira - Copa Parasol Arasolada)
     if (rawName.includes("trupillo") || rawName.includes("prosopis") || rawName.includes("mezquite")) {
       return {
         type: "trupillo",
-        displayName: data.species?.name || "Trupillo",
-        scientificName: "Prosopis juliflora",
+        displayName: data.species?.name || data.speciesName || "Trupillo",
+        scientificName: data.species?.scientificName || "Prosopis juliflora",
         isInvasive: false,
-        tagClass: "tag-trupillo",
-        shortTag: "🌿 Trupillo",
+        badgeText: "Nativa Protectora",
         icon: "🌿",
-        stemHeight: 26,
-        svgCanopy: `
-          <svg width="46" height="30" viewBox="0 0 46 30" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <ellipse cx="23" cy="15" rx="22" ry="13" fill="url(#trupilloGrad)" />
-            <ellipse cx="14" cy="13" rx="11" ry="8" fill="#10b981" />
-            <ellipse cx="32" cy="13" rx="11" ry="8" fill="#059669" />
-            <ellipse cx="23" cy="11" rx="14" ry="9" fill="#34d399" />
-            <path d="M12 20C17 18 29 18 34 20" stroke="#064e3b" stroke-width="2" stroke-linecap="round" />
-            <defs>
-              <linearGradient id="trupilloGrad" x1="23" y1="2" x2="23" y2="28" gradientUnits="userSpaceOnUse">
-                <stop stop-color="#34d399" />
-                <stop offset="1" stop-color="#064e3b" />
-              </linearGradient>
-            </defs>
-          </svg>
-        `
+        defaultHeight: 8.5,
+        canopyRatio: 0.56,
+        dotColor: "#059669",
+        trunkColor: "#713f12",
+        colorBase: "#065f46",
+        colorMid: "#059669",
+        colorTop: "#34d399",
+        footprintFill: "rgba(16, 185, 129, 0.18)",
+        footprintStroke: "#059669",
+        windShiftM: 0
       };
     }
 
-    // 3. GUAYACÁN (Floración Amarilla / Coral Dorada)
     if (rawName.includes("guayacan") || rawName.includes("guayacán") || rawName.includes("handroanthus") || rawName.includes("tabebuia")) {
       return {
         type: "guayacan",
-        displayName: data.species?.name || "Guayacán",
-        scientificName: "Handroanthus chrysanthus",
+        displayName: data.species?.name || data.speciesName || "Guayacán",
+        scientificName: data.species?.scientificName || "Handroanthus chrysanthus",
         isInvasive: false,
-        tagClass: "tag-guayacan",
-        shortTag: "🌸 Guayacán",
+        badgeText: "Nativa en Floración",
         icon: "🌸",
-        stemHeight: 30,
-        svgCanopy: `
-          <svg width="42" height="38" viewBox="0 0 42 38" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <ellipse cx="21" cy="19" rx="19" ry="17" fill="url(#guayacanGrad)" />
-            <circle cx="15" cy="14" r="8" fill="#fde047" />
-            <circle cx="27" cy="14" r="8" fill="#facc15" />
-            <circle cx="21" cy="22" r="9" fill="#eab308" />
-            <circle cx="21" cy="12" r="7" fill="#fef08a" />
-            <circle cx="16" cy="24" r="5" fill="#ca8a04" />
-            <circle cx="27" cy="24" r="5" fill="#ca8a04" />
-            <defs>
-              <linearGradient id="guayacanGrad" x1="21" y1="2" x2="21" y2="36" gradientUnits="userSpaceOnUse">
-                <stop stop-color="#fef08a" />
-                <stop offset="0.6" stop-color="#eab308" />
-                <stop offset="1" stop-color="#a16207" />
-              </linearGradient>
-            </defs>
-          </svg>
-        `
+        defaultHeight: 11.5,
+        canopyRatio: 0.46,
+        dotColor: "#d97706",
+        trunkColor: "#78350f",
+        colorBase: "#a16207",
+        colorMid: "#eab308",
+        colorTop: "#fde047",
+        footprintFill: "rgba(234, 179, 8, 0.18)",
+        footprintStroke: "#d97706",
+        windShiftM: 0
       };
     }
 
-    // 4. DIVIDIVI (Copa Asimétrica / Ancestral Medicinal)
     if (rawName.includes("dividivi") || rawName.includes("divi-divi") || rawName.includes("libidibia") || rawName.includes("caesalpinia")) {
       return {
         type: "dividivi",
-        displayName: data.species?.name || "Dividivi",
-        scientificName: "Libidibia coriaria",
+        displayName: data.species?.name || data.speciesName || "Dividivi",
+        scientificName: data.species?.scientificName || "Libidibia coriaria",
         isInvasive: false,
-        tagClass: "tag-dividivi",
-        shortTag: "🍃 Dividivi",
+        badgeText: "Ancestral Wayuu",
         icon: "🍃",
-        stemHeight: 24,
-        svgCanopy: `
-          <svg width="44" height="32" viewBox="0 0 44 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M6 22C4 16 10 7 20 6C31 5 42 12 41 20C40 26 28 27 18 26C11 25 7 25 6 22Z" fill="url(#diviGrad)" />
-            <circle cx="16" cy="15" r="9" fill="#14b8a6" />
-            <circle cx="28" cy="14" r="10" fill="#0d9488" />
-            <circle cx="22" cy="11" r="7" fill="#2dd4bf" />
-            <defs>
-              <linearGradient id="diviGrad" x1="22" y1="5" x2="22" y2="28" gradientUnits="userSpaceOnUse">
-                <stop stop-color="#2dd4bf" />
-                <stop offset="1" stop-color="#115e59" />
-              </linearGradient>
-            </defs>
-          </svg>
-        `
+        defaultHeight: 7.5,
+        canopyRatio: 0.54,
+        dotColor: "#0d9488",
+        trunkColor: "#713f12",
+        colorBase: "#115e59",
+        colorMid: "#0d9488",
+        colorTop: "#2dd4bf",
+        footprintFill: "rgba(13, 148, 136, 0.18)",
+        footprintStroke: "#0d9488",
+        windShiftM: 1.2
       };
     }
 
-    // 5. CARDÓN (Cactácea Columnar Xerófila)
     if (rawName.includes("cardon") || rawName.includes("cardón") || rawName.includes("cactus") || rawName.includes("stenocereus")) {
       return {
         type: "cardon",
-        displayName: data.species?.name || "Cardón Guajiro",
-        scientificName: "Stenocereus griseus",
+        displayName: data.species?.name || data.speciesName || "Cardón Guajiro",
+        scientificName: data.species?.scientificName || "Stenocereus griseus",
         isInvasive: false,
-        tagClass: "tag-cardon",
-        shortTag: "🌵 Cardón",
+        badgeText: "Cactácea Xerófila",
         icon: "🌵",
-        stemHeight: 18,
-        svgCanopy: `
-          <svg width="34" height="44" viewBox="0 0 34 44" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="13" y="4" width="8" height="38" rx="4" fill="url(#cardonGrad)" />
-            <path d="M14 26H7C5 26 4 25 4 23V14" stroke="#059669" stroke-width="6" stroke-linecap="round" />
-            <path d="M20 22H27C29 22 30 21 30 19V11" stroke="#047857" stroke-width="6" stroke-linecap="round" />
-            <line x1="17" y1="6" x2="17" y2="40" stroke="#34d399" stroke-width="1.5" />
-            <defs>
-              <linearGradient id="cardonGrad" x1="17" y1="4" x2="17" y2="42" gradientUnits="userSpaceOnUse">
-                <stop stop-color="#10b981" />
-                <stop offset="1" stop-color="#064e3b" />
-              </linearGradient>
-            </defs>
-          </svg>
-        `
+        defaultHeight: 6.5,
+        canopyRatio: 0.25,
+        dotColor: "#1e3a8a",
+        trunkColor: "#065f46",
+        colorBase: "#064e3b",
+        colorMid: "#059669",
+        colorTop: "#34d399",
+        footprintFill: "rgba(16, 185, 129, 0.16)",
+        footprintStroke: "#059669",
+        windShiftM: 0
       };
     }
 
-    // 6. DEFAULT / ÁRBOL NATIVO GENERAL
-    const isVerified = Boolean(data.verified || data.isVerified);
+    const isVerified = Boolean(data.verified || data.isVerified || data.status === "APPROVED");
     return {
       type: "general",
-      displayName: data.species?.name || data.name || "Árbol Forestal",
+      displayName: data.species?.name || data.speciesName || data.name || "Árbol Forestal",
       scientificName: data.species?.scientificName || "Especie Forestal",
       isInvasive: false,
-      tagClass: "tag-general",
-      shortTag: isVerified ? "✓ Verificado" : "🌱 Árbol",
+      badgeText: isVerified ? "Verificado" : "Flora Nativa",
       icon: isVerified ? "🌳" : "🌱",
-      stemHeight: 26,
-      svgCanopy: `
-        <svg width="38" height="34" viewBox="0 0 38 34" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <ellipse cx="19" cy="17" rx="17" ry="15" fill="url(#generalGrad)" />
-          <circle cx="13" cy="13" r="7" fill="${isVerified ? '#34d399' : '#60a5fa'}" />
-          <circle cx="25" cy="13" r="7" fill="${isVerified ? '#10b981' : '#3b82f6'}" />
-          <circle cx="19" cy="21" r="8" fill="${isVerified ? '#059669' : '#2563eb'}" />
-          <defs>
-            <linearGradient id="generalGrad" x1="19" y1="2" x2="19" y2="32" gradientUnits="userSpaceOnUse">
-              <stop stop-color="${isVerified ? '#10b981' : '#3b82f6'}" />
-              <stop offset="1" stop-color="${isVerified ? '#064e3b' : '#1e3a8a'}" />
-            </linearGradient>
-          </defs>
-        </svg>
-      `
+      defaultHeight: 9.5,
+      canopyRatio: 0.45,
+      dotColor: isVerified ? "#059669" : "#2563eb",
+      trunkColor: "#78350f",
+      colorBase: isVerified ? "#065f46" : "#1e3a8a",
+      colorMid: isVerified ? "#10b981" : "#2563eb",
+      colorTop: isVerified ? "#34d399" : "#60a5fa",
+      footprintFill: isVerified ? "rgba(16, 185, 129, 0.18)" : "rgba(37, 99, 235, 0.16)",
+      footprintStroke: isVerified ? "#059669" : "#2563eb",
+      windShiftM: 0
     };
   }
 
-  // Generador de Contenido del Popup con Módulo de Sustitución Consciente
-  function createPopupContent(data, profile, lat, lng) {
-    if (profile.isInvasive) {
-      return `
-        <div class="popup-tree-card is-invasive">
-          <div class="popup-card-header">
-            <span class="popup-header-icon">🚨</span>
-            <div>
-              <h4>${profile.displayName}</h4>
-              <p class="popup-species-scientific">${profile.scientificName}</p>
-              <span class="badge-category-alert badge-danger-alert">Invasor de Alto Impacto</span>
-            </div>
-          </div>
+  function buildTreeExtrusionParts(treeId, lng, lat, heightMeters, profile, isDraft = false) {
+    const H = Math.max(3, Math.min(35, heightMeters));
+    const canopyR = Math.max(2.0, Math.min(6.2, H * (profile.canopyRatio || 0.45)));
+    const trunkR = Math.max(0.38, Math.min(0.95, canopyR * 0.15));
+    const shift = profile.windShiftM || 0;
+    const features = [];
 
-          <div class="allelopathy-box">
-            <b>⚠️ Daño por Alelopatía:</b> Su hojarasca libera compuestos que alteran la química del suelo, impiden germinar plantas nativas y monopolizan el agua subterránea.
-          </div>
-
-          <div class="substitution-block">
-            <p class="substitution-title">
-              <span>🔄</span> Sustitución Ecológica Recomendada:
-            </p>
-            <div class="substitution-options">
-              <div class="sub-option-item">
-                <span>🌿</span>
-                <b>Trupillo</b>
-                <small style="font-size: 8px; color: #64748b;">Fija nitrógeno</small>
-              </div>
-              <div class="sub-option-item">
-                <span>🍃</span>
-                <b>Dividivi</b>
-                <small style="font-size: 8px; color: #64748b;">Sombra benigna</small>
-              </div>
-              <div class="sub-option-item">
-                <span>🌸</span>
-                <b>Guayacán</b>
-                <small style="font-size: 8px; color: #64748b;">Polinizadores</small>
-              </div>
-            </div>
-          </div>
-
-          <div class="popup-card-footer">
-            <span class="popup-coords">📍 ${lat.toFixed(5)}, ${lng.toFixed(5)}</span>
-            ${data.id ? `<a href="/observaciones/${data.id}" class="popup-detail-link" style="color: #dc2626;">Gestionar Tala →</a>` : ""}
-          </div>
-        </div>
-      `;
+    if (profile.type === "cardon") {
+      const colColor = isDraft ? "#0284c7" : profile.colorMid;
+      const armColor = isDraft ? "#38bdf8" : profile.colorTop;
+      features.push({
+        type: "Feature",
+        properties: { treeId, part: "trunk", base: 0, height: H, color: colColor },
+        geometry: { type: "Polygon", coordinates: [createCircleRing(lng, lat, 0.48, 10)] }
+      });
+      features.push({
+        type: "Feature",
+        properties: { treeId, part: "canopy-l", base: H * 0.34, height: H * 0.82, color: armColor },
+        geometry: { type: "Polygon", coordinates: [createCircleRing(lng, lat, 0.36, 8, -0.95, 0.15)] }
+      });
+      features.push({
+        type: "Feature",
+        properties: { treeId, part: "canopy-r", base: H * 0.42, height: H * 0.88, color: armColor },
+        geometry: { type: "Polygon", coordinates: [createCircleRing(lng, lat, 0.36, 8, 0.95, -0.15)] }
+      });
+      return { features, canopyRadius: Math.max(1.8, canopyR) };
     }
 
-    return `
-      <div class="popup-tree-card is-native">
-        <div class="popup-card-header">
-          <span class="popup-header-icon">${profile.icon}</span>
-          <div>
-            <h4>${profile.displayName}</h4>
-            <p class="popup-species-scientific">${profile.scientificName}</p>
-            <span class="badge-category-alert badge-native-success">Flora Nativa Protectora</span>
-          </div>
-        </div>
+    const trunkTop = H * 0.48;
+    features.push({
+      type: "Feature",
+      properties: {
+        treeId,
+        part: "trunk",
+        base: 0,
+        height: trunkTop,
+        color: isDraft ? "#0369a1" : profile.trunkColor
+      },
+      geometry: { type: "Polygon", coordinates: [createCircleRing(lng, lat, trunkR, 10)] }
+    });
 
-        <div style="font-size: 11px; color: #475569; line-height: 1.4; background: rgba(16, 185, 129, 0.08); padding: 8px; border-radius: 6px;">
-          <b>Patrimonio Forestal:</b> Especie adaptada al estrés hídrico de La Guajira. Favorece la retención de humedad y refugio de avifauna silvestre.
-        </div>
+    features.push({
+      type: "Feature",
+      properties: {
+        treeId,
+        part: "canopy-1",
+        base: H * 0.36,
+        height: H * 0.66,
+        color: isDraft ? "#0284c7" : profile.colorBase
+      },
+      geometry: { type: "Polygon", coordinates: [createCircleRing(lng, lat, canopyR, 14, shift * 0.4, 0)] }
+    });
 
-        <div class="popup-card-footer">
-          <span class="popup-coords">📍 ${lat.toFixed(5)}, ${lng.toFixed(5)}</span>
-          ${data.id ? `<a href="/observaciones/${data.id}" class="popup-detail-link">Ver ficha técnica →</a>` : ""}
-        </div>
-      </div>
-    `;
+    features.push({
+      type: "Feature",
+      properties: {
+        treeId,
+        part: "canopy-2",
+        base: H * 0.58,
+        height: H * 0.86,
+        color: isDraft ? "#0ea5e9" : profile.colorMid
+      },
+      geometry: { type: "Polygon", coordinates: [createCircleRing(lng, lat, canopyR * 0.82, 14, shift * 0.85, 0)] }
+    });
+
+    features.push({
+      type: "Feature",
+      properties: {
+        treeId,
+        part: "canopy-3",
+        base: H * 0.78,
+        height: H,
+        color: isDraft ? "#38bdf8" : profile.colorTop
+      },
+      geometry: { type: "Polygon", coordinates: [createCircleRing(lng, lat, canopyR * 0.54, 12, shift, 0)] }
+    });
+
+    return { features, canopyRadius: canopyR };
+  }
+
+  function buildCadastreGeoJSON(treesList) {
+    const extrusionFeatures = [];
+    const footprintFeatures = [];
+    const pointFeatures = [];
+    const lookup = {};
+
+    (treesList || []).forEach((t, idx) => {
+      const lat = parseFloat(t.latitude ?? t.lat);
+      const lng = parseFloat(t.longitude ?? t.lng);
+      if (isNaN(lat) || isNaN(lng)) return;
+
+      const profile = getTreeBotanicalProfile(t);
+      const treeId = String(t.id || t.clientId || (`tree-${idx}`));
+      const heightMeters = resolveTreeHeightMeters(t, profile.defaultHeight);
+      const { features, canopyRadius } = buildTreeExtrusionParts(treeId, lng, lat, heightMeters, profile, false);
+
+      lookup[treeId] = { tree: t, profile, lat, lng, heightMeters, canopyRadius };
+      extrusionFeatures.push(...features);
+
+      const footprintR = profile.isInvasive ? canopyRadius * 1.55 : canopyRadius * 1.12;
+      footprintFeatures.push({
+        type: "Feature",
+        properties: {
+          treeId,
+          isInvasive: profile.isInvasive ? 1 : 0,
+          fillColor: profile.footprintFill,
+          strokeColor: profile.footprintStroke
+        },
+        geometry: {
+          type: "Polygon",
+          coordinates: [createCircleRing(lng, lat, footprintR, 18)]
+        }
+      });
+
+      pointFeatures.push({
+        type: "Feature",
+        properties: {
+          treeId,
+          label: profile.displayName,
+          dotColor: profile.dotColor,
+          isInvasive: profile.isInvasive ? 1 : 0
+        },
+        geometry: {
+          type: "Point",
+          coordinates: [lng, lat]
+        }
+      });
+    });
+
+    return {
+      extrusionFC: { type: "FeatureCollection", features: extrusionFeatures },
+      footprintFC: { type: "FeatureCollection", features: footprintFeatures },
+      pointsFC: { type: "FeatureCollection", features: pointFeatures },
+      lookup
+    };
+  }
+
+  function isSafeImageSrc(url) {
+    if (typeof url !== "string" || !url.trim()) return false;
+    const trimmed = url.trim();
+    return (
+      trimmed.startsWith("https://") ||
+      trimmed.startsWith("http://") ||
+      trimmed.startsWith("/") ||
+      trimmed.startsWith("data:image/")
+    );
+  }
+
+  /**
+   * Construye la ficha catastral/botánica usando nodos DOM seguros (sin innerHTML).
+   */
+  function createPopupElement(entry, onEnterPersonMode) {
+    const { tree: data, profile, lat, lng, heightMeters, canopyRadius } = entry;
+    const card = document.createElement("div");
+    card.className = `popup-tree-card ${profile.isInvasive ? "is-invasive" : "is-native"}`;
+
+    if (isSafeImageSrc(data.imageUrl)) {
+      const img = document.createElement("img");
+      img.className = "popup-thumb-img";
+      img.alt = profile.displayName;
+      img.src = data.imageUrl;
+      img.addEventListener("error", () => { img.style.display = "none"; });
+      card.appendChild(img);
+    }
+
+    const header = document.createElement("div");
+    header.className = "popup-card-header";
+
+    const iconSpan = document.createElement("span");
+    iconSpan.className = "popup-header-icon";
+    iconSpan.textContent = profile.isInvasive ? "🚨" : profile.icon;
+    header.appendChild(iconSpan);
+
+    const titleWrap = document.createElement("div");
+    const h4 = document.createElement("h4");
+    h4.textContent = profile.displayName;
+    titleWrap.appendChild(h4);
+
+    const sci = document.createElement("p");
+    sci.className = "popup-species-scientific";
+    sci.textContent = profile.scientificName;
+    titleWrap.appendChild(sci);
+
+    const badgeRow = document.createElement("div");
+    badgeRow.className = "popup-badge-row";
+
+    const statusBadge = document.createElement("span");
+    statusBadge.className = `badge-category-alert ${profile.isInvasive ? "badge-danger-alert" : "badge-native-success"}`;
+    statusBadge.textContent = profile.badgeText;
+    badgeRow.appendChild(statusBadge);
+
+    const cadBadge = document.createElement("span");
+    cadBadge.className = "badge-category-alert badge-cadastre-3d";
+    cadBadge.textContent = "Catastro 3D";
+    badgeRow.appendChild(cadBadge);
+
+    titleWrap.appendChild(badgeRow);
+    header.appendChild(titleWrap);
+    card.appendChild(header);
+
+    const metricsRow = document.createElement("div");
+    metricsRow.className = "cadastre-metrics-row";
+    const hPill = document.createElement("div");
+    hPill.className = "cadastre-metric-pill";
+    hPill.textContent = `📏 Altura: ${Number(heightMeters).toFixed(1)} m`;
+    const cPill = document.createElement("div");
+    cPill.className = "cadastre-metric-pill";
+    cPill.textContent = `🌳 Copa: Ø ${(canopyRadius * 2).toFixed(1)} m`;
+    metricsRow.appendChild(hPill);
+    metricsRow.appendChild(cPill);
+    card.appendChild(metricsRow);
+
+    if (profile.isInvasive) {
+      const allelo = document.createElement("div");
+      allelo.className = "allelopathy-box";
+      const b = document.createElement("b");
+      b.textContent = "⚠️ Daño por Alelopatía: ";
+      allelo.appendChild(b);
+      allelo.appendChild(
+        document.createTextNode("Su hojarasca altera la química del suelo e impide germinar plantas nativas.")
+      );
+      card.appendChild(allelo);
+
+      const subBlock = document.createElement("div");
+      subBlock.className = "substitution-block";
+      const subTitle = document.createElement("p");
+      subTitle.className = "substitution-title";
+      subTitle.textContent = "🔄 Sustitución Ecológica Recomendada:";
+      subBlock.appendChild(subTitle);
+
+      const opts = document.createElement("div");
+      opts.className = "substitution-options";
+      [
+        { icon: "🌿", name: "Trupillo", hint: "Fija nitrógeno" },
+        { icon: "🍃", name: "Dividivi", hint: "Sombra benigna" },
+        { icon: "🌸", name: "Guayacán", hint: "Polinizadores" }
+      ].forEach((opt) => {
+        const item = document.createElement("div");
+        item.className = "sub-option-item";
+        const ic = document.createElement("span");
+        ic.textContent = opt.icon;
+        const nm = document.createElement("b");
+        nm.textContent = opt.name;
+        const ht = document.createElement("small");
+        ht.textContent = opt.hint;
+        item.appendChild(ic);
+        item.appendChild(nm);
+        item.appendChild(ht);
+        opts.appendChild(item);
+      });
+      subBlock.appendChild(opts);
+      card.appendChild(subBlock);
+    } else {
+      const nativeBox = document.createElement("div");
+      nativeBox.className = "native-value-box";
+      const b = document.createElement("b");
+      b.textContent = "🌿 Patrimonio Forestal: ";
+      nativeBox.appendChild(b);
+      const muni = data.municipio || data.municipality || "territorio colombiano";
+      nativeBox.appendChild(
+        document.createTextNode(`Ejemplar georreferenciado en ${muni} integrado en la capa catastral 3D.`)
+      );
+      card.appendChild(nativeBox);
+    }
+
+    const footer = document.createElement("div");
+    footer.className = "popup-card-footer";
+    const coordsSpan = document.createElement("span");
+    coordsSpan.className = "popup-coords";
+    coordsSpan.textContent = `📍 ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    footer.appendChild(coordsSpan);
+
+    if (data.id) {
+      const link = document.createElement("a");
+      link.href = `/observaciones/${encodeURIComponent(String(data.id))}`;
+      link.className = "popup-detail-link";
+      if (profile.isInvasive) link.style.color = "#dc2626";
+      link.textContent = profile.isInvasive ? "Gestionar Tala →" : "Ver ficha técnica →";
+      footer.appendChild(link);
+    }
+    card.appendChild(footer);
+
+    if (typeof onEnterPersonMode === "function") {
+      const personBtn = document.createElement("button");
+      personBtn.type = "button";
+      personBtn.className = "popup-btn-person";
+      personBtn.textContent = "🚶‍♂️ Vista en Persona (Al pie del árbol)";
+      personBtn.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        onEnterPersonMode(entry);
+      });
+      card.appendChild(personBtn);
+    }
+
+    return card;
+  }
+
+  async function reverseGeocodeNominatim(lat, lng) {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 5000);
+      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&zoom=12&accept-language=es`;
+      const res = await fetch(url, { signal: ctrl.signal });
+      clearTimeout(timer);
+      if (!res.ok) return null;
+      const json = await res.json();
+      const addr = json.address || {};
+      const municipio = addr.city || addr.town || addr.municipality || addr.village || addr.county || "";
+      const state = addr.state || "";
+      if (!municipio) return null;
+      return {
+        municipio,
+        label: state && state !== municipio ? `${municipio}, ${state}` : municipio
+      };
+    } catch {
+      return null;
+    }
   }
 
   const activeMaps = [];
@@ -969,18 +1535,19 @@ const {
     import(MAPLIBRE_JS_URL).then(async (maplibreglModule) => {
       const maplibregl = maplibreglModule.default || window.maplibregl;
       const mapElements = document.querySelectorAll('.astro-map');
-      
+
       for (const el of mapElements) {
         if (el.dataset.mapInitialized) continue;
         el.dataset.mapInitialized = 'true';
-        
-        let center = JSON.parse(el.dataset.center || "[0,0]");
+
+        let center = JSON.parse(el.dataset.center || "[-72.9068, 11.5448]");
         const zoom = parseFloat(el.dataset.zoom || "6");
         const readOnly = el.dataset.readonly === 'true';
-        const markers = JSON.parse(el.dataset.markers || "[]");
+        const enableCadastreTools = el.dataset.cadastreTools === 'true';
+        const initial3D = el.dataset.initial3d === 'true';
+        const initialMarkers = JSON.parse(el.dataset.markers || "[]");
         const interactiveMarkerData = el.dataset.interactive ? JSON.parse(el.dataset.interactive) : null;
-        
-        // Normalización de coordenadas [lng, lat]
+
         if (Array.isArray(center) && center.length === 2) {
           if (center[0] > -30 && center[0] < 30) {
             center = [center[1], center[0]];
@@ -990,220 +1557,916 @@ const {
         }
 
         const style = await buildStyle();
-        
-        // Inicialización con perspectiva para vista isométrica
+
+        let is3DMode = initial3D;
+        let styleReady = false;
+        let currentTrees = Array.isArray(initialMarkers) ? initialMarkers : [];
+        let treesById = {};
+        let selectedTreeId = null;
+        let activePopup = null;
+        let isPickMode = false;
+        let draftTreeData = null;
+
+        // Persona & GPS state
+        let isPersonMode = false;
+        let personTargetEntry = null;
+        let activeTreeIndex = 0;
+        let userGpsCoords = null;
+        let userGpsMarker = null;
+        let userGpsLabelEl = null;
+        let personAvatarMarker = null;
+        let personAvatarBadgeEl = null;
+        let toastTimer = null;
+
         const map = new maplibregl.Map({
           container: el.id,
           style: style,
           center: center,
           zoom: zoom,
-          pitch: 0,
-          bearing: 0,
-          antialias: true
+          pitch: initial3D ? 54 : 0,
+          bearing: initial3D ? -15 : 0,
+          antialias: true,
+          maxPitch: 80
         });
         activeMaps.push(map);
 
         map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
-        
-        // Control de alternancia 2D / 3D
+
+        // DOM references for this map instance
+        const toastEl = document.getElementById(`${el.id}-status-toast`);
+        const personHudEl = document.getElementById(`${el.id}-person-hud`);
+        const personHudTextEl = document.getElementById(`${el.id}-person-hud-text`);
         const toggle3dBtn = document.getElementById(`${el.id}-toggle-3d`);
-        let is3DMode = false;
-
-        if (toggle3dBtn) {
-          toggle3dBtn.addEventListener('click', () => {
-            is3DMode = !is3DMode;
-            if (is3DMode) {
-              map.easeTo({
-                pitch: 58,
-                bearing: -20,
-                duration: 1200
-              });
-              toggle3dBtn.classList.add('active-3d');
-              const textSpan = toggle3dBtn.querySelector('.perspective-text');
-              if (textSpan) textSpan.textContent = '2D';
-              const iconSpan = toggle3dBtn.querySelector('.perspective-icon');
-              if (iconSpan) iconSpan.textContent = '🗺️';
-            } else {
-              map.easeTo({
-                pitch: 0,
-                bearing: 0,
-                duration: 1000
-              });
-              toggle3dBtn.classList.remove('active-3d');
-              const textSpan = toggle3dBtn.querySelector('.perspective-text');
-              if (textSpan) textSpan.textContent = '3D';
-              const iconSpan = toggle3dBtn.querySelector('.perspective-icon');
-              if (iconSpan) iconSpan.textContent = '🌐';
-            }
-          });
-        }
-
-        // Control de Leyenda Colapsable Minimalista
+        const addTreeBtn = document.getElementById(`${el.id}-btn-add-tree`);
+        const gpsBtn = document.getElementById(`${el.id}-btn-gps`);
+        const personaBtn = document.getElementById(`${el.id}-btn-persona`);
+        const personCard = document.getElementById(`${el.id}-person-card`);
+        const personDistEl = document.getElementById(`${el.id}-person-distance`);
+        const personSeqEl = document.getElementById(`${el.id}-person-seq`);
+        const personTitleEl = document.getElementById(`${el.id}-person-title`);
+        const personSubEl = document.getElementById(`${el.id}-person-sub`);
+        const personPrevBtn = document.getElementById(`${el.id}-person-prev`);
+        const personNextBtn = document.getElementById(`${el.id}-person-next`);
+        const personOrbitBtn = document.getElementById(`${el.id}-person-orbit`);
+        const personExitBtn = document.getElementById(`${el.id}-person-exit`);
         const legendToggle = document.getElementById(`${el.id}-legend-toggle`);
         const legendPanel = document.getElementById(`${el.id}-legend-panel`);
-        if (legendToggle && legendPanel) {
-          legendToggle.addEventListener('click', () => {
-            legendPanel.classList.toggle('is-open');
+        const coordsDisplay = document.getElementById(`${el.id}-coords`);
+
+        function showToast(msg, tone = "info") {
+          if (!toastEl) return;
+          if (toastTimer) clearTimeout(toastTimer);
+          toastEl.textContent = msg;
+          toastEl.className = `map-status-toast${tone === "success" ? " tone-success" : tone === "error" ? " tone-error" : ""}`;
+          toastEl.hidden = false;
+          toastTimer = setTimeout(() => { toastEl.hidden = true; }, 3500);
+        }
+
+        function ensureCadastreLayers() {
+          if (!map || !styleReady) return;
+          const emptyFC = { type: "FeatureCollection", features: [] };
+          const beforeBuildings = map.getLayer("r_construccion-3d")
+            ? "r_construccion-3d"
+            : (map.getLayer("u_construccion-3d") ? "u_construccion-3d" : undefined);
+          const beforeLabels = map.getLayer("r_vereda-label")
+            ? "r_vereda-label"
+            : (map.getLayer("u_nomenclatura_vial-label") ? "u_nomenclatura_vial-label" : undefined);
+
+          try {
+            if (!map.getSource("ecoraices-trees-footprint-source")) {
+              map.addSource("ecoraices-trees-footprint-source", { type: "geojson", data: emptyFC });
+            }
+            if (!map.getSource("ecoraices-trees-3d-source")) {
+              map.addSource("ecoraices-trees-3d-source", { type: "geojson", data: emptyFC });
+            }
+            if (!map.getSource("ecoraices-trees-points-source")) {
+              map.addSource("ecoraices-trees-points-source", { type: "geojson", data: emptyFC });
+            }
+            if (!map.getSource("ecoraices-draft-footprint-source")) {
+              map.addSource("ecoraices-draft-footprint-source", { type: "geojson", data: emptyFC });
+            }
+            if (!map.getSource("ecoraices-draft-3d-source")) {
+              map.addSource("ecoraices-draft-3d-source", { type: "geojson", data: emptyFC });
+            }
+            if (!map.getSource("person-guide-source")) {
+              map.addSource("person-guide-source", { type: "geojson", data: emptyFC });
+            }
+
+            if (!map.getLayer("ecoraices-trees-footprint-fill")) {
+              map.addLayer({
+                id: "ecoraices-trees-footprint-fill",
+                type: "fill",
+                source: "ecoraices-trees-footprint-source",
+                minzoom: 12.5,
+                paint: {
+                  "fill-color": ["get", "fillColor"],
+                  "fill-opacity": 0.9
+                }
+              }, beforeBuildings);
+            }
+
+            if (!map.getLayer("ecoraices-trees-footprint-line")) {
+              map.addLayer({
+                id: "ecoraices-trees-footprint-line",
+                type: "line",
+                source: "ecoraices-trees-footprint-source",
+                minzoom: 13,
+                paint: {
+                  "line-color": ["get", "strokeColor"],
+                  "line-width": ["case", ["==", ["get", "isInvasive"], 1], 2.2, 1.3],
+                  "line-dasharray": [2, 1.5],
+                  "line-opacity": 0.85
+                }
+              }, beforeBuildings);
+            }
+
+            if (!map.getLayer("ecoraices-trees-selected-ring")) {
+              map.addLayer({
+                id: "ecoraices-trees-selected-ring",
+                type: "line",
+                source: "ecoraices-trees-footprint-source",
+                filter: ["==", ["get", "treeId"], selectedTreeId || "__none__"],
+                paint: {
+                  "line-color": "#10b981",
+                  "line-width": 4,
+                  "line-opacity": 0.95
+                }
+              }, beforeBuildings);
+            }
+
+            if (!map.getLayer("ecoraices-draft-footprint-fill")) {
+              map.addLayer({
+                id: "ecoraices-draft-footprint-fill",
+                type: "fill",
+                source: "ecoraices-draft-footprint-source",
+                paint: {
+                  "fill-color": "rgba(14, 165, 233, 0.25)",
+                  "fill-opacity": 0.95
+                }
+              }, beforeBuildings);
+            }
+
+            if (!map.getLayer("ecoraices-draft-footprint-line")) {
+              map.addLayer({
+                id: "ecoraices-draft-footprint-line",
+                type: "line",
+                source: "ecoraices-draft-footprint-source",
+                paint: {
+                  "line-color": "#0284c7",
+                  "line-width": 2.5,
+                  "line-dasharray": [2, 1.5]
+                }
+              }, beforeBuildings);
+            }
+
+            if (!map.getLayer("ecoraices-trees-3d-layer")) {
+              map.addLayer({
+                id: "ecoraices-trees-3d-layer",
+                type: "fill-extrusion",
+                source: "ecoraices-trees-3d-source",
+                minzoom: 11.5,
+                paint: {
+                  "fill-extrusion-color": ["get", "color"],
+                  "fill-extrusion-base": ["get", "base"],
+                  "fill-extrusion-height": ["get", "height"],
+                  "fill-extrusion-opacity": 0.94,
+                  "fill-extrusion-vertical-gradient": true
+                }
+              }, beforeLabels);
+            }
+
+            if (!map.getLayer("ecoraices-draft-tree-3d")) {
+              map.addLayer({
+                id: "ecoraices-draft-tree-3d",
+                type: "fill-extrusion",
+                source: "ecoraices-draft-3d-source",
+                paint: {
+                  "fill-extrusion-color": ["get", "color"],
+                  "fill-extrusion-base": ["get", "base"],
+                  "fill-extrusion-height": ["get", "height"],
+                  "fill-extrusion-opacity": 0.84,
+                  "fill-extrusion-vertical-gradient": true
+                }
+              }, beforeLabels);
+            }
+
+            if (!map.getLayer("ecoraices-trees-overview-halo")) {
+              map.addLayer({
+                id: "ecoraices-trees-overview-halo",
+                type: "circle",
+                source: "ecoraices-trees-points-source",
+                paint: {
+                  "circle-radius": ["interpolate", ["linear"], ["zoom"], 5, 8, 12, 12, 15.5, 14],
+                  "circle-color": ["get", "dotColor"],
+                  "circle-opacity": ["interpolate", ["linear"], ["zoom"], 5, 0.25, 14.2, 0.22, 15.8, 0]
+                }
+              });
+            }
+
+            if (!map.getLayer("ecoraices-trees-overview-dot")) {
+              map.addLayer({
+                id: "ecoraices-trees-overview-dot",
+                type: "circle",
+                source: "ecoraices-trees-points-source",
+                paint: {
+                  "circle-radius": ["interpolate", ["linear"], ["zoom"], 5, 5, 12, 7, 15.5, 5],
+                  "circle-color": ["get", "dotColor"],
+                  "circle-stroke-color": "#ffffff",
+                  "circle-stroke-width": 2,
+                  "circle-opacity": ["interpolate", ["linear"], ["zoom"], 5, 1, 14.5, 0.95, 16.0, 0],
+                  "circle-stroke-opacity": ["interpolate", ["linear"], ["zoom"], 5, 1, 14.5, 0.95, 16.0, 0]
+                }
+              });
+            }
+
+            if (!map.getLayer("person-guide-glow")) {
+              map.addLayer({
+                id: "person-guide-glow",
+                type: "line",
+                source: "person-guide-source",
+                layout: { "line-join": "round", "line-cap": "round" },
+                paint: { "line-color": "#34d399", "line-width": 10, "line-opacity": 0.35 }
+              });
+            }
+
+            if (!map.getLayer("person-guide-line")) {
+              map.addLayer({
+                id: "person-guide-line",
+                type: "line",
+                source: "person-guide-source",
+                layout: { "line-join": "round", "line-cap": "round" },
+                paint: {
+                  "line-color": "#10b981",
+                  "line-width": 4,
+                  "line-dasharray": [2, 2],
+                  "line-opacity": 0.95
+                }
+              });
+            }
+
+            // Etiquetas nativas WebGL sin superposición si el estilo tiene fuente configurada
+            if (!map.getLayer("ecoraices-trees-labels") && map.getStyle()?.glyphs) {
+              map.addLayer({
+                id: "ecoraices-trees-labels",
+                type: "symbol",
+                source: "ecoraices-trees-points-source",
+                minzoom: 14,
+                layout: {
+                  "text-field": ["get", "label"],
+                  "text-font": ["Open Sans Bold"],
+                  "text-size": ["interpolate", ["linear"], ["zoom"], 14, 10.5, 17, 12.5, 19, 14],
+                  "text-offset": [0, 1.3],
+                  "text-anchor": "top",
+                  "text-allow-overlap": false,
+                  "text-optional": true
+                },
+                paint: {
+                  "text-color": ["case", ["==", ["get", "isInvasive"], 1], "#dc2626", "#065f46"],
+                  "text-halo-color": "#ffffff",
+                  "text-halo-width": 2
+                }
+              });
+            }
+          } catch (err) {
+            console.warn("[Catastro 3D] Aviso al inicializar capas:", err);
+          }
+        }
+
+        function updateSelectedRingFilter() {
+          if (!map || !map.getLayer("ecoraices-trees-selected-ring")) return;
+          const targetId = (personTargetEntry && personTargetEntry.treeId) || selectedTreeId || "__none__";
+          map.setFilter("ecoraices-trees-selected-ring", ["==", ["get", "treeId"], targetId]);
+        }
+
+        function updatePersonGuideLine() {
+          const src = map.getSource("person-guide-source");
+          if (!src) return;
+          if (isPersonMode && personTargetEntry && userGpsCoords) {
+            src.setData({
+              type: "Feature",
+              geometry: {
+                type: "LineString",
+                coordinates: [
+                  [userGpsCoords.lng, userGpsCoords.lat],
+                  [personTargetEntry.lng, personTargetEntry.lat]
+                ]
+              },
+              properties: {}
+            });
+          } else {
+            src.setData({ type: "FeatureCollection", features: [] });
+          }
+        }
+
+        function renderTreesToSources(shouldFit = false) {
+          if (!styleReady) return;
+          ensureCadastreLayers();
+          const { extrusionFC, footprintFC, pointsFC, lookup } = buildCadastreGeoJSON(currentTrees);
+          treesById = lookup;
+
+          const s3d = map.getSource("ecoraices-trees-3d-source");
+          const sFoot = map.getSource("ecoraices-trees-footprint-source");
+          const sPts = map.getSource("ecoraices-trees-points-source");
+          if (s3d) s3d.setData(extrusionFC);
+          if (sFoot) sFoot.setData(footprintFC);
+          if (sPts) sPts.setData(pointsFC);
+          updateSelectedRingFilter();
+
+          if (shouldFit) {
+            fitVisibleTrees();
+          }
+        }
+
+        function renderDraftTree(centerCamera = false) {
+          if (!styleReady) return;
+          ensureCadastreLayers();
+          const sDraft3d = map.getSource("ecoraices-draft-3d-source");
+          const sDraftFoot = map.getSource("ecoraices-draft-footprint-source");
+          const emptyFC = { type: "FeatureCollection", features: [] };
+
+          if (!draftTreeData || isNaN(draftTreeData.lat) || isNaN(draftTreeData.lng)) {
+            if (sDraft3d) sDraft3d.setData(emptyFC);
+            if (sDraftFoot) sDraftFoot.setData(emptyFC);
+            return;
+          }
+
+          const profile = getTreeBotanicalProfile({ speciesName: draftTreeData.speciesName || "Árbol Nuevo" });
+          const heightMeters = resolveTreeHeightMeters(draftTreeData, profile.defaultHeight);
+          const { features, canopyRadius } = buildTreeExtrusionParts(
+            "draft-tree",
+            draftTreeData.lng,
+            draftTreeData.lat,
+            heightMeters,
+            profile,
+            true
+          );
+
+          if (sDraft3d) sDraft3d.setData({ type: "FeatureCollection", features });
+          if (sDraftFoot) {
+            sDraftFoot.setData({
+              type: "FeatureCollection",
+              features: [{
+                type: "Feature",
+                properties: {},
+                geometry: {
+                  type: "Polygon",
+                  coordinates: [createCircleRing(draftTreeData.lng, draftTreeData.lat, canopyRadius * 1.25, 20)]
+                }
+              }]
+            });
+          }
+
+          if (centerCamera) {
+            map.easeTo({
+              center: [draftTreeData.lng, draftTreeData.lat],
+              zoom: Math.max(map.getZoom(), 17.4),
+              pitch: is3DMode ? 58 : 0,
+              duration: 750
+            });
+          }
+        }
+
+        function fitVisibleTrees() {
+          const entries = Object.values(treesById);
+          if (entries.length === 0) return;
+          map.stop();
+          if (entries.length === 1) {
+            map.easeTo({
+              center: [entries[0].lng, entries[0].lat],
+              zoom: 17.0,
+              pitch: is3DMode ? 55 : 0,
+              bearing: is3DMode ? -15 : 0,
+              duration: 950
+            });
+          } else {
+            const bounds = new maplibregl.LngLatBounds();
+            entries.forEach((e) => bounds.extend([e.lng, e.lat]));
+            map.fitBounds(bounds, {
+              padding: 75,
+              maxZoom: 16.5,
+              pitch: is3DMode ? 54 : 0,
+              bearing: is3DMode ? -15 : 0,
+              duration: 1000
+            });
+          }
+        }
+
+        function setPickModeState(active, notifyHost = true) {
+          isPickMode = Boolean(active);
+          map.getCanvas().style.cursor = isPickMode ? "crosshair" : "";
+          if (addTreeBtn) {
+            addTreeBtn.classList.toggle("is-active", isPickMode);
+            addTreeBtn.setAttribute("aria-pressed", isPickMode ? "true" : "false");
+            const lbl = addTreeBtn.querySelector(".tool-label");
+            if (lbl) lbl.textContent = isPickMode ? "Salir" : "Árbol 3D";
+          }
+          if (isPickMode) {
+            if (isPersonMode) exitPersonMode(true);
+            if (activePopup) {
+              activePopup.remove();
+              activePopup = null;
+            }
+          } else {
+            draftTreeData = null;
+            renderDraftTree(false);
+          }
+          if (notifyHost) {
+            el.dispatchEvent(new CustomEvent("cadastre-pick-mode-change", {
+              detail: { active: isPickMode },
+              bubbles: true
+            }));
+          }
+        }
+
+        function enterPersonMode(entry) {
+          if (!entry) return;
+          if (isPickMode) setPickModeState(false, true);
+
+          isPersonMode = true;
+          personTargetEntry = { ...entry, treeId: String(entry.tree?.id || entry.tree?.clientId || "") };
+          selectedTreeId = personTargetEntry.treeId;
+
+          const allEntries = Object.values(treesById);
+          const idx = allEntries.findIndex(
+            (item) => String(item.tree?.id || item.tree?.clientId) === personTargetEntry.treeId
+          );
+          if (idx !== -1) activeTreeIndex = idx;
+
+          if (activePopup) {
+            activePopup.remove();
+            activePopup = null;
+          }
+
+          updateSelectedRingFilter();
+
+          const avatarLat = entry.isSelfLocation ? entry.lat : (entry.lat - 0.000075);
+          const avatarLng = entry.isSelfLocation ? entry.lng : (entry.lng + 0.000045);
+          const avatarText = entry.isSelfLocation ? "🚶‍♂️ Explorando desde tu GPS" : "🚶‍♂️ Frente al árbol 3D";
+
+          if (!personAvatarMarker) {
+            const pEl = document.createElement("div");
+            pEl.className = "web-person-avatar";
+            const badge = document.createElement("div");
+            badge.className = "web-person-avatar-badge";
+            badge.textContent = avatarText;
+            personAvatarBadgeEl = badge;
+            const circle = document.createElement("div");
+            circle.className = "web-person-avatar-circle";
+            circle.textContent = "🧍";
+            pEl.appendChild(badge);
+            pEl.appendChild(circle);
+
+            personAvatarMarker = new maplibregl.Marker({ element: pEl, anchor: "bottom" })
+              .setLngLat([avatarLng, avatarLat])
+              .addTo(map);
+          } else {
+            personAvatarMarker.setLngLat([avatarLng, avatarLat]);
+            if (personAvatarBadgeEl) personAvatarBadgeEl.textContent = avatarText;
+          }
+
+          updatePersonGuideLine();
+
+          map.stop();
+          const curCenter = map.getCenter();
+          const distCam = haversineMeters(curCenter.lat, curCenter.lng, entry.lat, entry.lng);
+          const camOpts = {
+            center: [entry.lng, entry.lat],
+            zoom: 19.0,
+            pitch: 72,
+            bearing: -20,
+            duration: distCam > 2500 ? 1200 : 900
+          };
+          if (distCam > 2500) map.flyTo(camOpts);
+          else map.easeTo(camOpts);
+
+          if (personaBtn) {
+            personaBtn.classList.add("is-active");
+            personaBtn.setAttribute("aria-pressed", "true");
+          }
+          if (personHudEl && personHudTextEl) {
+            personHudTextEl.textContent = `MODO PERSONA 3D • ${(entry.profile?.displayName || "ÁRBOL").toUpperCase()}`;
+            personHudEl.hidden = false;
+          }
+          if (personCard) {
+            const distToUser = userGpsCoords
+              ? (entry.isSelfLocation ? 0 : haversineMeters(userGpsCoords.lat, userGpsCoords.lng, entry.lat, entry.lng))
+              : null;
+            if (personDistEl) personDistEl.textContent = formatDistance(distToUser);
+            if (personSeqEl) {
+              personSeqEl.textContent = entry.isSelfLocation
+                ? "EXPLORACIÓN EN TU GPS"
+                : `ÁRBOL #${activeTreeIndex + 1} DE ${Math.max(1, allEntries.length)}`;
+            }
+            if (personTitleEl) {
+              personTitleEl.textContent = `🚶‍♂️ ${entry.profile?.displayName || "Árbol Seleccionado"}`;
+            }
+            if (personSubEl) {
+              const muni = entry.tree?.municipio || entry.tree?.municipality || "Territorio GPS";
+              personSubEl.textContent = `Vista 3D (72°) • 📏 ${Number(entry.heightMeters || 8).toFixed(1)}m • 🏛️ ${muni}`;
+            }
+            personCard.hidden = false;
+          }
+        }
+
+        function exitPersonMode(skipCameraReset = false) {
+          isPersonMode = false;
+          personTargetEntry = null;
+          selectedTreeId = null;
+
+          if (personAvatarMarker) {
+            personAvatarMarker.remove();
+            personAvatarMarker = null;
+            personAvatarBadgeEl = null;
+          }
+          updateSelectedRingFilter();
+          updatePersonGuideLine();
+
+          if (personaBtn) {
+            personaBtn.classList.remove("is-active");
+            personaBtn.setAttribute("aria-pressed", "false");
+          }
+          if (personHudEl) personHudEl.hidden = true;
+          if (personCard) personCard.hidden = true;
+
+          if (!skipCameraReset) {
+            map.stop();
+            map.easeTo({
+              pitch: is3DMode ? 54 : 0,
+              zoom: 16.0,
+              bearing: is3DMode ? -15 : 0,
+              duration: 900
+            });
+          }
+        }
+
+        function pickBestTreeForPersonMode() {
+          const allEntries = Object.values(treesById);
+          if (selectedTreeId && treesById[selectedTreeId]) return treesById[selectedTreeId];
+          if (allEntries.length === 0) return null;
+
+          if (userGpsCoords) {
+            let nearest = null;
+            let minDist = Infinity;
+            allEntries.forEach((entry) => {
+              const d = haversineMeters(userGpsCoords.lat, userGpsCoords.lng, entry.lat, entry.lng);
+              if (d < minDist) {
+                minDist = d;
+                nearest = entry;
+              }
+            });
+            if (nearest) return nearest;
+          }
+          return allEntries[activeTreeIndex] || allEntries[0];
+        }
+
+        function updateUserGps(lat, lng, label = "", focusCamera = false) {
+          userGpsCoords = { lat, lng, label };
+          const badgeText = label ? `📍 Tú • ${label}` : "📍 Tú (GPS)";
+
+          if (!userGpsMarker) {
+            const wrap = document.createElement("div");
+            wrap.className = "web-user-gps-marker";
+            const lbl = document.createElement("div");
+            lbl.className = "web-user-gps-label";
+            lbl.textContent = badgeText;
+            userGpsLabelEl = lbl;
+            const dot = document.createElement("div");
+            dot.className = "web-user-gps-dot";
+            wrap.appendChild(lbl);
+            wrap.appendChild(dot);
+
+            userGpsMarker = new maplibregl.Marker({ element: wrap, anchor: "bottom" })
+              .setLngLat([lng, lat])
+              .addTo(map);
+          } else {
+            userGpsMarker.setLngLat([lng, lat]);
+            if (userGpsLabelEl) userGpsLabelEl.textContent = badgeText;
+          }
+
+          if (gpsBtn) gpsBtn.classList.add("is-ready");
+
+          if (focusCamera) {
+            if (isPersonMode) exitPersonMode(true);
+            map.stop();
+            map.easeTo({
+              center: [lng, lat],
+              zoom: 17.0,
+              pitch: is3DMode ? 56 : 0,
+              bearing: is3DMode ? -15 : 0,
+              duration: 950
+            });
+          } else {
+            updatePersonGuideLine();
+          }
+        }
+
+        async function requestBrowserGps(placeDraftAfter = false) {
+          if (!navigator.geolocation) {
+            showToast("Tu navegador no soporta geolocalización GPS.", "error");
+            return null;
+          }
+          showToast("📡 Obteniendo ubicación GPS...", "info");
+          try {
+            const pos = await new Promise((resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(resolve, reject, {
+                enableHighAccuracy: true,
+                timeout: 8000,
+                maximumAge: 15000
+              });
+            });
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            updateUserGps(lat, lng, userGpsCoords?.label || "", !placeDraftAfter);
+
+            const resolved = await reverseGeocodeNominatim(lat, lng);
+            if (resolved) {
+              updateUserGps(lat, lng, resolved.label, false);
+              showToast(`📍 Ubicación detectada: ${resolved.label}`, "success");
+            } else {
+              showToast(`📍 GPS fijado (${lat.toFixed(4)}, ${lng.toFixed(4)})`, "success");
+            }
+
+            el.dispatchEvent(new CustomEvent("gps-location-updated", {
+              detail: {
+                lat,
+                lng,
+                municipio: resolved?.municipio || "",
+                label: resolved?.label || `${lat.toFixed(4)}, ${lng.toFixed(4)}`
+              },
+              bubbles: true
+            }));
+
+            if (placeDraftAfter && isPickMode) {
+              draftTreeData = {
+                lat,
+                lng,
+                heightMeters: draftTreeData?.heightMeters || 8,
+                speciesName: draftTreeData?.speciesName || "Árbol Nuevo"
+              };
+              renderDraftTree(true);
+              el.dispatchEvent(new CustomEvent("cadastre-pick-location", {
+                detail: { lat, lng, municipio: resolved?.municipio || "", label: resolved?.label || "" },
+                bubbles: true
+              }));
+            }
+            return { lat, lng, resolved };
+          } catch {
+            showToast("No se pudo obtener el GPS. Verifica los permisos de ubicación.", "error");
+            return null;
+          }
+        }
+
+        function openTreePopup(treeId) {
+          const entry = treesById[treeId];
+          if (!entry) return;
+          selectedTreeId = treeId;
+          updateSelectedRingFilter();
+
+          if (activePopup) {
+            activePopup.remove();
+            activePopup = null;
+          }
+
+          const node = createPopupElement(
+            entry,
+            enableCadastreTools ? (targetEntry) => enterPersonMode(targetEntry) : null
+          );
+
+          activePopup = new maplibregl.Popup({
+            offset: [0, -14],
+            className: "ecoraices-map-popup",
+            maxWidth: "330px"
+          })
+            .setLngLat([entry.lng, entry.lat])
+            .setDOMContent(node)
+            .addTo(map);
+
+          activePopup.on("close", () => {
+            if (!isPersonMode) {
+              selectedTreeId = null;
+              updateSelectedRingFilter();
+            }
           });
         }
 
-        let activeMarker = null;
-        const coordsDisplay = document.getElementById(`${el.id}-coords`);
+        // Control 2D / 3D
+        if (toggle3dBtn) {
+          toggle3dBtn.addEventListener("click", () => {
+            is3DMode = !is3DMode;
+            if (isPersonMode) exitPersonMode(true);
+            map.stop();
+            map.easeTo({
+              pitch: is3DMode ? 54 : 0,
+              bearing: is3DMode ? -18 : 0,
+              duration: 900
+            });
+            toggle3dBtn.classList.toggle("active-3d", is3DMode);
+            toggle3dBtn.setAttribute("aria-pressed", is3DMode ? "true" : "false");
+            const textSpan = toggle3dBtn.querySelector(".perspective-text");
+            if (textSpan) textSpan.textContent = is3DMode ? "2D" : "3D";
+            const iconSpan = toggle3dBtn.querySelector(".perspective-icon");
+            if (iconSpan) iconSpan.textContent = is3DMode ? "🗺️" : "🌐";
+          });
+        }
 
-        if (!readOnly) {
-          map.on('click', (e) => {
-            const lng = e.lngLat.lng;
-            const lat = e.lngLat.lat;
-            
-            if (coordsDisplay) {
-              coordsDisplay.textContent = `📍 Lat: ${lat.toFixed(6)} | Lng: ${lng.toFixed(6)}`;
-              coordsDisplay.style.display = 'block';
+        if (addTreeBtn) {
+          addTreeBtn.addEventListener("click", () => {
+            setPickModeState(!isPickMode, true);
+          });
+        }
+
+        if (gpsBtn) {
+          gpsBtn.addEventListener("click", () => {
+            requestBrowserGps(false);
+          });
+        }
+
+        if (personaBtn) {
+          personaBtn.addEventListener("click", () => {
+            if (isPersonMode) {
+              exitPersonMode(false);
+              return;
             }
-
-            if (activeMarker) {
-              activeMarker.setLngLat([lng, lat]);
-            } else {
-              const pinEl = document.createElement('div');
-              pinEl.className = 'ecoraices-3d-tree-marker';
-              pinEl.innerHTML = `
-                <div class="tree-ground-disk native-shadow"></div>
-                <div class="tree-vertical-assembly">
-                  <div class="tree-canopy-box" style="transform: translateY(-4px);">
-                    <div style="background: #10b981; border: 2px solid #ffffff; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
-                      🌱
-                    </div>
-                  </div>
-                  <div class="tree-trunk-stem" style="height: 18px;"></div>
-                </div>
-              `;
-
-              activeMarker = new maplibregl.Marker({ 
-                element: pinEl, 
-                anchor: 'bottom',
-                pitchAlignment: 'viewport'
-              })
-                .setLngLat([lng, lat])
-                .addTo(map);
+            const target = pickBestTreeForPersonMode();
+            if (target) {
+              enterPersonMode(target);
+              return;
             }
-            
-            el.dispatchEvent(new CustomEvent('location-selected', { 
+            if (userGpsCoords) {
+              enterPersonMode({
+                lat: userGpsCoords.lat,
+                lng: userGpsCoords.lng,
+                heightMeters: 8,
+                isSelfLocation: true,
+                tree: { id: "self-gps", municipio: userGpsCoords.label || "Tu ubicación GPS" },
+                profile: { displayName: "Tu ubicación GPS" }
+              });
+              return;
+            }
+            showToast("Presiona 'Mi GPS' o registra un árbol para activar el Modo Persona 3D.", "info");
+          });
+        }
+
+        const stepPersonTree = (delta) => {
+          const allEntries = Object.values(treesById);
+          if (allEntries.length === 0) return;
+          activeTreeIndex = (activeTreeIndex + delta + allEntries.length) % allEntries.length;
+          enterPersonMode(allEntries[activeTreeIndex]);
+        };
+
+        if (personPrevBtn) personPrevBtn.addEventListener("click", () => stepPersonTree(-1));
+        if (personNextBtn) personNextBtn.addEventListener("click", () => stepPersonTree(1));
+        if (personOrbitBtn) {
+          personOrbitBtn.addEventListener("click", () => {
+            if (!personTargetEntry) return;
+            map.stop();
+            map.easeTo({
+              center: [personTargetEntry.lng, personTargetEntry.lat],
+              zoom: 19.0,
+              pitch: 72,
+              bearing: map.getBearing() + 72,
+              duration: 800
+            });
+          });
+        }
+        if (personExitBtn) personExitBtn.addEventListener("click", () => exitPersonMode(false));
+
+        // Leyenda colapsable
+        if (legendToggle && legendPanel) {
+          legendToggle.addEventListener("click", () => {
+            const open = legendPanel.classList.toggle("is-open");
+            legendToggle.setAttribute("aria-expanded", open ? "true" : "false");
+          });
+        }
+
+        // Click unificado en WebGL (modo pick catastro, modo community picker, o selección de árbol 3D)
+        map.on("click", (e) => {
+          const lat = e.lngLat.lat;
+          const lng = e.lngLat.lng;
+
+          if (isPickMode) {
+            draftTreeData = {
+              lat,
+              lng,
+              heightMeters: draftTreeData?.heightMeters || 8,
+              speciesName: draftTreeData?.speciesName || "Árbol Nuevo"
+            };
+            renderDraftTree(false);
+            el.dispatchEvent(new CustomEvent("cadastre-pick-location", {
               detail: { lat, lng },
               bubbles: true
             }));
-          });
-        }
-
-        // Renderizador de Marcadores 3D
-        const staticMarkers = [];
-        
-        function renderMarkers(newMarkers, shouldFit = true) {
-          staticMarkers.forEach(m => m.remove());
-          staticMarkers.length = 0;
-          
-          const validPoints = [];
-
-          newMarkers.forEach(markerData => {
-            const mLat = parseFloat(markerData.latitude || markerData.lat);
-            const mLng = parseFloat(markerData.longitude || markerData.lng);
-            if (!isNaN(mLat) && !isNaN(mLng)) {
-              validPoints.push([mLng, mLat]);
-              const profile = getTreeBotanicalProfile(markerData);
-              
-              let dynamicStemHeight = profile.stemHeight;
-              if (markerData.altitude && !isNaN(parseFloat(markerData.altitude))) {
-                const alt = Math.min(Math.max(parseFloat(markerData.altitude), 3), 30);
-                dynamicStemHeight = Math.round(18 + (alt * 0.8));
-              }
-
-              const markerEl = document.createElement('div');
-              markerEl.className = `ecoraices-3d-tree-marker ${profile.type}`;
-              markerEl.innerHTML = `
-                <div class="tree-ground-disk ${profile.isInvasive ? 'neem-hazard-ring' : 'native-shadow'}"></div>
-                <div class="tree-vertical-assembly">
-                  <div class="tree-canopy-box">
-                    ${profile.svgCanopy}
-                  </div>
-                  <div class="tree-trunk-stem" style="height: ${dynamicStemHeight}px;"></div>
-                  <div class="tree-floating-tag ${profile.tagClass}">
-                    <span>${profile.shortTag}</span>
-                  </div>
-                </div>
-              `;
-
-              const popup = new maplibregl.Popup({ 
-                offset: [0, -dynamicStemHeight - 20],
-                className: 'ecoraices-map-popup',
-                maxWidth: '340px'
-              }).setHTML(createPopupContent(markerData, profile, mLat, mLng));
-
-              const marker = new maplibregl.Marker({ 
-                element: markerEl,
-                anchor: 'bottom',
-                pitchAlignment: 'viewport'
-              })
-                .setLngLat([mLng, mLat])
-                .setPopup(popup)
-                .addTo(map);
-                
-              staticMarkers.push(marker);
-            }
-          });
-
-          // Ajuste automático de encuadre hacia los árboles reales
-          if (shouldFit && validPoints.length > 0) {
-            if (validPoints.length === 1) {
-              map.flyTo({ center: validPoints[0], zoom: 14, duration: 1000 });
-            } else {
-              const bounds = new maplibregl.LngLatBounds();
-              validPoints.forEach(pt => bounds.extend(pt));
-              map.fitBounds(bounds, { padding: 90, maxZoom: 13, duration: 1200 });
-            }
+            return;
           }
-        }
-        
-        renderMarkers(markers, true);
-        
-        el.addEventListener('update-markers', (e) => {
-          const { newMarkers, newCenter } = e.detail;
-          if (newMarkers) renderMarkers(newMarkers);
-          if (newCenter) {
-            map.flyTo({ center: newCenter, duration: 1000 });
+
+          if (!readOnly) {
+            if (coordsDisplay) {
+              coordsDisplay.textContent = `📍 Lat: ${lat.toFixed(6)} | Lng: ${lng.toFixed(6)}`;
+              coordsDisplay.style.display = "block";
+            }
+            draftTreeData = { lat, lng, heightMeters: 8, speciesName: "Ubicación" };
+            renderDraftTree(false);
+            el.dispatchEvent(new CustomEvent("location-selected", {
+              detail: { lat, lng },
+              bubbles: true
+            }));
+            return;
+          }
+
+          const existingLayers = INTERACTIVE_TREE_LAYERS.filter((layerId) => Boolean(map.getLayer(layerId)));
+          if (existingLayers.length === 0) return;
+          const hits = map.queryRenderedFeatures(e.point, { layers: existingLayers });
+          if (hits && hits.length > 0) {
+            const hitTreeId = hits[0].properties?.treeId;
+            if (hitTreeId && treesById[hitTreeId]) {
+              openTreePopup(hitTreeId);
+            }
           }
         });
-        
-        if (interactiveMarkerData && !readOnly) {
-          const lng = interactiveMarkerData.lng || interactiveMarkerData[0];
-          const lat = interactiveMarkerData.lat || interactiveMarkerData[1];
-          
-          if (coordsDisplay) {
-            coordsDisplay.textContent = `📍 Lat: ${lat.toFixed(6)} | Lng: ${lng.toFixed(6)}`;
-            coordsDisplay.style.display = 'block';
-          }
-          
-          const pinEl = document.createElement('div');
-          pinEl.className = 'ecoraices-3d-tree-marker';
-          pinEl.innerHTML = `
-            <div class="tree-ground-disk native-shadow"></div>
-            <div class="tree-vertical-assembly">
-              <div class="tree-canopy-box" style="transform: translateY(-4px);">
-                <div style="background: #10b981; border: 2px solid #ffffff; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
-                  🌱
-                </div>
-              </div>
-              <div class="tree-trunk-stem" style="height: 18px;"></div>
-            </div>
-          `;
 
-          activeMarker = new maplibregl.Marker({ 
-            element: pinEl,
-            anchor: 'bottom',
-            pitchAlignment: 'viewport'
-          })
-            .setLngLat([lng, lat])
-            .addTo(map);
-            
-          map.flyTo({ center: [lng, lat], zoom: 15, duration: 1200 });
-        }
+        map.on("mousemove", (e) => {
+          if (isPickMode) {
+            map.getCanvas().style.cursor = "crosshair";
+            return;
+          }
+          if (!readOnly) {
+            map.getCanvas().style.cursor = "pointer";
+            return;
+          }
+          const existingLayers = INTERACTIVE_TREE_LAYERS.filter((layerId) => Boolean(map.getLayer(layerId)));
+          if (existingLayers.length === 0) return;
+          const hits = map.queryRenderedFeatures(e.point, { layers: existingLayers });
+          map.getCanvas().style.cursor = hits && hits.length > 0 ? "pointer" : "";
+        });
+
+        // Inicialización de capas WebGL al cargar estilo
+        const onStyleReady = () => {
+          styleReady = true;
+          ensureCadastreLayers();
+          renderTreesToSources(currentTrees.length > 0);
+          if (interactiveMarkerData && !readOnly) {
+            const lng = parseFloat(interactiveMarkerData.lng ?? interactiveMarkerData[0]);
+            const lat = parseFloat(interactiveMarkerData.lat ?? interactiveMarkerData[1]);
+            if (!isNaN(lat) && !isNaN(lng)) {
+              if (coordsDisplay) {
+                coordsDisplay.textContent = `📍 Lat: ${lat.toFixed(6)} | Lng: ${lng.toFixed(6)}`;
+                coordsDisplay.style.display = "block";
+              }
+              draftTreeData = { lat, lng, heightMeters: 8, speciesName: "Ubicación" };
+              renderDraftTree(true);
+            }
+          } else if (draftTreeData) {
+            renderDraftTree(false);
+          }
+          updatePersonGuideLine();
+        };
+
+        map.on("style.load", onStyleReady);
+        map.on("load", () => {
+          if (!styleReady) onStyleReady();
+        });
+
+        // Bridge de eventos externos desde ObservationsMap u otros componentes
+        el.addEventListener("update-markers", (e) => {
+          const { newMarkers, shouldFit = true } = e.detail || {};
+          if (Array.isArray(newMarkers)) {
+            currentTrees = newMarkers;
+            renderTreesToSources(Boolean(shouldFit));
+          }
+        });
+
+        el.addEventListener("set-pick-mode", (e) => {
+          setPickModeState(Boolean(e.detail?.active), false);
+        });
+
+        el.addEventListener("set-draft-tree", (e) => {
+          const d = e.detail;
+          if (!d || isNaN(parseFloat(d.lat)) || isNaN(parseFloat(d.lng))) {
+            draftTreeData = null;
+            renderDraftTree(false);
+            return;
+          }
+          draftTreeData = {
+            lat: parseFloat(d.lat),
+            lng: parseFloat(d.lng),
+            heightMeters: parseFloat(d.heightMeters) || 8,
+            speciesName: d.speciesName || "Árbol Nuevo"
+          };
+          renderDraftTree(Boolean(d.center));
+        });
+
+        el.addEventListener("clear-draft-tree", () => {
+          draftTreeData = null;
+          renderDraftTree(false);
+        });
+
+        el.addEventListener("trigger-gps", (e) => {
+          requestBrowserGps(Boolean(e.detail?.placeDraft));
+        });
+
+        el.addEventListener("fit-trees", () => {
+          fitVisibleTrees();
+        });
       }
     });
   });

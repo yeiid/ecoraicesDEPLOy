@@ -30,7 +30,7 @@ def get_current_admin(request: Request, db: Session = Depends(get_db)) -> User:
     return user
 
 @router.get("/dashboard")
-def get_admin_dashboard(db: Session = Depends(get_db)):
+def get_admin_dashboard(admin: User = Depends(get_current_admin), db: Session = Depends(get_db)):
     # Stats
     obs_count = db.query(Observation).count()
     obs_pending = db.query(Observation).filter(Observation.status == "PENDING").count()

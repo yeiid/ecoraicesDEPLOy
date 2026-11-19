@@ -1,9 +1,10 @@
 /**
  * EcoRaíces Mobile · Pantalla de Captura en Campo (Censar)
- * Georreferenciación GPS, foto de campo, datos botánicos y guardado offline SQLite.
+ * Conectada al catálogo real (GET /api/species), comunidades reales (GET /api/communities)
+ * y subida directa o cola offline SQLite hacia POST /api/observations.
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -12,11 +13,11 @@ import {
   TouchableOpacity,
   TextInput,
   Image,
-  ActivityIndicator,
-  Platform
+  ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, shadows } from '../theme';
+import { GUAJIRA_MUNICIPIOS } from '../constants/guajira';
 
 const HEALTH_CHIPS = [
   { id: 'Sano y vigoroso', label: '🌳 Sano' },
@@ -34,8 +35,15 @@ export default function CaptureScreen({
   saveErrorBanner,
   speciesName,
   setSpeciesName,
+  selectedSpeciesId,
+  setSelectedSpeciesId,
+  displaySpeciesCatalog = [],
+  apiCommunities = [],
+  selectedCommunityId = null,
+  setSelectedCommunityId,
   municipio,
   setMunicipio,
+  onOpenTerritoryModal,
   extraOptionsOpen,
   setExtraOptionsOpen,
   photoUri,
@@ -50,10 +58,31 @@ export default function CaptureScreen({
   setContinuousMode,
   onNavigateToMap
 }) {
+  // Sugerencias en tiempo real desde las 61 especies reales del backend FastAPI
+  const speciesSuggestions = useMemo(() => {
+    const q = (speciesName || '').trim().toLowerCase();
+    if (!q) {
+      return displaySpeciesCatalog.slice(0, 8);
+    }
+    return displaySpeciesCatalog
+      .filter((sp) => {
+        const match = ((sp.name || '') + ' ' + (sp.scientific || '')).toLowerCase();
+        return match.includes(q);
+      })
+      .slice(0, 6);
+  }, [speciesName, displaySpeciesCatalog]);
+
+  const handlePickSpeciesSuggestion = (sp) => {
+    setSpeciesName(sp.name);
+    if (setSelectedSpeciesId) {
+      setSelectedSpeciesId(sp.id);
+    }
+  };
+
   return (
     <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.webFormContent}>
       {/* Título de la Página */}
-      <Text style={styles.webPageTitle}>Formulario de Registro de Especies</Text>
+      <Text style={styles.webPageTitle}>Registro Botánico en Campo</Text>
 
       {/* Alertas de Éxito / Error */}
       {saveSuccessBanner ? (
@@ -76,8 +105,8 @@ export default function CaptureScreen({
             <Text style={{ fontSize: 20 }}>📍</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.webCardTitle}>Ubicación Actual</Text>
-            <Text style={styles.webCardSubtitle}>Georreferenciación GPS en campo</Text>
+            <Text style={styles.webCardTitle}>Ubicación Satelital</Text>
+            <Text style={styles.webCardSubtitle}>Georreferenciación GPS para PostGIS y Mapa 3D</Text>
           </View>
         </View>
 
@@ -131,7 +160,7 @@ export default function CaptureScreen({
             ) : coords ? (
               <>
                 <Ionicons name="checkmark-sharp" size={18} color="#ffffff" style={{ marginRight: 4 }} />
-                <Text style={styles.webBtnLocationText}>✓ Ubicación fijada</Text>
+                <Text style={styles.webBtnLocationText}>✓ Actualizar GPS</Text>
               </>
             ) : (
               <>
@@ -146,7 +175,7 @@ export default function CaptureScreen({
               style={styles.webBtnMapToggle}
               onPress={onNavigateToMap}
             >
-              <Text style={styles.webBtnMapToggleText}>🗺️ Ajustar en mapa</Text>
+              <Text style={styles.webBtnMapToggleText}>🗺️ Ver en Mapa 3D</Text>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -156,25 +185,88 @@ export default function CaptureScreen({
       {/* TARJETA 2: DATOS DEL ÁRBOL                 */}
       {/* ========================================== */}
       <View style={styles.webQuickCard}>
-        {/* Campo Especie / Nombre Común */}
+        {/* Campo Especie / Nombre Común con Autocompletado desde FastAPI */}
         <View style={styles.webFormItem}>
-          <Text style={styles.webItemLabel}>
-            🌱 Especie o Nombre Común <Text style={styles.webReq}>*</Text>
-          </Text>
+          <View style={styles.labelRowBetween}>
+            <Text style={styles.webItemLabel}>
+              🌱 Especie o Nombre Común <Text style={styles.webReq}>*</Text>
+            </Text>
+            {selectedSpeciesId ? (
+              <View style={styles.catalogLinkedBadge}>
+                <Text style={styles.catalogLinkedText}>✓ Vinculada al catálogo</Text>
+              </View>
+            ) : null}
+          </View>
           <TextInput
             style={styles.webItemInput}
             value={speciesName}
-            onChangeText={setSpeciesName}
-            placeholder="Ej. Trupillo, Guayacán, Ceiba, Olleto..."
+            onChangeText={(txt) => {
+              setSpeciesName(txt);
+              if (setSelectedSpeciesId) {
+                const exact = displaySpeciesCatalog.find(
+                  (s) => (s.name || '').toLowerCase() === txt.trim().toLowerCase()
+                );
+                setSelectedSpeciesId(exact ? exact.id : null);
+              }
+            }}
+            placeholder="Escribe o elige del catálogo (Ej. Trupillo, Caracolí, Mamón...)"
             placeholderTextColor="#94a3b8"
           />
+
+          {/* Chips rápidos de especies reales del servidor */}
+          {speciesSuggestions.length > 0 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.suggestionsScroll}
+            >
+              {speciesSuggestions.map((sp) => {
+                const isSelected =
+                  (speciesName || '').trim().toLowerCase() === (sp.name || '').toLowerCase();
+                return (
+                  <TouchableOpacity
+                    key={sp.id}
+                    style={[
+                      styles.suggestionChip,
+                      isSelected && styles.suggestionChipActive
+                    ]}
+                    onPress={() => handlePickSpeciesSuggestion(sp)}
+                  >
+                    <Text
+                      style={[
+                        styles.suggestionChipTitle,
+                        isSelected && { color: '#ffffff' }
+                      ]}
+                    >
+                      🌿 {sp.name}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.suggestionChipSci,
+                        isSelected && { color: '#d1fae5' }
+                      ]}
+                    >
+                      {sp.scientific}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          ) : null}
         </View>
 
-        {/* Campo Municipio */}
+        {/* Campo Municipio con Selector Rápido de La Guajira y Colombia */}
         <View style={[styles.webFormItem, { marginTop: 14 }]}>
-          <Text style={styles.webItemLabel}>
-            📍 Municipio o Sector <Text style={styles.webReq}>*</Text>
-          </Text>
+          <View style={styles.labelRowBetween}>
+            <Text style={styles.webItemLabel}>
+              📍 Municipio o Territorio <Text style={styles.webReq}>*</Text>
+            </Text>
+            {onOpenTerritoryModal ? (
+              <TouchableOpacity onPress={onOpenTerritoryModal}>
+                <Text style={styles.searchTerritoryLink}>🔎 Buscar en Colombia</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
           <TextInput
             style={styles.webItemInput}
             value={municipio}
@@ -182,6 +274,27 @@ export default function CaptureScreen({
             placeholder="Seleccione o escriba un municipio"
             placeholderTextColor="#94a3b8"
           />
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.muniQuickScroll}
+          >
+            {GUAJIRA_MUNICIPIOS.slice(0, 8).map((mName) => {
+              const active = municipio === mName;
+              return (
+                <TouchableOpacity
+                  key={mName}
+                  style={[styles.muniChip, active && styles.muniChipActive]}
+                  onPress={() => setMunicipio(mName)}
+                >
+                  <Text style={[styles.muniChipText, active && styles.muniChipTextActive]}>
+                    {mName}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
         </View>
 
         {/* Botón para desplegar opciones secundarias */}
@@ -192,7 +305,7 @@ export default function CaptureScreen({
           >
             <Text style={styles.webPillIcon}>✨</Text>
             <Text style={styles.webExtraBtnText}>
-              Opciones adicionales (Foto, Salud, Notas)
+              Opciones adicionales (Foto, Comunidad, Salud, Notas)
             </Text>
             <Text style={styles.webPillArrow}>{extraOptionsOpen ? '▲' : '▼'}</Text>
           </TouchableOpacity>
@@ -201,6 +314,54 @@ export default function CaptureScreen({
         {/* Sección secundaria estilizada */}
         {extraOptionsOpen && (
           <View style={styles.webExtraFieldsPanel}>
+            {/* Selector de Comunidad Real de FastAPI (GET /api/communities) */}
+            {apiCommunities.length > 0 && setSelectedCommunityId ? (
+              <View style={styles.webFormItem}>
+                <Text style={styles.webItemLabelMini}>🤝 Vincular a Comunidad</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.muniQuickScroll}
+                >
+                  <TouchableOpacity
+                    style={[
+                      styles.muniChip,
+                      !selectedCommunityId && styles.muniChipActive
+                    ]}
+                    onPress={() => setSelectedCommunityId(null)}
+                  >
+                    <Text
+                      style={[
+                        styles.muniChipText,
+                        !selectedCommunityId && styles.muniChipTextActive
+                      ]}
+                    >
+                      Individual
+                    </Text>
+                  </TouchableOpacity>
+                  {apiCommunities.map((com) => {
+                    const isComActive = selectedCommunityId === com.id;
+                    return (
+                      <TouchableOpacity
+                        key={com.id}
+                        style={[styles.muniChip, isComActive && styles.muniChipActive]}
+                        onPress={() => setSelectedCommunityId(com.id)}
+                      >
+                        <Text
+                          style={[
+                            styles.muniChipText,
+                            isComActive && styles.muniChipTextActive
+                          ]}
+                        >
+                          🌱 {(com.name || '').trim()}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            ) : null}
+
             {/* Foto Rápida */}
             <View style={styles.webFormItem}>
               <Text style={styles.webItemLabelMini}>📷 Fotografía del Árbol</Text>
@@ -261,43 +422,47 @@ export default function CaptureScreen({
               </View>
             </View>
 
-            {/* Notas Breves */}
+            {/* Notas de Campo */}
             <View style={styles.webFormItem}>
-              <Text style={styles.webItemLabelMini}>📝 Notas breves de campo</Text>
+              <Text style={styles.webItemLabelMini}>📝 Notas u Observaciones</Text>
               <TextInput
-                style={[styles.webItemInput, styles.webInputCompact]}
+                style={[styles.webItemInput, styles.webItemTextarea]}
                 value={notes}
                 onChangeText={setNotes}
-                placeholder="Ej. Altura 6m, cerca a la quebrada, tronco espinoso..."
+                placeholder="Altura aproximada, presencia de frutos, estado del suelo..."
                 placeholderTextColor="#94a3b8"
+                multiline={true}
+                numberOfLines={3}
               />
             </View>
           </View>
         )}
 
-        {/* Botón Enviar Principal con estilo EcoRaíces */}
-        <TouchableOpacity
-          style={styles.webBtnSendEcoraices}
-          onPress={handleSaveTree}
-        >
-          <Ionicons name="shield-checkmark-outline" size={20} color="#ffffff" style={{ marginRight: 6 }} />
-          <Text style={styles.webBtnSendEcoraicesText}>Enviar Registro</Text>
-        </TouchableOpacity>
+        {/* Botón Guardar y Switch de Modo Continuo */}
+        <View style={styles.webSubmitSection}>
+          <TouchableOpacity
+            style={styles.webBtnSubmitMain}
+            onPress={handleSaveTree}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.webBtnSubmitMainText}>🌱 Guardar Registro del Árbol</Text>
+          </TouchableOpacity>
 
-        {/* Modo ráfaga continua para registrar y continuar */}
-        <TouchableOpacity
-          style={styles.webContinuousModeToggle}
-          onPress={() => setContinuousMode && setContinuousMode(!continuousMode)}
-        >
-          <Ionicons
-            name={continuousMode ? 'checkbox' : 'square-outline'}
-            size={18}
-            color={continuousMode ? colors.primary : '#94a3b8'}
-          />
-          <Text style={styles.webContinuousModeText}>
-            ⚡ Modo ráfaga: registrar y continuar con el siguiente árbol
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.webContinuousCheckRow}
+            onPress={() => setContinuousMode && setContinuousMode(!continuousMode)}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name={continuousMode ? 'checkbox' : 'square-outline'}
+              size={20}
+              color={continuousMode ? colors.primary : '#94a3b8'}
+            />
+            <Text style={styles.webContinuousCheckLabel}>
+              Seguir registrando más árboles en este mismo sector (Modo Ráfaga)
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </ScrollView>
   );
@@ -313,46 +478,43 @@ const styles = StyleSheet.create({
     paddingBottom: 40
   },
   webPageTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '900',
     color: '#0f172a',
-    textAlign: 'center',
-    marginTop: 6,
-    marginBottom: 16
+    marginBottom: 12,
+    textAlign: 'center'
   },
   webAlertSuccess: {
-    backgroundColor: '#dcfce7',
+    backgroundColor: '#ecfdf5',
     borderWidth: 1,
-    borderColor: '#86efac',
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 12,
-    alignItems: 'center'
+    borderColor: '#10b981',
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 14
   },
   webAlertSuccessText: {
-    color: colors.primary,
-    fontSize: 12,
-    fontWeight: '700'
+    color: '#065f46',
+    fontWeight: '700',
+    fontSize: 13
   },
   webAlertError: {
-    backgroundColor: '#fee2e2',
+    backgroundColor: '#fef2f2',
     borderWidth: 1,
-    borderColor: '#fca5a5',
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 12,
-    alignItems: 'center'
+    borderColor: '#ef4444',
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 14
   },
   webAlertErrorText: {
-    color: colors.danger,
-    fontSize: 12,
-    fontWeight: '700'
+    color: '#991b1b',
+    fontWeight: '700',
+    fontSize: 13
   },
   webQuickCard: {
     backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 16,
     marginBottom: 14,
     ...shadows.sm
@@ -364,240 +526,309 @@ const styles = StyleSheet.create({
     marginBottom: 12
   },
   webHeaderIconBadge: {
-    width: 38,
-    height: 38,
+    width: 42,
+    height: 42,
     borderRadius: 10,
-    backgroundColor: '#dcfce7',
-    borderWidth: 1,
-    borderColor: '#86efac',
+    backgroundColor: '#ecfdf5',
     alignItems: 'center',
     justifyContent: 'center'
   },
   webCardTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#14532d'
+    color: '#0f172a'
   },
   webCardSubtitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#64748b',
     marginTop: 1
   },
   webCoordsBox: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     flexWrap: 'wrap',
+    alignItems: 'center',
     gap: 8,
     backgroundColor: '#f8fafc',
+    padding: 10,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    borderRadius: 10,
-    padding: 10,
     marginBottom: 12
   },
   webCoordPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4
+    gap: 4,
+    backgroundColor: '#ffffff',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#e2e8f0'
   },
   webCoordTag: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: '#64748b'
   },
   webCoordVal: {
     fontSize: 12,
-    fontWeight: '800',
-    color: '#0f172a',
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace'
+    fontFamily: 'monospace',
+    color: '#94a3b8'
   },
   webCoordValActive: {
-    color: colors.primary
-  },
-  webGpsStatusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-    borderWidth: 1
-  },
-  webGpsStatusReady: {
-    backgroundColor: '#dcfce7',
-    borderColor: '#86efac'
-  },
-  webGpsStatusWaiting: {
-    backgroundColor: '#fef3c7',
-    borderColor: '#fde68a'
-  },
-  webGpsStatusText: {
-    fontSize: 10,
+    color: '#0f172a',
     fontWeight: '700'
   },
-  webGpsStatusTextReady: {
-    color: colors.primary
+  webGpsStatusBadge: {
+    marginLeft: 'auto',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 999
+  },
+  webGpsStatusWaiting: {
+    backgroundColor: '#fef3c7'
+  },
+  webGpsStatusReady: {
+    backgroundColor: '#d1fae5'
+  },
+  webGpsStatusText: {
+    fontSize: 11,
+    fontWeight: '700'
   },
   webGpsStatusTextWaiting: {
-    color: colors.warning
+    color: '#92400e'
+  },
+  webGpsStatusTextReady: {
+    color: '#065f46'
   },
   webLocationBtnRow: {
     flexDirection: 'row',
-    gap: 10
+    gap: 8
   },
   webBtnLocation: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.danger,
-    paddingVertical: 12,
-    borderRadius: 8,
-    ...shadows.sm
+    backgroundColor: colors.primary,
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+    borderRadius: 10
   },
   webBtnLocationText: {
     color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '800'
+    fontWeight: '700',
+    fontSize: 13
   },
   webBtnMapToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#ffffff',
-    borderWidth: 1.5,
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
     borderColor: '#cbd5e1',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 8
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   webBtnMapToggleText: {
-    color: '#334155',
-    fontSize: 12,
-    fontWeight: '700'
+    color: '#0f172a',
+    fontWeight: '600',
+    fontSize: 12
   },
   webFormItem: {
-    marginBottom: 4
+    flexDirection: 'column',
+    gap: 6
+  },
+  labelRowBetween: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between'
   },
   webItemLabel: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#0f172a',
-    marginBottom: 6
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0f172a'
   },
   webReq: {
-    color: colors.danger,
-    fontWeight: '800'
+    color: '#ef4444'
+  },
+  catalogLinkedBadge: {
+    backgroundColor: '#dcfce7',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6
+  },
+  catalogLinkedText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#065f46'
+  },
+  searchTerritoryLink: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.primary
   },
   webItemInput: {
     width: '100%',
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    borderRadius: 10,
     borderWidth: 1.5,
     borderColor: '#cbd5e1',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 13,
-    color: '#0f172a',
-    backgroundColor: '#ffffff'
+    backgroundColor: '#f8fafc',
+    color: '#0f172a'
   },
-  webInputCompact: {
-    paddingVertical: 8,
-    fontSize: 12
+  suggestionsScroll: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 4
+  },
+  suggestionChip: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 5
+  },
+  suggestionChipActive: {
+    backgroundColor: '#065f46',
+    borderColor: '#065f46'
+  },
+  suggestionChipTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0f172a'
+  },
+  suggestionChipSci: {
+    fontSize: 9,
+    fontStyle: 'italic',
+    color: '#64748b'
+  },
+  muniQuickScroll: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 4
+  },
+  muniChip: {
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5
+  },
+  muniChipActive: {
+    backgroundColor: '#065f46',
+    borderColor: '#065f46'
+  },
+  muniChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569'
+  },
+  muniChipTextActive: {
+    color: '#ffffff'
+  },
+  webItemTextarea: {
+    minHeight: 74,
+    textAlignVertical: 'top'
   },
   webExtraToggleWrap: {
-    alignItems: 'center',
-    marginVertical: 14
+    marginTop: 14
   },
   webBtnExtraPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#f1f5f9',
+    justifyContent: 'space-between',
+    backgroundColor: '#f8fafc',
     borderWidth: 1,
     borderColor: '#cbd5e1',
-    borderRadius: 20,
-    paddingVertical: 8,
-    paddingHorizontal: 14
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10
   },
   webPillIcon: {
-    fontSize: 13
+    fontSize: 14,
+    marginRight: 6
   },
   webExtraBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#334155'
+    flex: 1,
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#475569'
   },
   webPillArrow: {
     fontSize: 11,
     color: '#64748b'
   },
   webExtraFieldsPanel: {
-    backgroundColor: '#f8fafc',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 14,
-    gap: 12
+    marginTop: 10,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+    gap: 14
   },
   webItemLabelMini: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#64748b',
-    marginBottom: 6
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#475569',
+    marginBottom: 2
   },
   webPhotoBtnStyled: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#ffffff',
-    borderWidth: 2,
-    borderColor: '#86efac',
+    backgroundColor: '#f8fafc',
+    borderWidth: 1.5,
     borderStyle: 'dashed',
-    borderRadius: 8,
-    paddingVertical: 14
+    borderColor: colors.primary,
+    borderRadius: 10,
+    padding: 12
   },
   webPhotoBtnStyledText: {
-    color: colors.primary,
-    fontSize: 12,
-    fontWeight: '800'
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.primary
   },
   webPhotoPreviewThumb: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#f8fafc',
+    padding: 8,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 8,
-    padding: 8
+    borderColor: '#e2e8f0'
   },
   webThumbImg: {
-    width: 48,
-    height: 48,
-    borderRadius: 6
+    width: 54,
+    height: 54,
+    borderRadius: 8,
+    backgroundColor: '#e2e8f0'
   },
   webThumbInfo: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between'
+    gap: 4
   },
   webThumbFilename: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#0f172a',
-    fontWeight: '600',
-    maxWidth: 160
+    fontWeight: '600'
   },
   webBtnRemoveThumb: {
-    borderWidth: 1,
-    borderColor: colors.danger,
-    borderRadius: 6,
+    alignSelf: 'flex-start',
+    backgroundColor: '#fee2e2',
+    paddingVertical: 3,
     paddingHorizontal: 8,
-    paddingVertical: 4
+    borderRadius: 6
   },
   webBtnRemoveThumbText: {
-    color: colors.danger,
-    fontSize: 10,
+    color: '#b91c1c',
+    fontSize: 11,
     fontWeight: '700'
   },
   webHealthChipsRow: {
@@ -606,51 +837,56 @@ const styles = StyleSheet.create({
     gap: 6
   },
   webMiniChip: {
-    backgroundColor: '#ffffff',
-    borderWidth: 1.5,
+    width: '48%',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: 1,
     borderColor: '#cbd5e1',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6
+    backgroundColor: '#f8fafc',
+    alignItems: 'center'
   },
   webMiniChipActive: {
-    backgroundColor: '#dcfce7',
-    borderColor: colors.primary
+    backgroundColor: '#ecfdf5',
+    borderColor: '#10b981'
   },
   webMiniChipText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#64748b'
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569'
   },
   webMiniChipTextActive: {
-    color: colors.primary,
-    fontWeight: '800'
+    color: '#065f46',
+    fontWeight: '700'
   },
-  webBtnSendEcoraices: {
-    flexDirection: 'row',
+  webSubmitSection: {
+    marginTop: 18,
+    gap: 10
+  },
+  webBtnSubmitMain: {
+    width: '100%',
+    paddingVertical: 14,
+    backgroundColor: colors.primary,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.primary,
-    paddingVertical: 14,
-    borderRadius: 8,
-    marginTop: 6,
     ...shadows.md
   },
-  webBtnSendEcoraicesText: {
+  webBtnSubmitMainText: {
     color: '#ffffff',
     fontSize: 15,
     fontWeight: '800'
   },
-  webContinuousModeToggle: {
+  webContinuousCheckRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    marginTop: 12
+    paddingVertical: 4
   },
-  webContinuousModeText: {
-    fontSize: 11,
+  webContinuousCheckLabel: {
+    fontSize: 12,
     color: '#64748b',
-    fontWeight: '600'
+    fontWeight: '500'
   }
 });

@@ -61,9 +61,9 @@ export const MEDALLAS_SISTEMA = [
     id: 'sync_master',
     title: 'Sincronizador Fiel',
     icon: '⚡',
-    category: 'Dokploy Cloud',
+    category: 'Nube EcoRaíces',
     points: 90,
-    description: 'Subiste con éxito tus registros fuera de línea a la nube de Dokploy/FastAPI.',
+    description: 'Subiste con éxito tus registros fuera de línea a la plataforma central de EcoRaíces.',
     check: (stats) => (stats.syncedCount || 0) >= 5
   },
   {

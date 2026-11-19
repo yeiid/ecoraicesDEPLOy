@@ -167,6 +167,25 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
           </div>
         </div>
 
+        <!-- Altura estimada 3D para Catastro Arbóreo -->
+        <div class="form-item">
+          <span class="item-label-mini">📏 Altura Estimada (Catastro 3D)</span>
+          <div class="health-chips-row">
+            <label class="mini-chip" style="display:inline-flex;align-items:center;gap:4px;">
+              <input type="radio" name="alturaArbol" value="5" style="accent-color:#059669;" /> 5m
+            </label>
+            <label class="mini-chip" style="display:inline-flex;align-items:center;gap:4px;">
+              <input type="radio" name="alturaArbol" value="8" checked style="accent-color:#059669;" /> 8m
+            </label>
+            <label class="mini-chip" style="display:inline-flex;align-items:center;gap:4px;">
+              <input type="radio" name="alturaArbol" value="12" style="accent-color:#059669;" /> 12m
+            </label>
+            <label class="mini-chip" style="display:inline-flex;align-items:center;gap:4px;">
+              <input type="radio" name="alturaArbol" value="16" style="accent-color:#059669;" /> 16m
+            </label>
+          </div>
+        </div>
+
         <!-- Chips de Salud Fitosanitaria en 1 toque -->
         <div class="form-item">
           <span class="item-label-mini">🌿 Condición de Salud</span>
@@ -1081,7 +1100,7 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
     });
 
     // Chips de salud
-    const miniChips = document.querySelectorAll('.mini-chip');
+    const miniChips = document.querySelectorAll('.mini-chip[data-health]');
     miniChips.forEach(chip => {
       chip.addEventListener('click', () => {
         miniChips.forEach(c => c.classList.remove('active'));
@@ -1095,7 +1114,7 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
       const isHidden = extraFields.style.display === 'none';
       extraFields.style.display = isHidden ? 'flex' : 'none';
       btnToggleExtra.classList.toggle('active', isHidden);
-      extraBtnText.textContent = isHidden ? 'Ocultar opciones adicionales' : 'Opciones adicionales (Foto, Salud, Notas)';
+      extraBtnText.textContent = isHidden ? 'Ocultar opciones adicionales' : 'Opciones adicionales (Foto, Altura 3D, Salud, Notas)';
     });
 
     // Toggle mini-mapa
@@ -1183,6 +1202,12 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
       `;
 
       const clientId = generateClientObservationId();
+      const selectedHeightEl = form.querySelector('input[name="alturaArbol"]:checked');
+      const alturaArbolVal = selectedHeightEl ? parseFloat(selectedHeightEl.value) || 8 : 8;
+      const rawNotes = document.getElementById('quick-notes')?.value.trim() || '';
+      const combinedNotes = rawNotes && !/Altura:\s*\d/i.test(rawNotes)
+        ? `Altura: ${alturaArbolVal}m. ${rawNotes}`
+        : (rawNotes || `Altura: ${alturaArbolVal}m.`);
 
       const observationData = {
         clientId,
@@ -1191,9 +1216,10 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
         municipio: municipioVal,
         latitude: latInput.value,
         longitude: lngInput.value,
+        alturaArbol: alturaArbolVal,
         estadoFitosanitario: estadoFitosanitarioInput.value || "Sano y vigoroso",
         observationDate: new Date().toISOString().split("T")[0],
-        notes: document.getElementById('quick-notes')?.value.trim() || null,
+        notes: combinedNotes,
         communityId: document.getElementById('quick-community')?.value || null,
         imageName: currentPhotoName
       };
@@ -1244,6 +1270,7 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
         formData.append("municipio", municipioVal);
         formData.append("latitude", latInput.value);
         formData.append("longitude", lngInput.value);
+        formData.append("alturaArbol", String(alturaArbolVal));
         formData.append("estadoFitosanitario", observationData.estadoFitosanitario);
         formData.append("observationDate", observationData.observationDate);
 
