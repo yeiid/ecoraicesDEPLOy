@@ -57,17 +57,8 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
             <polygon points="12 2 12 6 12 18 12 22"/>
             <polygon points="2 12 6 12 18 12 22 12"/>
           </svg>
-          ¿Dónde estoy?
+          ¿Dónde estoy? (Capturar GPS exacto)
         </button>
-        <button type="button" id="btn-toggle-map" class="btn-map-toggle">
-          🗺️ Ajustar en mapa
-        </button>
-      </div>
-
-      <!-- Mapa colapsable opcional (cero scroll por defecto) -->
-      <div id="map-drawer" class="map-drawer" style="display: none;">
-        <div id="quick-map" class="drawer-map"></div>
-        <span class="map-hint">Toca en el mapa para ajustar manualmente la coordenada del árbol.</span>
       </div>
     </div>
 
@@ -99,10 +90,10 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
         </datalist>
       </div>
 
-      <!-- Campo Municipio -->
+      <!-- Campo Municipio (detectado automáticamente por GPS) -->
       <div class="form-item">
         <label for="municipioInput" class="item-label">
-          <span class="item-label-icon">📍</span> Municipio o Sector <span class="req">*</span>
+          <span class="item-label-icon">📍</span> Municipio o Territorio (detectado por GPS) <span class="req">*</span>
         </label>
         <div class="input-shell">
           <input 
@@ -110,25 +101,32 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
             id="municipioInput" 
             name="municipioInput"
             class="item-input" 
-            list="municipios-list"
-            placeholder="Seleccione o escriba un municipio"
+            placeholder="Se completa automáticamente al obtener tu GPS"
+            autocomplete="address-level2"
             required
           />
         </div>
-        <datalist id="municipios-list">
-          <option value="Riohacha" />
-          <option value="Dibulla" />
-          <option value="Manaure" />
-          <option value="Maicao" />
-          <option value="San Juan del Cesar" />
-          <option value="Fonseca" />
-          <option value="Barrancas" />
-          <option value="Albania" />
-          <option value="Hatonuevo" />
-          <option value="Villanueva" />
-          <option value="Uribia" />
-          <option value="Distracción" />
-        </datalist>
+      </div>
+
+      <!-- Altura estimada 3D para Catastro Arbóreo -->
+      <div class="form-item">
+        <span class="item-label">
+          <span class="item-label-icon">📏</span> Altura Estimada (Catastro 3D)
+        </span>
+        <div class="health-chips-row">
+          <label class="mini-chip" style="display:inline-flex;align-items:center;gap:4px;">
+            <input type="radio" name="alturaArbol" value="5" style="accent-color:#059669;" /> 5m (Joven)
+          </label>
+          <label class="mini-chip" style="display:inline-flex;align-items:center;gap:4px;">
+            <input type="radio" name="alturaArbol" value="8" checked style="accent-color:#059669;" /> 8m (Medio)
+          </label>
+          <label class="mini-chip" style="display:inline-flex;align-items:center;gap:4px;">
+            <input type="radio" name="alturaArbol" value="12" style="accent-color:#059669;" /> 12m (Adulto)
+          </label>
+          <label class="mini-chip" style="display:inline-flex;align-items:center;gap:4px;">
+            <input type="radio" name="alturaArbol" value="16" style="accent-color:#059669;" /> 16m (Dosel)
+          </label>
+        </div>
       </div>
 
       <!-- Botón para desplegar opciones secundarias -->
@@ -164,25 +162,6 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
                 <button type="button" id="btn-remove-thumb" class="btn-remove-thumb">✕ Quitar</button>
               </div>
             </div>
-          </div>
-        </div>
-
-        <!-- Altura estimada 3D para Catastro Arbóreo -->
-        <div class="form-item">
-          <span class="item-label-mini">📏 Altura Estimada (Catastro 3D)</span>
-          <div class="health-chips-row">
-            <label class="mini-chip" style="display:inline-flex;align-items:center;gap:4px;">
-              <input type="radio" name="alturaArbol" value="5" style="accent-color:#059669;" /> 5m
-            </label>
-            <label class="mini-chip" style="display:inline-flex;align-items:center;gap:4px;">
-              <input type="radio" name="alturaArbol" value="8" checked style="accent-color:#059669;" /> 8m
-            </label>
-            <label class="mini-chip" style="display:inline-flex;align-items:center;gap:4px;">
-              <input type="radio" name="alturaArbol" value="12" style="accent-color:#059669;" /> 12m
-            </label>
-            <label class="mini-chip" style="display:inline-flex;align-items:center;gap:4px;">
-              <input type="radio" name="alturaArbol" value="16" style="accent-color:#059669;" /> 16m
-            </label>
           </div>
         </div>
 
@@ -229,7 +208,7 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
             type="text" 
             id="quick-notes" 
             class="item-input input-compact" 
-            placeholder="Ej. Altura 6m, cerca a la quebrada, tronco espinoso..."
+            placeholder="Ej. Cerca a la quebrada, tronco espinoso..."
           />
         </div>
       </div>
@@ -250,8 +229,6 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
     </div>
   </form>
 </div>
-
-<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" />
 
 <style>
   .quick-form-container {
@@ -860,9 +837,6 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
     const extraFields = document.getElementById('extra-fields');
     const extraBtnText = document.getElementById('extra-btn-text');
 
-    const btnToggleMap = document.getElementById('btn-toggle-map');
-    const mapDrawer = document.getElementById('map-drawer');
-
     // Uploader de foto rápida
     const quickImage = document.getElementById('quick-image');
     const photoPlaceholderBtn = document.getElementById('photo-placeholder-btn');
@@ -871,9 +845,7 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
     const thumbName = document.getElementById('thumb-name');
     const btnRemoveThumb = document.getElementById('btn-remove-thumb');
 
-    let map = null;
-    let marker = null;
-    let mapInitialized = false;
+    let lastGeocodedKey = '';
 
     // Recordar el último municipio utilizado para agilizar ráfaga en campo
     const savedMunicipio = localStorage.getItem('ecoraices_last_municipio');
@@ -900,6 +872,31 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
       alertError.style.display = 'none';
     };
 
+    async function autoDetectMunicipioFromGPS(lat, lng) {
+      const key = `${Number(lat).toFixed(3)},${Number(lng).toFixed(3)}`;
+      if (key === lastGeocodedKey) return;
+      lastGeocodedKey = key;
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 5000);
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&zoom=12&accept-language=es`,
+          { signal: ctrl.signal }
+        );
+        clearTimeout(timer);
+        if (!res.ok) return;
+        const data = await res.json();
+        const addr = data.address || {};
+        const muni = addr.city || addr.town || addr.municipality || addr.village || addr.county || '';
+        if (muni && municipioInput) {
+          municipioInput.value = muni;
+          localStorage.setItem('ecoraices_last_municipio', muni);
+        }
+      } catch {
+        // Offline fallback preserves previous value
+      }
+    }
+
     // Actualizar coordenadas en la UI
     function setCoordinates(lat, lng, accuracy = null) {
       latInput.value = Number(lat).toFixed(6);
@@ -915,9 +912,7 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
         gpsStatusBadge.className = "gps-status-badge ready";
       }
 
-      if (marker && map) {
-        marker.setLngLat([lng, lat]);
-      }
+      autoDetectMunicipioFromGPS(lat, lng);
     }
 
     // Geolocalización con watchPosition continuo (GPS caliente para campo)
@@ -943,35 +938,22 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
       }
 
       btnWhereAmI.disabled = true;
-      btnWhereAmI.innerHTML = `
-        <svg class="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
-          <path d="M12 2a10 10 0 0 1 10 10"/>
-        </svg>
-        Obteniendo GPS...
-      `;
+      btnWhereAmI.textContent = 'Obteniendo GPS...';
 
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           setCoordinates(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
           btnWhereAmI.disabled = false;
-          btnWhereAmI.innerHTML = `✓ Ubicación fijada`;
+          btnWhereAmI.textContent = '✓ Ubicación GPS fijada';
           setTimeout(() => {
-            btnWhereAmI.innerHTML = `
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <circle cx="12" cy="12" r="10"/>
-                <polygon points="12 2 12 6 12 18 12 22"/>
-                <polygon points="2 12 6 12 18 12 22 12"/>
-              </svg>
-              ¿Dónde estoy?
-            `;
+            btnWhereAmI.textContent = '¿Dónde estoy? (Capturar GPS exacto)';
           }, 3000);
         },
-        (err) => {
+        () => {
           btnWhereAmI.disabled = false;
-          btnWhereAmI.innerHTML = `¿Dónde estoy?`;
+          btnWhereAmI.textContent = '¿Dónde estoy? (Capturar GPS exacto)';
           if (!silent) {
-            alert('No se pudo obtener la ubicación GPS automática. Por favor activa los permisos de ubicación o usa "Ajustar en mapa".');
+            alert('No se pudo obtener la ubicación GPS automática. Por favor activa los permisos de ubicación de tu dispositivo.');
           }
         },
         { enableHighAccuracy: true, timeout: 12000, maximumAge: 5000 }
@@ -1114,38 +1096,7 @@ const { categories = [], speciesList = [], communities = [], userId } = Astro.pr
       const isHidden = extraFields.style.display === 'none';
       extraFields.style.display = isHidden ? 'flex' : 'none';
       btnToggleExtra.classList.toggle('active', isHidden);
-      extraBtnText.textContent = isHidden ? 'Ocultar opciones adicionales' : 'Opciones adicionales (Foto, Altura 3D, Salud, Notas)';
-    });
-
-    // Toggle mini-mapa
-    btnToggleMap?.addEventListener('click', () => {
-      const isHidden = mapDrawer.style.display === 'none';
-      mapDrawer.style.display = isHidden ? 'block' : 'none';
-      btnToggleMap.textContent = isHidden ? '✕ Cerrar mapa' : '🗺️ Ajustar en mapa';
-
-      if (isHidden && !mapInitialized) {
-        mapInitialized = true;
-        import('https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js').then((module) => {
-          const maplibregl = module.default || window.maplibregl;
-          const initialLat = parseFloat(latInput.value) || 11.5448;
-          const initialLng = parseFloat(lngInput.value) || -72.9068;
-
-          map = new maplibregl.Map({
-            container: 'quick-map',
-            style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
-            center: [initialLng, initialLat],
-            zoom: latInput.value ? 15 : 8
-          });
-
-          marker = new maplibregl.Marker({ color: '#16a34a' })
-            .setLngLat([initialLng, initialLat])
-            .addTo(map);
-
-          map.on('click', (e) => {
-            setCoordinates(e.lngLat.lat, e.lngLat.lng);
-          });
-        });
-      }
+      extraBtnText.textContent = isHidden ? 'Ocultar opciones adicionales' : 'Opciones adicionales (Foto, Salud, Notas)';
     });
 
     const resetSubmitBtn = () => {

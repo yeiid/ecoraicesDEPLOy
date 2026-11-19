@@ -1,0 +1,319 @@
+---
+import Layout from "../layouts/Layout.astro";
+
+const pageTitle = "Política de Privacidad y Tratamiento de Datos — EcoRaíces";
+const lastUpdated = "19 de noviembre de 2026";
+---
+
+<Layout title={pageTitle}>
+  <div class="legal-page-container">
+    <header class="legal-hero">
+      <span class="legal-badge">Google Play & Plataforma Web · Ley 1581 de 2012</span>
+      <h1>Política de Privacidad y Tratamiento de Datos</h1>
+      <p class="legal-subtitle">
+        Transparencia sobre cómo recopilamos, protegemos y utilizamos los datos en la aplicación móvil
+        <strong>EcoRaíces</strong> (<code>com.neuraljira.ecoraices</code>) y en <strong>ecoraices.neuraljira.tech</strong>.
+      </p>
+      <div class="legal-meta">
+        <span>📅 Última actualización: {lastUpdated}</span>
+        <span>🏢 Responsable: NeuralJIRA — EcoRaíces</span>
+      </div>
+
+      <nav class="legal-quick-nav" aria-label="Navegación de documentos legales">
+        <a href="/privacidad" class="legal-nav-pill active" aria-current="page">🔒 Política de Privacidad</a>
+        <a href="/terminos" class="legal-nav-pill">📜 Términos y Condiciones</a>
+        <a href="/eliminar-cuenta" class="legal-nav-pill">🗑️ Eliminación de Cuenta y Datos</a>
+      </nav>
+    </header>
+
+    <article class="legal-card">
+      <section class="legal-section">
+        <h2>1. Identificación del Responsable del Tratamiento</h2>
+        <p>
+          <strong>EcoRaíces</strong> es una plataforma tecnológica y de ciencia ciudadana desarrollada por
+          <strong>NeuralJIRA (Yeifran Hernández)</strong> para el inventario, monitoreo, cartografía 3D y conservación
+          del patrimonio arbóreo y del Bosque Seco Tropical en Colombia.
+        </p>
+        <ul class="legal-list">
+          <li><strong>Nombre de la aplicación:</strong> EcoRaíces (ID de paquete Android: <code>com.neuraljira.ecoraices</code>)</li>
+          <li><strong>Sitio web oficial:</strong> <a href="https://ecoraices.neuraljira.tech">https://ecoraices.neuraljira.tech</a></li>
+          <li><strong>Correo electrónico de contacto y privacidad:</strong> <a href="mailto:yeifran67@gmail.com">yeifran67@gmail.com</a></li>
+          <li><strong>Teléfono de contacto:</strong> <a href="tel:+573058079573">+57 305 807 9573</a></li>
+          <li><strong>Ubicación:</strong> Bogotá / La Guajira, Colombia</li>
+        </ul>
+      </section>
+
+      <section class="legal-section">
+        <h2>2. Datos que Recopilamos y Finalidad</h2>
+        <p>
+          Recopilamos únicamente la información estrictamente necesaria para el funcionamiento del inventario
+          forestal colaborativo y del Catastro Arbóreo 3D:
+        </p>
+
+        <div class="permissions-grid">
+          <div class="perm-box">
+            <h3>📍 Ubicación Precisa y Aproximada (GPS)</h3>
+            <p>
+              <strong>Permisos Android:</strong> <code>ACCESS_FINE_LOCATION</code> y <code>ACCESS_COARSE_LOCATION</code>.
+            </p>
+            <p>
+              <strong>Uso:</strong> Se utiliza exclusivamente mientras el usuario usa la aplicación en primer plano para
+              georreferenciar con coordenadas satelitales exactas los árboles registrados en campo, detectar el municipio
+              correspondiente y centrar el visor del Catastro Arbóreo 3D. <strong>No rastreamos tu ubicación en segundo plano</strong>
+              ni compartimos tu ubicación personal con redes publicitarias.
+            </p>
+          </div>
+
+          <div class="perm-box">
+            <h3>📷 Cámara y Galería Fotográfica</h3>
+            <p>
+              <strong>Permisos Android:</strong> <code>CAMERA</code>, <code>READ_MEDIA_IMAGES</code>.
+            </p>
+            <p>
+              <strong>Uso:</strong> Permite capturar o adjuntar fotografías botánicas del ejemplar arbóreo que el
+              guardabosques o ciudadano desea documentar para su validación taxonómica y fitosanitaria.
+            </p>
+          </div>
+
+          <div class="perm-box">
+            <h3>👤 Datos de Cuenta de Usuario</h3>
+            <p>
+              <strong>Datos solicitados:</strong> Nombre o alias, nombre de usuario, correo electrónico y contraseña
+              (almacenada bajo hash criptográfico seguro <code>bcrypt</code> / <code>argon2</code>).
+            </p>
+            <p>
+              <strong>Uso:</strong> Autenticar al usuario para sincronizar sus registros con el servidor central,
+              atribuir la autoría científica de las observaciones forestales, gestionar comunidades y otorgar
+              reconocimientos o medallas ambientales.
+            </p>
+          </div>
+
+          <div class="perm-box">
+            <h3>💾 Almacenamiento Local Offline (SQLite / IndexedDB)</h3>
+            <p>
+              <strong>Uso:</strong> Cuando trabajas en zonas rurales sin señal de internet, los árboles censados y las
+              teselas del mapa 3D se almacenan localmente en tu dispositivo hasta que decidas sincronizarlos con el
+              servidor oficial.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="legal-section">
+        <h2>3. Seguridad y Protección de la Información</h2>
+        <ul class="legal-list">
+          <li><strong>Cifrado en tránsito:</strong> Todas las comunicaciones entre la aplicación móvil, el navegador web y nuestros servidores se realizan mediante conexiones cifradas <strong>HTTPS / TLS</strong>.</li>
+          <li><strong>Protección de credenciales:</strong> Las contraseñas nunca se almacenan en texto plano y los tokens de sesión se gestionan de forma segura.</li>
+          <li><strong>Cero venta de datos:</strong> EcoRaíces <strong>no vende, alquila ni comercializa</strong> datos personales con terceros ni incluye SDKs de publicidad invasiva.</li>
+        </ul>
+      </section>
+
+      <section class="legal-section">
+        <h2>4. Carácter Público de los Datos Botánicos y Científicos</h2>
+        <p>
+          Por tratarse de una iniciativa de <strong>Ciencia Ciudadana y Datos Abiertos para la Conservación</strong>,
+          la información estrictamente botánica de los árboles registrados (especie, altura estimada, condición
+          fitosanitaria, fotografía del árbol, municipio y coordenada geográfica del ejemplar) forma parte del
+          <strong>Catastro Arbóreo 3D</strong> público para apoyar la reforestación, la investigación académica y el
+          control de especies invasoras como el Neem (<em>Azadirachta indica</em>). Tu correo electrónico y credenciales
+          privadas jamás se exponen públicamente.
+        </p>
+      </section>
+
+      <section class="legal-section">
+        <h2>5. Derechos de los Titulares (Habeas Data — Ley 1581 de 2012)</h2>
+        <p>
+          Como titular de tus datos personales tienes derecho en cualquier momento a:
+        </p>
+        <ul class="legal-list">
+          <li>Conocer, actualizar y rectificar tus datos personales desde tu perfil en la app o en la web.</li>
+          <li>Solicitar prueba de la autorización otorgada para el tratamiento de datos.</li>
+          <li>Revocar la autorización y/o solicitar la <strong>eliminación total de tu cuenta y datos personales</strong>.</li>
+        </ul>
+        <p>
+          Para solicitar la eliminación de tu cuenta o de tus datos, visita nuestra página dedicada:
+          <a href="/eliminar-cuenta"><strong>Solicitud de Eliminación de Cuenta y Datos (/eliminar-cuenta)</strong></a>
+          o escríbenos directamente a <a href="mailto:yeifran67@gmail.com">yeifran67@gmail.com</a>.
+        </p>
+      </section>
+
+      <section class="legal-section">
+        <h2>6. Privacidad de Menores de Edad</h2>
+        <p>
+          EcoRaíces es una plataforma educativa y científica apta para todo público. No recopilamos intencionalmente
+          información personal sensible de menores de 13 años sin el consentimiento de sus padres, acudientes o
+          instituciones educativas participantes en jornadas ambientales.
+        </p>
+      </section>
+
+      <section class="legal-section">
+        <h2>7. Cambios en esta Política de Privacidad</h2>
+        <p>
+          Cualquier actualización relevante a esta política será publicada en esta misma URL
+          (<a href="https://ecoraices.neuraljira.tech/privacidad">https://ecoraices.neuraljira.tech/privacidad</a>)
+          indicando la fecha de última modificación en el encabezado.
+        </p>
+      </section>
+    </article>
+  </div>
+</Layout>
+
+<style>
+  .legal-page-container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem 3rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.75rem;
+  }
+
+  .legal-hero {
+    background: var(--color-card, #ffffff);
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 16px;
+    padding: 2rem;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .legal-badge {
+    display: inline-block;
+    background: rgba(16, 185, 129, 0.12);
+    color: var(--color-primary, #1b5e20);
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.35rem 0.85rem;
+    border-radius: 999px;
+    margin-bottom: 0.85rem;
+  }
+
+  .legal-hero h1 {
+    font-family: var(--font-heading, sans-serif);
+    font-size: clamp(1.65rem, 3.2vw, 2.3rem);
+    font-weight: 800;
+    color: var(--color-text, #0f172a);
+    margin: 0 0 0.75rem;
+    line-height: 1.2;
+  }
+
+  .legal-subtitle {
+    color: var(--color-text-muted, #475569);
+    font-size: 1rem;
+    line-height: 1.6;
+    margin: 0 0 1.1rem;
+  }
+
+  .legal-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-text-muted, #64748b);
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--color-border, #e2e8f0);
+  }
+
+  .legal-quick-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-top: 1.25rem;
+  }
+
+  .legal-nav-pill {
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 0.5rem 0.95rem;
+    border-radius: 999px;
+    background: var(--color-bg, #f8fafc);
+    color: var(--color-text, #334155);
+    border: 1px solid var(--color-border, #cbd5e1);
+    transition: all 0.2s ease;
+  }
+
+  .legal-nav-pill:hover,
+  .legal-nav-pill.active {
+    background: var(--color-primary, #1b5e20);
+    color: #ffffff;
+    border-color: var(--color-primary, #1b5e20);
+  }
+
+  .legal-card {
+    background: var(--color-card, #ffffff);
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 16px;
+    padding: 2rem;
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+  }
+
+  .legal-section h2 {
+    font-family: var(--font-heading, sans-serif);
+    font-size: 1.28rem;
+    font-weight: 800;
+    color: var(--color-primary, #1b5e20);
+    margin: 0 0 0.75rem;
+  }
+
+  .legal-section p {
+    color: var(--color-text, #1e293b);
+    line-height: 1.7;
+    margin: 0 0 0.75rem;
+  }
+
+  .legal-list {
+    margin: 0.5rem 0 0;
+    padding-left: 1.35rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    color: var(--color-text, #1e293b);
+    line-height: 1.6;
+  }
+
+  .permissions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+
+  .perm-box {
+    background: var(--color-bg, #f8fafc);
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 12px;
+    padding: 1.15rem;
+  }
+
+  .perm-box h3 {
+    font-size: 1rem;
+    font-weight: 800;
+    margin: 0 0 0.5rem;
+    color: var(--color-text, #0f172a);
+  }
+
+  .perm-box p {
+    font-size: 0.9rem;
+    margin: 0 0 0.45rem;
+  }
+
+  code {
+    background: rgba(15, 23, 42, 0.06);
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.85em;
+  }
+
+  @media (max-width: 640px) {
+    .legal-hero,
+    .legal-card {
+      padding: 1.35rem;
+    }
+  }
+</style>

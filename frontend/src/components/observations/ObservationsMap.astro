@@ -2,17 +2,14 @@
 // frontend/src/components/observations/ObservationsMap.astro
 import MapComponent from "./MapComponent.astro";
 import { apiGet } from "../../lib/api/client.js";
-import { getSessionUser } from "../../lib/middleware/auth.js";
 
 const { initialFilterCategory = null, showFilters = true } = Astro.props;
 
 let trees = [];
 let categories = [];
-let speciesList = [];
-let sessionUser = null;
 
 try {
-  const [treesRes, catsRes, speciesRes, userRes] = await Promise.all([
+  const [treesRes, catsRes] = await Promise.all([
     apiGet('/observations').catch((error) => {
       console.error("Error fetching observations:", error);
       return [];
@@ -21,16 +18,9 @@ try {
       console.error("Error fetching categories:", error);
       return [];
     }),
-    apiGet('/species?limit=200').catch((error) => {
-      console.error("Error fetching species:", error);
-      return [];
-    }),
-    getSessionUser({ cookies: Astro.cookies, request: Astro.request }).catch(() => null),
   ]);
   trees = Array.isArray(treesRes) ? treesRes : [];
   categories = Array.isArray(catsRes) ? catsRes : [];
-  speciesList = Array.isArray(speciesRes) ? speciesRes : [];
-  sessionUser = userRes;
 } catch (error) {
   console.error("Error fetching map data:", error);
 }
@@ -43,20 +33,11 @@ const isInvasiveCheck = (t) => {
 const invasiveCount = trees.filter(isInvasiveCheck).length;
 const nativeCount = trees.length - invasiveCount;
 const verifiedCount = trees.filter((t) => Boolean(t?.isVerified || t?.verified || t?.status === "APPROVED")).length;
-
-const compactSpecies = speciesList.map((s) => ({
-  id: s.id,
-  name: s.name,
-  scientificName: s.scientificName || ""
-}));
-const quickSpeciesChips = compactSpecies.slice(0, 6);
 ---
 
 <div
   class="observations-map-root"
   data-initial-category={initialFilterCategory}
-  data-authenticated={sessionUser ? "true" : "false"}
-  data-species-catalog={JSON.stringify(compactSpecies)}
 >
   {showFilters && (
     <search class="minimal-toolbar-card" aria-label="Filtros del Catastro Arbóreo 3D">
@@ -140,146 +121,8 @@ const quickSpeciesChips = compactSpecies.slice(0, 6);
     </search>
   )}
 
-  <!-- Map Frame with Catastro 3D Pick Banner, Quick-Add Sheet & Empty Toast -->
+  <!-- Map Frame with Empty Toast -->
   <div class="map-frame-wrapper">
-    <!-- Floating Banner when Pick Mode (+ Árbol 3D) is active -->
-    <div id="cadastre-pick-banner" class="cadastre-pick-banner" hidden>
-      <span id="cadastre-pick-banner-text" class="pick-banner-text">
-        🌱 Toca cualquier punto del mapa para ubicar el árbol 3D
-      </span>
-      <button type="button" id="pick-use-gps-btn" class="pick-gps-btn">
-        📍 Usar mi GPS
-      </button>
-      <button type="button" id="pick-cancel-btn" class="pick-cancel-btn" aria-label="Salir del modo colocación">
-        ✕
-      </button>
-    </div>
-
-    <!-- Direct Catastro 3D Quick-Add Form Drawer -->
-    <div id="quick-cadastre-sheet" class="quick-cadastre-sheet" hidden>
-      <div class="quick-sheet-header">
-        <div>
-          <h3 id="quick-cadastre-title" class="quick-sheet-title">🌳 Registrar en Catastro Arbóreo 3D</h3>
-          <p id="quick-cadastre-coords" class="quick-sheet-coords">📍 Selecciona un punto en el mapa</p>
-        </div>
-        <button type="button" id="quick-sheet-close" class="quick-sheet-close" aria-label="Cerrar panel de registro">
-          ✕
-        </button>
-      </div>
-
-      {!sessionUser ? (
-        <div class="quick-auth-gate">
-          <p>Inicia sesión con tu cuenta de guardabosques para guardar este árbol directamente en el Catastro 3D oficial.</p>
-          <div class="quick-auth-actions">
-            <a href="/auth/login" class="btn-quick-save">Iniciar sesión</a>
-            <a href="/auth/register" class="btn-quick-cancel">Crear cuenta</a>
-          </div>
-        </div>
-      ) : (
-        <form
-          id="quick-cadastre-form"
-          method="POST"
-          action="/api/observations"
-          aria-labelledby="quick-cadastre-title"
-          class="quick-cadastre-form"
-        >
-          <input type="hidden" id="quick-lat" name="latitude" />
-          <input type="hidden" id="quick-lng" name="longitude" />
-
-          <div class="quick-grid-2">
-            <div class="quick-field">
-              <label for="quick-species-input">Especie / Nombre común <span aria-hidden="true">*</span></label>
-              <input
-                type="text"
-                id="quick-species-input"
-                name="nombreComunitario"
-                list="cadastre-species-datalist"
-                placeholder="Ej. Trupillo, Guayacán, Dividivi, Neem..."
-                autocomplete="off"
-                required
-              />
-              <datalist id="cadastre-species-datalist">
-                {compactSpecies.map((sp) => (
-                  <option value={sp.name}>{sp.scientificName ? `(${sp.scientificName})` : ""}</option>
-                ))}
-              </datalist>
-            </div>
-
-            <div class="quick-field">
-              <label for="quick-municipio-input">Municipio / Sector</label>
-              <input
-                type="text"
-                id="quick-municipio-input"
-                name="municipio"
-                placeholder="Detectado automáticamente por GPS..."
-                autocomplete="address-level2"
-              />
-            </div>
-          </div>
-
-          {quickSpeciesChips.length > 0 && (
-            <div class="quick-species-chips" aria-label="Sugerencias rápidas de especies">
-              {quickSpeciesChips.map((sp) => (
-                <button type="button" class="quick-sp-chip" data-species-name={sp.name} data-species-id={sp.id}>
-                  {sp.name}
-                </button>
-              ))}
-            </div>
-          )}
-
-          <div class="quick-grid-2">
-            <fieldset class="quick-fieldset">
-              <legend>Altura 3D estimada</legend>
-              <div class="quick-radio-row">
-                {[5, 8, 12, 16].map((h) => (
-                  <label class="quick-radio-pill">
-                    <input
-                      type="radio"
-                      name="alturaArbol"
-                      value={String(h)}
-                      checked={h === 8}
-                    />
-                    <span>{h}m</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-
-            <fieldset class="quick-fieldset">
-              <legend>Estado fitosanitario</legend>
-              <div class="quick-radio-row">
-                {[
-                  { val: "Sano y vigoroso", label: "🌳 Sano" },
-                  { val: "Con floración o frutos", label: "🌸 Flores" },
-                  { val: "Dañado o talado", label: "🪓 Dañado" },
-                  { val: "Seco o con plaga", label: "🍂 Seco" }
-                ].map((opt, idx) => (
-                  <label class="quick-radio-pill">
-                    <input
-                      type="radio"
-                      name="estadoFitosanitario"
-                      value={opt.val}
-                      checked={idx === 0}
-                    />
-                    <span>{opt.label}</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-          </div>
-
-          <div id="quick-form-status" class="quick-form-status" role="status" aria-live="polite" hidden></div>
-
-          <div class="quick-form-actions">
-            <button type="button" id="quick-form-cancel" class="btn-quick-cancel">Cancelar</button>
-            <button type="submit" id="quick-form-submit" class="btn-quick-save">
-              ✓ Guardar en Catastro 3D
-            </button>
-          </div>
-        </form>
-      )}
-    </div>
-
     <!-- Sleek Floating Empty State Toast -->
     <div id="no-trees-message" class="minimal-empty-toast" style="display: none;">
       <span class="empty-icon" aria-hidden="true">🍃</span>
@@ -1006,13 +849,6 @@ const quickSpeciesChips = compactSpecies.slice(0, 6);
       allTrees = [];
     }
 
-    let speciesCatalog: Array<{ id: string; name: string; scientificName?: string }> = [];
-    try {
-      speciesCatalog = JSON.parse(rootEl.dataset.speciesCatalog || '[]');
-    } catch {
-      speciesCatalog = [];
-    }
-
     // Filter controls
     const segmentButtons = document.querySelectorAll('.segment-btn');
     const microCategoryChips = document.querySelectorAll('.micro-category-chip');
@@ -1025,35 +861,9 @@ const quickSpeciesChips = compactSpecies.slice(0, 6);
     const toolbarGpsPill = document.getElementById('toolbar-gps-pill');
     const toolbarGpsText = document.getElementById('toolbar-gps-text');
 
-    const badgeAll = document.getElementById('badge-all-count');
-    const badgeInv = document.getElementById('badge-invasive-count');
-    const badgeNat = document.getElementById('badge-native-count');
-    const badgeVer = document.getElementById('badge-verified-count');
-
-    // Quick-Add Catastro 3D controls
-    const pickBanner = document.getElementById('cadastre-pick-banner');
-    const pickBannerText = document.getElementById('cadastre-pick-banner-text');
-    const pickUseGpsBtn = document.getElementById('pick-use-gps-btn');
-    const pickCancelBtn = document.getElementById('pick-cancel-btn');
-    const quickSheet = document.getElementById('quick-cadastre-sheet');
-    const quickSheetClose = document.getElementById('quick-sheet-close');
-    const quickCoordsLabel = document.getElementById('quick-cadastre-coords');
-    const quickForm = document.getElementById('quick-cadastre-form') as HTMLFormElement | null;
-    const quickLatInput = document.getElementById('quick-lat') as HTMLInputElement | null;
-    const quickLngInput = document.getElementById('quick-lng') as HTMLInputElement | null;
-    const quickSpeciesInput = document.getElementById('quick-species-input') as HTMLInputElement | null;
-    const quickMuniInput = document.getElementById('quick-municipio-input') as HTMLInputElement | null;
-    const quickStatus = document.getElementById('quick-form-status');
-    const quickSubmitBtn = document.getElementById('quick-form-submit') as HTMLButtonElement | null;
-    const quickCancelBtn = document.getElementById('quick-form-cancel');
-    const quickSpChips = document.querySelectorAll('.quick-sp-chip');
-
     let currentFilterType = 'all';
     let selectedCategoryId: string | null = rootEl.dataset.initialCategory || null;
     let searchQuery = '';
-    let detectedGpsMunicipio = '';
-    let draftCoords: { lat: number; lng: number } | null = null;
-    let selectedSpeciesId: string | null = null;
 
     function isNeemTree(tree: any) {
       const rawName = (
@@ -1063,21 +873,6 @@ const quickSpeciesChips = compactSpecies.slice(0, 6);
         (tree.name || '')
       ).toLowerCase();
       return rawName.includes('neem') || rawName.includes('nim') || rawName.includes('azadirachta');
-    }
-
-    function updateFilterBadges() {
-      let inv = 0;
-      let nat = 0;
-      let ver = 0;
-      allTrees.forEach((t) => {
-        if (isNeemTree(t)) inv++;
-        else nat++;
-        if (t.isVerified || t.verified || t.status === 'APPROVED') ver++;
-      });
-      if (badgeAll) badgeAll.textContent = String(allTrees.length);
-      if (badgeInv) badgeInv.textContent = String(inv);
-      if (badgeNat) badgeNat.textContent = String(nat);
-      if (badgeVer) badgeVer.textContent = String(ver);
     }
 
     function applyFilters(shouldFit = true) {
@@ -1119,259 +914,21 @@ const quickSpeciesChips = compactSpecies.slice(0, 6);
       }));
     }
 
-    function getSelectedHeight(): number {
-      const checked = quickForm?.querySelector('input[name="alturaArbol"]:checked') as HTMLInputElement | null;
-      return checked ? parseFloat(checked.value) || 8 : 8;
-    }
-
-    function getSelectedHealth(): string {
-      const checked = quickForm?.querySelector('input[name="estadoFitosanitario"]:checked') as HTMLInputElement | null;
-      return checked ? checked.value : 'Sano y vigoroso';
-    }
-
-    function syncDraftPreview(center = false) {
-      if (!draftCoords) return;
-      mapElement.dispatchEvent(new CustomEvent('set-draft-tree', {
-        detail: {
-          lat: draftCoords.lat,
-          lng: draftCoords.lng,
-          heightMeters: getSelectedHeight(),
-          speciesName: quickSpeciesInput?.value.trim() || 'Árbol Nuevo',
-          center
-        }
-      }));
-    }
-
-    function showQuickStatus(msg: string, tone: 'info' | 'error' | 'success' = 'info') {
-      if (!quickStatus) return;
-      quickStatus.textContent = msg;
-      quickStatus.className = `quick-form-status${tone === 'error' ? ' is-error' : tone === 'success' ? ' is-success' : ''}`;
-      quickStatus.hidden = false;
-    }
-
-    function closePickFlow() {
-      draftCoords = null;
-      if (pickBanner) pickBanner.hidden = true;
-      if (quickSheet) quickSheet.hidden = true;
-      if (quickStatus) quickStatus.hidden = true;
-      mapElement.dispatchEvent(new CustomEvent('set-pick-mode', { detail: { active: false } }));
-    }
-
-    async function resolvePointMunicipio(lat: number, lng: number) {
-      try {
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 4500);
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&zoom=12&accept-language=es`,
-          { signal: ctrl.signal }
-        );
-        clearTimeout(timer);
-        if (!res.ok) return null;
-        const data = await res.json();
-        const addr = data.address || {};
-        const muni = addr.city || addr.town || addr.municipality || addr.village || addr.county || '';
-        const state = addr.state || '';
-        if (!muni) return null;
-        return { muni, label: state && state !== muni ? `${muni}, ${state}` : muni };
-      } catch {
-        return null;
-      }
-    }
-
-    // Listen to MapComponent events
-    mapElement.addEventListener('cadastre-pick-mode-change', ((e: CustomEvent) => {
-      const active = Boolean(e.detail?.active);
-      if (pickBanner) pickBanner.hidden = !active;
-      if (pickBannerText) {
-        pickBannerText.textContent = '🌱 Toca cualquier punto del mapa para ubicar el árbol 3D';
-      }
-      if (!active) {
-        draftCoords = null;
-        if (quickSheet) quickSheet.hidden = true;
-        if (quickStatus) quickStatus.hidden = true;
-      }
-    }) as EventListener);
-
-    mapElement.addEventListener('cadastre-pick-location', ((e: CustomEvent) => {
-      const lat = parseFloat(e.detail?.lat);
-      const lng = parseFloat(e.detail?.lng);
-      if (isNaN(lat) || isNaN(lng)) return;
-
-      draftCoords = { lat, lng };
-      if (quickLatInput) quickLatInput.value = String(lat);
-      if (quickLngInput) quickLngInput.value = String(lng);
-      if (quickCoordsLabel) {
-        quickCoordsLabel.textContent = `📍 ${e.detail?.label || 'Punto en mapa'} • ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-      }
-      if (pickBannerText) {
-        pickBannerText.textContent = '🌳 Ajusta la altura 3D o toca otro punto del mapa';
-      }
-      if (quickMuniInput && !quickMuniInput.value.trim()) {
-        quickMuniInput.value = e.detail?.municipio || detectedGpsMunicipio || '';
-      }
-      if (quickSheet) quickSheet.hidden = false;
-      if (quickStatus) quickStatus.hidden = true;
-      syncDraftPreview(false);
-      quickSpeciesInput?.focus();
-
-      if (!e.detail?.municipio) {
-        resolvePointMunicipio(lat, lng).then((loc) => {
-          if (!loc || !draftCoords) return;
-          if (quickCoordsLabel) {
-            quickCoordsLabel.textContent = `📍 ${loc.label} • ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-          }
-          if (quickMuniInput && !quickMuniInput.value.trim()) {
-            quickMuniInput.value = loc.muni;
-          }
-        });
-      }
-    }) as EventListener);
-
     mapElement.addEventListener('gps-location-updated', ((e: CustomEvent) => {
       const label = e.detail?.label || '';
-      const muni = e.detail?.municipio || '';
-      if (muni) detectedGpsMunicipio = muni;
       if (toolbarGpsText && label) toolbarGpsText.textContent = label;
       if (toolbarGpsPill && label) toolbarGpsPill.classList.add('is-detected');
     }) as EventListener);
 
     if (toolbarGpsPill) {
       toolbarGpsPill.addEventListener('click', () => {
-        mapElement.dispatchEvent(new CustomEvent('trigger-gps', { detail: { placeDraft: false } }));
+        mapElement.dispatchEvent(new CustomEvent('trigger-gps'));
       });
     }
 
     if (counterBtn) {
       counterBtn.addEventListener('click', () => {
         mapElement.dispatchEvent(new CustomEvent('fit-trees'));
-      });
-    }
-
-    if (pickUseGpsBtn) {
-      pickUseGpsBtn.addEventListener('click', () => {
-        mapElement.dispatchEvent(new CustomEvent('trigger-gps', { detail: { placeDraft: true } }));
-      });
-    }
-
-    if (pickCancelBtn) pickCancelBtn.addEventListener('click', closePickFlow);
-    if (quickSheetClose) quickSheetClose.addEventListener('click', closePickFlow);
-    if (quickCancelBtn) quickCancelBtn.addEventListener('click', closePickFlow);
-
-    // Quick species chips
-    quickSpChips.forEach((chip) => {
-      chip.addEventListener('click', () => {
-        const spName = chip.getAttribute('data-species-name') || '';
-        const spId = chip.getAttribute('data-species-id');
-        selectedSpeciesId = spId;
-        if (quickSpeciesInput) quickSpeciesInput.value = spName;
-        quickSpChips.forEach((c) => c.classList.toggle('is-selected', c === chip));
-        syncDraftPreview(false);
-      });
-    });
-
-    if (quickSpeciesInput) {
-      quickSpeciesInput.addEventListener('input', () => {
-        const val = quickSpeciesInput.value.trim().toLowerCase();
-        const match = speciesCatalog.find((s) => s.name.toLowerCase() === val);
-        selectedSpeciesId = match ? match.id : null;
-        quickSpChips.forEach((c) => {
-          const isMatch = (c.getAttribute('data-species-name') || '').toLowerCase() === val;
-          c.classList.toggle('is-selected', isMatch);
-        });
-        syncDraftPreview(false);
-      });
-    }
-
-    // Live 3D tree height preview when changing height radio buttons
-    quickForm?.querySelectorAll('input[name="alturaArbol"]').forEach((radio) => {
-      radio.addEventListener('change', () => syncDraftPreview(false));
-    });
-
-    // Submit quick-add Catastro 3D tree to POST /api/observations
-    if (quickForm) {
-      quickForm.addEventListener('submit', async (ev) => {
-        ev.preventDefault();
-        if (!draftCoords) {
-          showQuickStatus('Toca un punto en el mapa para ubicar el árbol.', 'error');
-          return;
-        }
-        const spName = quickSpeciesInput?.value.trim() || '';
-        if (!spName) {
-          showQuickStatus('Ingresa o selecciona una especie para el árbol.', 'error');
-          quickSpeciesInput?.focus();
-          return;
-        }
-
-        const heightM = getSelectedHeight();
-        const health = getSelectedHealth();
-        const muni = quickMuniInput?.value.trim() || detectedGpsMunicipio || 'Sin municipio';
-
-        const exactCatalog = speciesCatalog.find((s) => s.name.toLowerCase() === spName.toLowerCase());
-        const resolvedSpId = selectedSpeciesId || exactCatalog?.id || null;
-        const resolvedSci = exactCatalog?.scientificName || `Pendiente (${spName.slice(0, 18)} - ${Date.now().toString().slice(-4)})`;
-
-        const formData = new FormData();
-        formData.append('clientId', `web3d_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
-        if (resolvedSpId) formData.append('speciesId', resolvedSpId);
-        formData.append('nombreComunitario', spName);
-        formData.append('nombreCientificoPropuesto', resolvedSci);
-        formData.append('municipio', muni);
-        formData.append('latitude', String(draftCoords.lat));
-        formData.append('longitude', String(draftCoords.lng));
-        formData.append('alturaArbol', String(heightM));
-        formData.append('estadoFitosanitario', health);
-        formData.append('notes', `Altura: ${heightM}m. Registrado en Catastro 3D Web.`);
-        formData.append('observationDate', new Date().toISOString().split('T')[0]);
-
-        if (quickSubmitBtn) {
-          quickSubmitBtn.disabled = true;
-          quickSubmitBtn.textContent = 'Guardando...';
-        }
-
-        try {
-          const res = await fetch('/api/observations', {
-            method: 'POST',
-            body: formData
-          });
-          const data = await res.json().catch(() => ({}));
-          if (!res.ok) {
-            throw new Error(data.detail || data.message || `Error HTTP ${res.status}`);
-          }
-
-          const createdObs = data.observation || data;
-          const newTreeRecord = {
-            id: createdObs.id || `tmp-${Date.now()}`,
-            latitude: draftCoords.lat,
-            longitude: draftCoords.lng,
-            heightMeters: createdObs.heightMeters || heightM,
-            municipio: createdObs.municipio || muni,
-            notes: createdObs.notes || `Altura: ${heightM}m.`,
-            status: createdObs.status || 'PENDING',
-            isVerified: createdObs.status === 'APPROVED',
-            verified: createdObs.status === 'APPROVED',
-            species: {
-              id: resolvedSpId,
-              name: spName,
-              scientificName: exactCatalog?.scientificName || ''
-            }
-          };
-
-          allTrees = [newTreeRecord, ...allTrees];
-          updateFilterBadges();
-          applyFilters(false);
-
-          if (quickSpeciesInput) quickSpeciesInput.value = '';
-          selectedSpeciesId = null;
-          quickSpChips.forEach((c) => c.classList.remove('is-selected'));
-          closePickFlow();
-        } catch (err: any) {
-          showQuickStatus(err?.message || 'No se pudo guardar el árbol en el servidor.', 'error');
-        } finally {
-          if (quickSubmitBtn) {
-            quickSubmitBtn.disabled = false;
-            quickSubmitBtn.textContent = '✓ Guardar en Catastro 3D';
-          }
-        }
       });
     }
 

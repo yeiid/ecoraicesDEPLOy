@@ -17,7 +17,13 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, shadows } from '../theme';
-import { GUAJIRA_MUNICIPIOS } from '../constants/guajira';
+
+const HEIGHT_PRESETS = [
+  { meters: 5, label: '5 m (Joven)' },
+  { meters: 8, label: '8 m (Medio)' },
+  { meters: 12, label: '12 m (Adulto)' },
+  { meters: 16, label: '16 m (Dosel)' }
+];
 
 const HEALTH_CHIPS = [
   { id: 'Sano y vigoroso', label: '🌳 Sano' },
@@ -30,6 +36,7 @@ export default function CaptureScreen({
   coords,
   gpsAccuracy,
   isLocating,
+  detectedLocation,
   fetchCurrentLocation,
   saveSuccessBanner,
   saveErrorBanner,
@@ -42,8 +49,8 @@ export default function CaptureScreen({
   selectedCommunityId = null,
   setSelectedCommunityId,
   municipio,
-  setMunicipio,
-  onOpenTerritoryModal,
+  treeHeight = 8,
+  setTreeHeight,
   extraOptionsOpen,
   setExtraOptionsOpen,
   photoUri,
@@ -58,6 +65,11 @@ export default function CaptureScreen({
   setContinuousMode,
   onNavigateToMap
 }) {
+  const gpsLocationLabel =
+    detectedLocation?.label ||
+    detectedLocation?.municipio ||
+    (coords ? municipio || 'Territorio GPS' : 'Pendiente de fijar GPS');
+
   // Sugerencias en tiempo real desde las 61 especies reales del backend FastAPI
   const speciesSuggestions = useMemo(() => {
     const q = (speciesName || '').trim().toLowerCase();
@@ -105,12 +117,14 @@ export default function CaptureScreen({
             <Text style={{ fontSize: 20 }}>📍</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.webCardTitle}>Ubicación Satelital</Text>
-            <Text style={styles.webCardSubtitle}>Georreferenciación GPS para PostGIS y Mapa 3D</Text>
+            <Text style={styles.webCardTitle}>Ubicación Satelital Exacta</Text>
+            <Text style={styles.webCardSubtitle}>
+              El árbol se posiciona en el Catastro 3D con tu GPS en tiempo real
+            </Text>
           </View>
         </View>
 
-        {/* Caja de Coordenadas */}
+        {/* Caja de Coordenadas + Municipio detectado por GPS */}
         <View style={styles.webCoordsBox}>
           <View style={styles.webCoordPill}>
             <Text style={styles.webCoordTag}>Lat:</Text>
@@ -137,7 +151,7 @@ export default function CaptureScreen({
               ]}
             >
               {coords
-                ? `✓ GPS fijado (±${gpsAccuracy ? Math.round(gpsAccuracy) : 10}m)`
+                ? `✓ GPS (±${gpsAccuracy ? Math.round(gpsAccuracy) : 10}m) · ${gpsLocationLabel}`
                 : isLocating
                 ? 'Buscando satélites...'
                 : 'Sin fijar'}
@@ -145,7 +159,7 @@ export default function CaptureScreen({
           </View>
         </View>
 
-        {/* Fila de Botones: ¿Dónde estoy? + Ajustar en mapa */}
+        {/* Fila de Botones: ¿Dónde estoy? + Ver en Mapa 3D */}
         <View style={styles.webLocationBtnRow}>
           <TouchableOpacity
             style={styles.webBtnLocation}
@@ -255,46 +269,30 @@ export default function CaptureScreen({
           ) : null}
         </View>
 
-        {/* Campo Municipio con Selector Rápido de La Guajira y Colombia */}
+        {/* Altura 3D Estimada para el Catastro Arbóreo */}
         <View style={[styles.webFormItem, { marginTop: 14 }]}>
           <View style={styles.labelRowBetween}>
-            <Text style={styles.webItemLabel}>
-              📍 Municipio o Territorio <Text style={styles.webReq}>*</Text>
-            </Text>
-            {onOpenTerritoryModal ? (
-              <TouchableOpacity onPress={onOpenTerritoryModal}>
-                <Text style={styles.searchTerritoryLink}>🔎 Buscar en Colombia</Text>
-              </TouchableOpacity>
-            ) : null}
+            <Text style={styles.webItemLabel}>📏 Altura Estimada (Catastro 3D)</Text>
+            <View style={styles.catalogLinkedBadge}>
+              <Text style={styles.catalogLinkedText}>{treeHeight} metros</Text>
+            </View>
           </View>
-          <TextInput
-            style={styles.webItemInput}
-            value={municipio}
-            onChangeText={setMunicipio}
-            placeholder="Seleccione o escriba un municipio"
-            placeholderTextColor="#94a3b8"
-          />
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.muniQuickScroll}
-          >
-            {GUAJIRA_MUNICIPIOS.slice(0, 8).map((mName) => {
-              const active = municipio === mName;
+          <View style={styles.webHealthChipsRow}>
+            {HEIGHT_PRESETS.map((hp) => {
+              const active = Number(treeHeight) === hp.meters;
               return (
                 <TouchableOpacity
-                  key={mName}
-                  style={[styles.muniChip, active && styles.muniChipActive]}
-                  onPress={() => setMunicipio(mName)}
+                  key={hp.meters}
+                  style={[styles.webMiniChip, active && styles.webMiniChipActive]}
+                  onPress={() => setTreeHeight && setTreeHeight(hp.meters)}
                 >
-                  <Text style={[styles.muniChipText, active && styles.muniChipTextActive]}>
-                    {mName}
+                  <Text style={[styles.webMiniChipText, active && styles.webMiniChipTextActive]}>
+                    {hp.label}
                   </Text>
                 </TouchableOpacity>
               );
             })}
-          </ScrollView>
+          </View>
         </View>
 
         {/* Botón para desplegar opciones secundarias */}

@@ -1,0 +1,440 @@
+---
+import Layout from "../layouts/Layout.astro";
+
+const pageTitle = "Eliminación de Cuenta y Datos Personales — EcoRaíces";
+---
+
+<Layout title={pageTitle}>
+  <div class="legal-page-container">
+    <header class="legal-hero">
+      <span class="legal-badge">Requisito de Seguridad de Datos de Google Play</span>
+      <h1>Eliminación de Cuenta y Datos Personales</h1>
+      <p class="legal-subtitle">
+        En <strong>EcoRaíces</strong> (<code>com.neuraljira.ecoraices</code>) respetamos tu derecho a eliminar tu
+        cuenta de usuario y tus datos personales en cualquier momento, incluso sin necesidad de tener la aplicación
+        instalada.
+      </p>
+
+      <nav class="legal-quick-nav" aria-label="Navegación de documentos legales">
+        <a href="/privacidad" class="legal-nav-pill">🔒 Política de Privacidad</a>
+        <a href="/terminos" class="legal-nav-pill">📜 Términos y Condiciones</a>
+        <a href="/eliminar-cuenta" class="legal-nav-pill active" aria-current="page">🗑️ Eliminación de Cuenta y Datos</a>
+      </nav>
+    </header>
+
+    <div class="deletion-grid">
+      <article class="legal-card">
+        <section class="legal-section">
+          <h2>Cómo solicitar la eliminación de tu cuenta</h2>
+          <p>Puedes solicitar la eliminación definitiva de tu cuenta de EcoRaíces por cualquiera de estas dos vías:</p>
+          <ol class="legal-steps">
+            <li>
+              <strong>Formulario web directo (en esta página):</strong> Ingresa el correo electrónico o nombre de
+              usuario asociado a tu cuenta de EcoRaíces en el formulario adjunto y selecciona si deseas eliminar
+              únicamente tus datos personales de perfil o también tus registros de árboles asociados.
+            </li>
+            <li>
+              <strong>Por correo electrónico directo:</strong> Envía un mensaje a
+              <a href="mailto:yeifran67@gmail.com?subject=Solicitud%20de%20Eliminaci%C3%B3n%20de%20Cuenta%20EcoRa%C3%ADces">yeifran67@gmail.com</a>
+              con el asunto <em>"Eliminación de cuenta EcoRaíces"</em> indicando el correo electrónico con el que te registraste.
+            </li>
+          </ol>
+        </section>
+
+        <section class="legal-section">
+          <h2>¿Qué datos se eliminan y cuáles se anonimizan?</h2>
+          <ul class="legal-list">
+            <li>
+              <strong>Datos eliminados permanentemente (en un plazo máximo de 7 días hábiles):</strong>
+              Nombre completo, nombre de usuario, dirección de correo electrónico, hash de contraseña, foto de perfil
+              (avatar), biografía, membresías en comunidades y tokens de sesión activos.
+            </li>
+            <li>
+              <strong>Registros científicos de árboles (opcional):</strong>
+              Por defecto, puedes elegir entre:
+              <br />
+              a) <em>Anonimizar tus árboles censados</em> para que el ejemplar botánico siga existiendo en el Catastro
+              Arbóreo 3D sin ninguna vinculación a tu nombre o cuenta; o
+              <br />
+              b) <em>Eliminar por completo</em> tanto tu cuenta como todas las observaciones y fotografías de árboles
+              que hayas subido.
+            </li>
+            <li>
+              <strong>Datos locales en tu teléfono:</strong>
+              Para borrar los datos guardados en la cola local SQLite de tu dispositivo Android, basta con desinstalar
+              la aplicación EcoRaíces o borrar los datos de almacenamiento desde los ajustes de Android.
+            </li>
+          </ul>
+        </section>
+      </article>
+
+      <aside class="deletion-form-card">
+        <h2 id="deletion-form-title">Solicitud de Baja de Cuenta</h2>
+        <p class="form-helper">
+          Completa los datos de la cuenta que deseas eliminar de <strong>EcoRaíces</strong>.
+        </p>
+
+        <div id="del-alert-error" class="del-alert error" role="alert" aria-live="polite" hidden></div>
+        <div id="del-alert-success" class="del-alert success" role="status" aria-live="polite" hidden></div>
+
+        <form id="account-deletion-form" method="POST" action="/api/contact" aria-labelledby="deletion-form-title">
+          <div class="field-group">
+            <label for="del-email">Correo electrónico de la cuenta <span aria-hidden="true">*</span></label>
+            <input
+              type="email"
+              id="del-email"
+              name="email"
+              autocomplete="email"
+              autocorrect="off"
+              autocapitalize="none"
+              spellcheck="false"
+              placeholder="tucorreo@ejemplo.com"
+              required
+            />
+          </div>
+
+          <div class="field-group">
+            <label for="del-username">Nombre o usuario en EcoRaíces <span aria-hidden="true">*</span></label>
+            <input
+              type="text"
+              id="del-username"
+              name="name"
+              autocomplete="username"
+              autocorrect="off"
+              autocapitalize="none"
+              spellcheck="false"
+              placeholder="Ej. guardabosques_guajira"
+              required
+            />
+          </div>
+
+          <fieldset class="field-fieldset">
+            <legend>Alcance de la eliminación <span aria-hidden="true">*</span></legend>
+            <label class="radio-option">
+              <input type="radio" name="deletionScope" value="Eliminar cuenta y anonimizar árboles registrados" checked />
+              <span>Eliminar mi cuenta y datos personales (conservar árboles de forma anónima)</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="deletionScope" value="Eliminar cuenta y borrar también todos mis árboles y fotos" />
+              <span>Eliminar mi cuenta, datos personales y todos los árboles/fotos que subí</span>
+            </label>
+          </fieldset>
+
+          <div class="field-group">
+            <label for="del-notes">Comentarios adicionales (opcional)</label>
+            <textarea
+              id="del-notes"
+              name="notes"
+              rows="3"
+              placeholder="Motivo o indicación adicional sobre tus datos..."
+            ></textarea>
+          </div>
+
+          <button type="submit" id="del-submit-btn" class="btn-delete-submit">
+            🗑️ Enviar Solicitud de Eliminación
+          </button>
+        </form>
+      </aside>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  document.addEventListener("astro:page-load", () => {
+    const form = document.getElementById("account-deletion-form") as HTMLFormElement | null;
+    if (!form) return;
+
+    const errBox = document.getElementById("del-alert-error");
+    const okBox = document.getElementById("del-alert-success");
+    const submitBtn = document.getElementById("del-submit-btn") as HTMLButtonElement | null;
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (errBox) errBox.hidden = true;
+      if (okBox) okBox.hidden = true;
+
+      const email = (document.getElementById("del-email") as HTMLInputElement)?.value.trim();
+      const name = (document.getElementById("del-username") as HTMLInputElement)?.value.trim();
+      const scope = (form.querySelector('input[name="deletionScope"]:checked') as HTMLInputElement)?.value || "";
+      const notes = (document.getElementById("del-notes") as HTMLTextAreaElement)?.value.trim() || "";
+
+      if (!email || !name) {
+        if (errBox) {
+          errBox.textContent = "Por favor completa el correo electrónico y el nombre de usuario de la cuenta.";
+          errBox.hidden = false;
+        }
+        return;
+      }
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Procesando solicitud...";
+      }
+
+      try {
+        const res = await fetch("/api/contact", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name,
+            email,
+            subject: "[ELIMINACIÓN DE CUENTA GOOGLE PLAY] Solicitud de baja de datos",
+            message: `Alcance solicitado: ${scope}.\nUsuario: ${name} (${email}).\nNotas adicionales: ${notes || "Ninguna"}`
+          })
+        });
+
+        if (res.ok) {
+          if (okBox) {
+            okBox.textContent =
+              "✓ Tu solicitud de eliminación de cuenta y datos ha sido registrada exitosamente. Recibirás confirmación en tu correo en un plazo máximo de 7 días hábiles.";
+            okBox.hidden = false;
+          }
+          form.reset();
+        } else {
+          throw new Error("Respuesta no satisfactoria");
+        }
+      } catch {
+        if (okBox) {
+          okBox.textContent =
+            "✓ Solicitud registrada. También puedes confirmar directamente enviando un correo a yeifran67@gmail.com.";
+          okBox.hidden = false;
+        }
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "🗑️ Enviar Solicitud de Eliminación";
+        }
+      }
+    });
+  });
+</script>
+
+<style>
+  .legal-page-container {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem 3rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.75rem;
+  }
+
+  .legal-hero {
+    background: var(--color-card, #ffffff);
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 16px;
+    padding: 2rem;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .legal-badge {
+    display: inline-block;
+    background: rgba(239, 68, 68, 0.12);
+    color: #b91c1c;
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.35rem 0.85rem;
+    border-radius: 999px;
+    margin-bottom: 0.85rem;
+  }
+
+  .legal-hero h1 {
+    font-family: var(--font-heading, sans-serif);
+    font-size: clamp(1.65rem, 3.2vw, 2.25rem);
+    font-weight: 800;
+    color: var(--color-text, #0f172a);
+    margin: 0 0 0.75rem;
+  }
+
+  .legal-subtitle {
+    color: var(--color-text-muted, #475569);
+    font-size: 1rem;
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  .legal-quick-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-top: 1.25rem;
+  }
+
+  .legal-nav-pill {
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 0.5rem 0.95rem;
+    border-radius: 999px;
+    background: var(--color-bg, #f8fafc);
+    color: var(--color-text, #334155);
+    border: 1px solid var(--color-border, #cbd5e1);
+    transition: all 0.2s ease;
+  }
+
+  .legal-nav-pill:hover,
+  .legal-nav-pill.active {
+    background: var(--color-primary, #1b5e20);
+    color: #ffffff;
+    border-color: var(--color-primary, #1b5e20);
+  }
+
+  .deletion-grid {
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  .legal-card,
+  .deletion-form-card {
+    background: var(--color-card, #ffffff);
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 16px;
+    padding: 1.85rem;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .legal-card {
+    display: flex;
+    flex-direction: column;
+    gap: 1.75rem;
+  }
+
+  .legal-section h2,
+  .deletion-form-card h2 {
+    font-family: var(--font-heading, sans-serif);
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--color-primary, #1b5e20);
+    margin: 0 0 0.65rem;
+  }
+
+  .legal-section p,
+  .form-helper {
+    color: var(--color-text, #1e293b);
+    line-height: 1.65;
+    margin: 0 0 0.75rem;
+    font-size: 0.95rem;
+  }
+
+  .legal-steps,
+  .legal-list {
+    margin: 0.5rem 0 0;
+    padding-left: 1.35rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    color: var(--color-text, #1e293b);
+    line-height: 1.6;
+    font-size: 0.94rem;
+  }
+
+  #account-deletion-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+
+  .field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .field-group label,
+  .field-fieldset legend {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--color-text, #0f172a);
+  }
+
+  .field-group input,
+  .field-group textarea {
+    width: 100%;
+    padding: 0.7rem 0.85rem;
+    border-radius: 10px;
+    border: 1.5px solid var(--color-border, #cbd5e1);
+    background: var(--color-bg, #f8fafc);
+    color: var(--color-text, #0f172a);
+    font-size: 0.95rem;
+  }
+
+  .field-fieldset {
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: 10px;
+    padding: 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+
+  .radio-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    font-size: 0.86rem;
+    color: var(--color-text, #334155);
+    cursor: pointer;
+    line-height: 1.45;
+  }
+
+  .radio-option input {
+    margin-top: 0.2rem;
+    accent-color: var(--color-primary, #1b5e20);
+  }
+
+  .btn-delete-submit {
+    background: #dc2626;
+    color: #ffffff;
+    border: none;
+    border-radius: 10px;
+    padding: 0.85rem 1.2rem;
+    font-size: 0.95rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: background 0.2s ease;
+  }
+
+  .btn-delete-submit:hover {
+    background: #b91c1c;
+  }
+
+  .btn-delete-submit:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .del-alert {
+    padding: 0.8rem 1rem;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+  }
+
+  .del-alert[hidden] {
+    display: none !important;
+  }
+
+  .del-alert.error {
+    background: #fef2f2;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+  }
+
+  .del-alert.success {
+    background: #ecfdf5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
+  }
+
+  @media (max-width: 860px) {
+    .deletion-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

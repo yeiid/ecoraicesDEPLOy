@@ -41,19 +41,6 @@ const {
     {enableCadastreTools && (
       <button
         type="button"
-        id={`${id}-btn-add-tree`}
-        class="map-tool-btn map-tool-add"
-        title="Agregar árbol directamente sobre el mapa 3D"
-        aria-pressed="false"
-      >
-        <span aria-hidden="true">＋</span>
-        <span class="tool-label">Árbol 3D</span>
-      </button>
-    )}
-
-    {enableCadastreTools && (
-      <button
-        type="button"
         id={`${id}-btn-gps`}
         class="map-tool-btn map-tool-gps"
         title="Centrar mapa en mi ubicación GPS actual"
@@ -1564,7 +1551,6 @@ const {
         let treesById = {};
         let selectedTreeId = null;
         let activePopup = null;
-        let isPickMode = false;
         let draftTreeData = null;
 
         // Persona & GPS state
@@ -1597,7 +1583,6 @@ const {
         const personHudEl = document.getElementById(`${el.id}-person-hud`);
         const personHudTextEl = document.getElementById(`${el.id}-person-hud-text`);
         const toggle3dBtn = document.getElementById(`${el.id}-toggle-3d`);
-        const addTreeBtn = document.getElementById(`${el.id}-btn-add-tree`);
         const gpsBtn = document.getElementById(`${el.id}-btn-gps`);
         const personaBtn = document.getElementById(`${el.id}-btn-persona`);
         const personCard = document.getElementById(`${el.id}-person-card`);
@@ -1890,7 +1875,7 @@ const {
             return;
           }
 
-          const profile = getTreeBotanicalProfile({ speciesName: draftTreeData.speciesName || "Árbol Nuevo" });
+          const profile = getTreeBotanicalProfile({ speciesName: draftTreeData.speciesName || "Ubicación" });
           const heightMeters = resolveTreeHeightMeters(draftTreeData, profile.defaultHeight);
           const { features, canopyRadius } = buildTreeExtrusionParts(
             "draft-tree",
@@ -1951,36 +1936,8 @@ const {
           }
         }
 
-        function setPickModeState(active, notifyHost = true) {
-          isPickMode = Boolean(active);
-          map.getCanvas().style.cursor = isPickMode ? "crosshair" : "";
-          if (addTreeBtn) {
-            addTreeBtn.classList.toggle("is-active", isPickMode);
-            addTreeBtn.setAttribute("aria-pressed", isPickMode ? "true" : "false");
-            const lbl = addTreeBtn.querySelector(".tool-label");
-            if (lbl) lbl.textContent = isPickMode ? "Salir" : "Árbol 3D";
-          }
-          if (isPickMode) {
-            if (isPersonMode) exitPersonMode(true);
-            if (activePopup) {
-              activePopup.remove();
-              activePopup = null;
-            }
-          } else {
-            draftTreeData = null;
-            renderDraftTree(false);
-          }
-          if (notifyHost) {
-            el.dispatchEvent(new CustomEvent("cadastre-pick-mode-change", {
-              detail: { active: isPickMode },
-              bubbles: true
-            }));
-          }
-        }
-
         function enterPersonMode(entry) {
           if (!entry) return;
-          if (isPickMode) setPickModeState(false, true);
 
           isPersonMode = true;
           personTargetEntry = { ...entry, treeId: String(entry.tree?.id || entry.tree?.clientId || "") };
@@ -2160,7 +2117,7 @@ const {
           }
         }
 
-        async function requestBrowserGps(placeDraftAfter = false) {
+        async function requestBrowserGps() {
           if (!navigator.geolocation) {
             showToast("Tu navegador no soporta geolocalización GPS.", "error");
             return null;
@@ -2176,7 +2133,7 @@ const {
             });
             const lat = pos.coords.latitude;
             const lng = pos.coords.longitude;
-            updateUserGps(lat, lng, userGpsCoords?.label || "", !placeDraftAfter);
+            updateUserGps(lat, lng, userGpsCoords?.label || "", true);
 
             const resolved = await reverseGeocodeNominatim(lat, lng);
             if (resolved) {
@@ -2196,19 +2153,6 @@ const {
               bubbles: true
             }));
 
-            if (placeDraftAfter && isPickMode) {
-              draftTreeData = {
-                lat,
-                lng,
-                heightMeters: draftTreeData?.heightMeters || 8,
-                speciesName: draftTreeData?.speciesName || "Árbol Nuevo"
-              };
-              renderDraftTree(true);
-              el.dispatchEvent(new CustomEvent("cadastre-pick-location", {
-                detail: { lat, lng, municipio: resolved?.municipio || "", label: resolved?.label || "" },
-                bubbles: true
-              }));
-            }
             return { lat, lng, resolved };
           } catch {
             showToast("No se pudo obtener el GPS. Verifica los permisos de ubicación.", "error");
@@ -2269,15 +2213,9 @@ const {
           });
         }
 
-        if (addTreeBtn) {
-          addTreeBtn.addEventListener("click", () => {
-            setPickModeState(!isPickMode, true);
-          });
-        }
-
         if (gpsBtn) {
           gpsBtn.addEventListener("click", () => {
-            requestBrowserGps(false);
+            requestBrowserGps();
           });
         }
 
@@ -2303,7 +2241,7 @@ const {
               });
               return;
             }
-            showToast("Presiona 'Mi GPS' o registra un árbol para activar el Modo Persona 3D.", "info");
+            showToast("Presiona 'Mi GPS' o selecciona un árbol para activar el Modo Persona 3D.", "info");
           });
         }
 
@@ -2339,25 +2277,10 @@ const {
           });
         }
 
-        // Click unificado en WebGL (modo pick catastro, modo community picker, o selección de árbol 3D)
+        // Click unificado en WebGL (modo community picker cuando !readOnly, o selección de árbol 3D)
         map.on("click", (e) => {
           const lat = e.lngLat.lat;
           const lng = e.lngLat.lng;
-
-          if (isPickMode) {
-            draftTreeData = {
-              lat,
-              lng,
-              heightMeters: draftTreeData?.heightMeters || 8,
-              speciesName: draftTreeData?.speciesName || "Árbol Nuevo"
-            };
-            renderDraftTree(false);
-            el.dispatchEvent(new CustomEvent("cadastre-pick-location", {
-              detail: { lat, lng },
-              bubbles: true
-            }));
-            return;
-          }
 
           if (!readOnly) {
             if (coordsDisplay) {
@@ -2385,10 +2308,6 @@ const {
         });
 
         map.on("mousemove", (e) => {
-          if (isPickMode) {
-            map.getCanvas().style.cursor = "crosshair";
-            return;
-          }
           if (!readOnly) {
             map.getCanvas().style.cursor = "pointer";
             return;
@@ -2435,33 +2354,8 @@ const {
           }
         });
 
-        el.addEventListener("set-pick-mode", (e) => {
-          setPickModeState(Boolean(e.detail?.active), false);
-        });
-
-        el.addEventListener("set-draft-tree", (e) => {
-          const d = e.detail;
-          if (!d || isNaN(parseFloat(d.lat)) || isNaN(parseFloat(d.lng))) {
-            draftTreeData = null;
-            renderDraftTree(false);
-            return;
-          }
-          draftTreeData = {
-            lat: parseFloat(d.lat),
-            lng: parseFloat(d.lng),
-            heightMeters: parseFloat(d.heightMeters) || 8,
-            speciesName: d.speciesName || "Árbol Nuevo"
-          };
-          renderDraftTree(Boolean(d.center));
-        });
-
-        el.addEventListener("clear-draft-tree", () => {
-          draftTreeData = null;
-          renderDraftTree(false);
-        });
-
-        el.addEventListener("trigger-gps", (e) => {
-          requestBrowserGps(Boolean(e.detail?.placeDraft));
+        el.addEventListener("trigger-gps", () => {
+          requestBrowserGps();
         });
 
         el.addEventListener("fit-trees", () => {

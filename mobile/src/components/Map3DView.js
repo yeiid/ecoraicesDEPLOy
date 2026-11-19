@@ -14,7 +14,6 @@ import * as Location from 'expo-location';
 import * as FileSystem from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MAP_3D_HTML } from './map3dHtml';
-import QuickAddTreeSheet from './QuickAddTreeSheet';
 import { resolveLocationFromCoords } from '../services/geocoding';
 
 const OFFLINE_MAP_FILENAME = 'laguajira.pmtiles';
@@ -62,11 +61,9 @@ function formatDistance(meters) {
 
 export default function Map3DView({
   trees = [],
-  speciesCatalog = [],
   userCoords = null,
   detectedLocation = null,
   onLocationUpdate = null,
-  onQuickCreateTree = null,
   onTreeSelected = null
 }) {
   const webViewRef = useRef(null);
@@ -88,17 +85,6 @@ export default function Map3DView({
   const [isPersonMode, setIsPersonMode] = useState(false);
   const [personTree, setPersonTree] = useState(null);
   const [activeTreeIndex, setActiveTreeIndex] = useState(0);
-
-  // Estados de Modo Registro Directo en Catastro 3D
-  const [isPickMode, setIsPickMode] = useState(false);
-  const [draftCoords, setDraftCoords] = useState(null);
-  const [draftMunicipio, setDraftMunicipio] = useState('');
-  const [draftLocationLabel, setDraftLocationLabel] = useState('');
-  const [draftSpeciesName, setDraftSpeciesName] = useState('');
-  const [draftSpeciesId, setDraftSpeciesId] = useState(null);
-  const [draftHeight, setDraftHeight] = useState(8);
-  const [draftHealthState, setDraftHealthState] = useState('Sano y vigoroso');
-  const [isSavingDraft, setIsSavingDraft] = useState(false);
 
   // Estados de Descarga Offline
   const [offlinePackProgress, setOfflinePackProgress] = useState(null);
@@ -385,11 +371,6 @@ export default function Map3DView({
 
   // Alternar Modo Persona a ras de suelo
   const handleTogglePersonMode = () => {
-    if (isPickMode) {
-      setIsPickMode(false);
-      setDraftCoords(null);
-      sendToMap({ type: 'SET_PICK_MODE', payload: false });
-    }
     if (isPersonMode) {
       sendToMap({ type: 'EXIT_PERSON_MODE' });
       setIsPersonMode(false);
@@ -550,112 +531,6 @@ export default function Map3DView({
     }
   };
 
-  // Actualizar la previsualización 3D del árbol borrador en tiempo real al cambiar altura o especie
-  useEffect(() => {
-    if (!mapLoaded || !isPickMode || !draftCoords) return;
-    sendToMap({
-      type: 'SET_DRAFT_TREE',
-      payload: {
-        lat: draftCoords.latitude,
-        lng: draftCoords.longitude,
-        heightMeters: draftHeight,
-        speciesName: draftSpeciesName || 'Árbol Nuevo'
-      },
-      center: false
-    });
-  }, [mapLoaded, isPickMode, draftCoords, draftHeight, draftSpeciesName, sendToMap]);
-
-  const handleTogglePickMode = () => {
-    if (isPickMode) {
-      setIsPickMode(false);
-      setDraftCoords(null);
-      sendToMap({ type: 'SET_PICK_MODE', payload: false });
-      return;
-    }
-    if (isPersonMode) {
-      setIsPersonMode(false);
-      setPersonTree(null);
-      sendToMap({ type: 'EXIT_PERSON_MODE' });
-    }
-    setIsPickMode(true);
-    setDraftCoords(null);
-    setDraftSpeciesName('');
-    setDraftSpeciesId(null);
-    setDraftHeight(8);
-    setDraftHealthState('Sano y vigoroso');
-    sendToMap({ type: 'SET_PICK_MODE', payload: true });
-    showToast('🌱 Toca cualquier punto del mapa para ubicar el árbol 3D', 'info');
-  };
-
-  const applyDraftPoint = useCallback((lat, lng, centerCamera = false) => {
-    const nextPoint = { latitude: lat, longitude: lng };
-    setDraftCoords(nextPoint);
-    setDraftLocationLabel(activeLocation?.label || `${lat.toFixed(4)}, ${lng.toFixed(4)}`);
-    setDraftMunicipio(activeLocation?.municipio || '');
-    sendToMap({
-      type: 'SET_DRAFT_TREE',
-      payload: {
-        lat,
-        lng,
-        heightMeters: draftHeight,
-        speciesName: draftSpeciesName || 'Árbol Nuevo'
-      },
-      center: centerCamera
-    });
-    resolveLocationFromCoords(lat, lng, false)
-      .then((loc) => {
-        if (loc) {
-          setDraftLocationLabel(loc.label);
-          if (loc.municipio && !loc.isCoordsFallback) {
-            setDraftMunicipio(loc.municipio);
-          }
-        }
-      })
-      .catch(() => {});
-  }, [activeLocation, draftHeight, draftSpeciesName, sendToMap]);
-
-  const handlePickUseGps = async () => {
-    if (activeCoords) {
-      applyDraftPoint(activeCoords.latitude, activeCoords.longitude, true);
-      return;
-    }
-    const coords = await handleCenterUser();
-    if (coords) {
-      applyDraftPoint(coords.latitude, coords.longitude, true);
-    }
-  };
-
-  const handleSaveDraftTree = async () => {
-    if (!draftCoords || !draftSpeciesName.trim() || !onQuickCreateTree) return;
-    setIsSavingDraft(true);
-    try {
-      const result = await onQuickCreateTree({
-        latitude: draftCoords.latitude,
-        longitude: draftCoords.longitude,
-        speciesName: draftSpeciesName.trim(),
-        speciesId: draftSpeciesId,
-        treeHeight: draftHeight,
-        healthState: draftHealthState,
-        municipio: draftMunicipio || activeLocation?.municipio || 'Sin municipio'
-      });
-      setIsPickMode(false);
-      setDraftCoords(null);
-      setDraftSpeciesName('');
-      setDraftSpeciesId(null);
-      sendToMap({ type: 'SET_PICK_MODE', payload: false });
-      showToast(
-        result?.syncedImmediately
-          ? `✓ "${draftSpeciesName.trim()}" agregado al Catastro 3D en vivo`
-          : `✓ "${draftSpeciesName.trim()}" agregado al Catastro 3D (cola offline)`,
-        'success'
-      );
-    } catch (err) {
-      showToast(err?.message || 'No se pudo guardar el árbol.', 'error');
-    } finally {
-      setIsSavingDraft(false);
-    }
-  };
-
   const handleMessage = (event) => {
     try {
       const data = JSON.parse(event.nativeEvent.data);
@@ -663,12 +538,6 @@ export default function Map3DView({
         setMapLoaded(true);
       } else if (data.type === 'MAP_ERROR') {
         showToast(data.payload || 'Error cargando el motor cartográfico.', 'error');
-      } else if (data.type === 'MAP_PICK_LOCATION') {
-        const pLat = parseFloat(data.payload?.lat);
-        const pLng = parseFloat(data.payload?.lng);
-        if (!isNaN(pLat) && !isNaN(pLng)) {
-          applyDraftPoint(pLat, pLng, false);
-        }
       } else if (data.type === 'SELECT_TREE') {
         setPersonTree(data.payload);
         const idx = filteredTrees.findIndex(
@@ -818,24 +687,8 @@ export default function Map3DView({
           mixedContentMode="compatibility"
         />
 
-        {/* Banner de Modo Colocación Directa en Catastro 3D */}
-        {isPickMode && (
-          <View style={styles.pickBanner}>
-            <Text style={styles.pickBannerText} numberOfLines={1}>
-              {draftCoords ? '🌳 Ajusta el árbol 3D o toca otro punto' : '🌱 Toca el mapa para ubicar el árbol 3D'}
-            </Text>
-            <TouchableOpacity style={styles.pickGpsBtn} onPress={handlePickUseGps} activeOpacity={0.8}>
-              <Ionicons name="locate" size={13} color="#ffffff" />
-              <Text style={styles.pickGpsBtnText}>GPS</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.pickCancelBtn} onPress={handleTogglePickMode} activeOpacity={0.8}>
-              <Ionicons name="close" size={14} color="#ffffff" />
-            </TouchableOpacity>
-          </View>
-        )}
-
         {/* Banner Toast No Bloqueante (GPS / Modo Persona / Offline) */}
-        {statusToast && !isPickMode && (
+        {statusToast && (
           <View
             style={[
               styles.statusToast,
@@ -851,29 +704,7 @@ export default function Map3DView({
 
         {/* 3. DOCK VERTICAL DERECHO: HERRAMIENTAS ECORAÍCES */}
         <View style={styles.rightFloatingStack}>
-          {/* Botón 1: + Árbol directo al Catastro 3D */}
-          {onQuickCreateTree && (
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={handleTogglePickMode}
-              style={[
-                styles.floatingActionBtn,
-                styles.floatingActionBtnAdd,
-                isPickMode && styles.floatingActionBtnAddActive
-              ]}
-            >
-              <Ionicons
-                name={isPickMode ? 'close' : 'add-circle'}
-                size={21}
-                color={isPickMode ? '#ffffff' : '#0284c7'}
-              />
-              <Text style={[styles.floatingBtnLabel, isPickMode && { color: '#ffffff' }]}>
-                {isPickMode ? 'Salir' : '+ Árbol'}
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Botón 2: Mi GPS (Determina ubicación y centra cámara) */}
+          {/* Botón 1: Mi GPS (Determina ubicación y centra cámara) */}
           <TouchableOpacity
             activeOpacity={0.85}
             onPress={handleCenterUser}
@@ -888,7 +719,7 @@ export default function Map3DView({
             <Text style={styles.floatingBtnLabel}>Mi GPS</Text>
           </TouchableOpacity>
 
-          {/* Botón 3: 2D / 3D Vista */}
+          {/* Botón 2: 2D / 3D Vista */}
           <TouchableOpacity
             activeOpacity={0.85}
             onPress={toggle3D}
@@ -900,7 +731,7 @@ export default function Map3DView({
             <Text style={[styles.floatingBtnLabel, is3DMode && !isPersonMode && { color: '#d1fae5' }]}>Vista</Text>
           </TouchableOpacity>
 
-          {/* Botón 4: Modo Persona 3D */}
+          {/* Botón 3: Modo Persona 3D */}
           <TouchableOpacity
             activeOpacity={0.85}
             onPress={handleTogglePersonMode}
@@ -919,7 +750,7 @@ export default function Map3DView({
             </Text>
           </TouchableOpacity>
 
-          {/* Botón 5: Descarga Externa Mapa Offline */}
+          {/* Botón 4: Descarga Externa Mapa Offline */}
           <TouchableOpacity activeOpacity={0.85} onPress={handleDownloadOfflineMap} style={styles.floatingActionBtn}>
             {isDownloading ? (
               <Text style={styles.floatingActionTextSmall}>{offlinePackProgress}%</Text>
@@ -937,7 +768,7 @@ export default function Map3DView({
         </View>
 
         {/* 4. LEYENDA BOTÁNICA 3D COLAPSABLE */}
-        {!isPersonMode && !isPickMode && (
+        {!isPersonMode && (
           <View style={styles.legendContainer}>
             <TouchableOpacity
               style={styles.legendToggleBtn}
@@ -977,7 +808,7 @@ export default function Map3DView({
         )}
 
         {/* 5. COCKPIT FLOTANTE INFERIOR: MODO PERSONA ACTIVO */}
-        {isPersonMode && !isPickMode && (
+        {isPersonMode && (
           <View style={styles.personModeCard}>
             <View style={styles.personTopMetaRow}>
               <View style={styles.personDistancePill}>
@@ -1028,31 +859,8 @@ export default function Map3DView({
           </View>
         )}
 
-        {/* 6. PANEL DIRECTO DE REGISTRO EN CATASTRO ARBÓREO 3D */}
-        {isPickMode && draftCoords && (
-          <QuickAddTreeSheet
-            draftCoords={draftCoords}
-            draftLocationLabel={draftLocationLabel}
-            speciesCatalog={speciesCatalog}
-            speciesName={draftSpeciesName}
-            onChangeSpeciesName={setDraftSpeciesName}
-            selectedSpeciesId={draftSpeciesId}
-            onSelectSpecies={(id, name) => {
-              setDraftSpeciesId(id);
-              setDraftSpeciesName(name);
-            }}
-            treeHeight={draftHeight}
-            onChangeTreeHeight={setDraftHeight}
-            healthState={draftHealthState}
-            onChangeHealthState={setDraftHealthState}
-            isSaving={isSavingDraft}
-            onSave={handleSaveDraftTree}
-            onCancel={handleTogglePickMode}
-          />
-        )}
-
-        {/* 7. TOAST CUANDO 0 ÁRBOLES COINCIDEN CON EL FILTRO */}
-        {!isPersonMode && !isPickMode && filteredTrees.length === 0 && (
+        {/* 6. TOAST CUANDO 0 ÁRBOLES COINCIDEN CON EL FILTRO */}
+        {!isPersonMode && filteredTrees.length === 0 && (
           <View style={styles.emptyToast}>
             <Text style={styles.emptyToastIcon}>🍃</Text>
             <Text style={styles.emptyToastText}>No se encontraron árboles con este filtro.</Text>

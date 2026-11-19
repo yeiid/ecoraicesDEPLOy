@@ -67,6 +67,7 @@ export default function App() {
   const [selectedSpeciesId, setSelectedSpeciesId] = useState(null);
   const [selectedCommunityId, setSelectedCommunityId] = useState(null);
   const [municipio, setMunicipio] = useState('Riohacha');
+  const [treeHeight, setTreeHeight] = useState(8);
   const [healthState, setHealthState] = useState('Sano y vigoroso');
   const [notes, setNotes] = useState('');
   const [photoUri, setPhotoUri] = useState(null);
@@ -736,19 +737,28 @@ export default function App() {
       const resolvedCommunityId = isCommunityIdReal ? selectedCommunityId : null;
       const resolvedScientific = getScientificFor(finalSpecies);
 
+      const numericHeight = Number(treeHeight) || 8;
+      const rawNotes = notes.trim();
+      const combinedNotes =
+        rawNotes && !/Altura:\s*\d/i.test(rawNotes)
+          ? `Altura: ${numericHeight}m. ${rawNotes}`
+          : rawNotes || `Altura: ${numericHeight}m.`;
+
       const treePayload = {
         clientId,
         speciesId: resolvedSpeciesId,
         communityId: resolvedCommunityId,
         speciesName: finalSpecies,
         scientificName: resolvedScientific,
-        municipio: municipio.trim(),
+        municipio: (detectedLocation?.municipio || municipio || 'Riohacha').trim(),
         latitude: coords.latitude,
         longitude: coords.longitude,
         altitude: coords.altitude || null,
+        treeHeight: numericHeight,
+        heightMeters: numericHeight,
         accuracy: gpsAccuracy || 10,
         healthState,
-        notes: notes.trim(),
+        notes: combinedNotes,
         localImagePath: localPhotoPath,
         observationDate: new Date().toISOString().split('T')[0]
       };
@@ -1001,74 +1011,6 @@ export default function App() {
     return [...pendingOrUnsyncedLocal, ...formattedRemote];
   }, [outboxTrees, remoteTrees, serverUrl]);
 
-  // Registro directo de árbol en el Catastro Arbóreo 3D desde el mapa
-  const handleQuickCreateTreeFromMap = async ({
-    latitude,
-    longitude,
-    speciesName: spName,
-    speciesId: spId,
-    treeHeight,
-    healthState: health,
-    municipio: muni
-  }) => {
-    const finalSpecies = (spName || '').trim();
-    if (!finalSpecies) {
-      throw new Error('Ingresa o elige la especie del árbol.');
-    }
-
-    const clientId = 'tree_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
-    const matchedSpecies = apiSpecies.find(
-      (s) => (s.name || '').toLowerCase() === finalSpecies.toLowerCase()
-    );
-    const isSelectedIdReal = spId && apiSpecies.some((s) => String(s.id) === String(spId));
-    const resolvedSpeciesId = isSelectedIdReal ? spId : (matchedSpecies?.id || null);
-    const resolvedScientific = getScientificFor(finalSpecies);
-    const resolvedMuni = (muni || detectedLocation?.municipio || municipio || 'Sin municipio').trim();
-
-    const treePayload = {
-      clientId,
-      speciesId: resolvedSpeciesId,
-      communityId: null,
-      speciesName: finalSpecies,
-      scientificName: resolvedScientific,
-      municipio: resolvedMuni,
-      latitude: Number(latitude),
-      longitude: Number(longitude),
-      altitude: null,
-      treeHeight: Number(treeHeight) || 8,
-      heightMeters: Number(treeHeight) || 8,
-      accuracy: gpsAccuracy || 5,
-      healthState: health || 'Sano y vigoroso',
-      notes: `Altura: ${Number(treeHeight) || 8}m. Registrado en Catastro 3D.`,
-      localImagePath: null,
-      observationDate: new Date().toISOString().split('T')[0]
-    };
-
-    await saveOfflineTree(treePayload);
-    setSessionCount((prev) => prev + 1);
-
-    let syncedImmediately = false;
-    if (token) {
-      try {
-        await uploadSingleObservation(treePayload, getCleanBaseUrl(), token, {
-          species: apiSpecies,
-          communities: apiCommunities
-        });
-        await markTreeStatus(clientId, 'SYNCED', null);
-        syncedImmediately = true;
-        await Promise.all([
-          fetchRemoteObservations(),
-          fetchServerStats()
-        ]);
-      } catch (syncErr) {
-        await markTreeStatus(clientId, 'ERROR', syncErr?.message || null);
-      }
-    }
-
-    await refreshStats();
-    return { clientId, syncedImmediately };
-  };
-
   // Cálculo de Gamificación y Medallas del usuario basado en registros reales
   const gamification = useMemo(() => {
     return calculateUserGamification(allMapTrees, apiCommunities.length || 1);
@@ -1145,11 +1087,9 @@ export default function App() {
         {activeTab === 'map3d' && (
           <Map3DView
             trees={allMapTrees}
-            speciesCatalog={displaySpeciesCatalog}
             userCoords={coords}
             detectedLocation={detectedLocation}
             onLocationUpdate={handleMapLocationUpdate}
-            onQuickCreateTree={handleQuickCreateTreeFromMap}
           />
         )}
 
@@ -1159,6 +1099,7 @@ export default function App() {
             coords={coords}
             gpsAccuracy={gpsAccuracy}
             isLocating={isLocating}
+            detectedLocation={detectedLocation}
             fetchCurrentLocation={fetchCurrentLocation}
             saveSuccessBanner={saveSuccessBanner}
             saveErrorBanner={saveErrorBanner}
@@ -1172,7 +1113,8 @@ export default function App() {
             setSelectedCommunityId={setSelectedCommunityId}
             municipio={municipio}
             setMunicipio={setMunicipio}
-            onOpenTerritoryModal={() => setShowTerritoryModal(true)}
+            treeHeight={treeHeight}
+            setTreeHeight={setTreeHeight}
             extraOptionsOpen={extraOptionsOpen}
             setExtraOptionsOpen={setExtraOptionsOpen}
             photoUri={photoUri}
